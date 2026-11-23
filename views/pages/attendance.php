@@ -15,6 +15,7 @@ $people = array_filter($records, fn($item) =>
     ($department === '' || $item[0]['department'] === $department)
     && ($search === '' || mb_stripos(employee_name($item[0]), $search) !== false));
 $filters = ['department' => $department, 'q' => $search];
+$pageRows = paginate($people);
 ?>
 <div class="page-head">
     <div><h1>Attendance</h1><p>Record where people worked and when they clocked in and out.</p></div>
@@ -45,15 +46,19 @@ $filters = ['department' => $department, 'q' => $search];
             <?php endforeach; ?>
         </select>
         <button class="btn">Filter</button>
+        <?php link_to('attendance', 'Clear filters', ['date' => $date], 'btn ghost'); ?>
+        <?php if (!$future): ?><span class="muted web-push"><?= count($people) ?> matches</span><?php endif; ?>
     </form>
     <?php if ($future || !$people): ?>
-        <div class="empty"><strong><?= $future ? "This day hasn't happened yet" : 'Nobody matches' ?></strong></div>
+        <div class="empty"><strong><?= $future ? "This day hasn't happened yet" : 'Nobody matches' ?></strong>
+            <?php if (!$future && ($department !== '' || $search !== '')) link_to('attendance', 'Clear filters', ['date' => $date], 'btn sm'); ?>
+        </div>
     <?php else: ?>
         <div class="table-wrap">
             <table class="data">
                 <thead><tr><th>Employee</th><th>Status</th><th>Clock in</th><th>Clock out</th><th>Hours</th><th>Actions</th></tr></thead>
                 <tbody>
-                <?php foreach ($people as [$person, $record, $onLeave]):
+                <?php foreach ($pageRows['rows'] as [$person, $record, $onLeave]):
                     $name = employee_name($person);
                     $id = 'attendance-' . $person['id'];
                     $minutes = $record['in'] && $record['out'] ? (strtotime($record['out']) - strtotime($record['in'])) / 60 : 0;
@@ -61,7 +66,7 @@ $filters = ['department' => $department, 'q' => $search];
                     <tr>
                         <td><a class="who" href="<?= h(page_url('employees', ['id' => $person['id']])) ?>"><span class="avatar"><?= h(initials($name)) ?></span><span><strong><?= h($name) ?></strong><small><?= h($person['department']) ?></small></span></a></td>
                         <td>
-                            <?php if ($onLeave): ?><span class="badge warn">On leave</span>
+                            <?php if ($onLeave): ?><?php status_badge('leave'); ?>
                             <?php else: ?>
                                 <select class="input sm" name="status" form="<?= h($id) ?>" aria-label="<?= h("Status for $name") ?>">
                                     <?php foreach (['' => 'Not recorded'] + array_intersect_key($labels, options(ATT_STATUSES)) as $value => $label): ?>
@@ -73,7 +78,7 @@ $filters = ['department' => $department, 'q' => $search];
                         <td><input class="input sm" type="time" name="in" value="<?= h($record['in']) ?>" form="<?= h($id) ?>" aria-label="<?= h("Clock in for $name") ?>"<?= $onLeave ? ' disabled' : '' ?>></td>
                         <td><input class="input sm" type="time" name="out" value="<?= h($record['out']) ?>" form="<?= h($id) ?>" aria-label="<?= h("Clock out for $name") ?>"<?= $onLeave ? ' disabled' : '' ?>></td>
                         <td><?= $minutes > 0 ? h(sprintf('%dh %02dm', intdiv((int) $minutes, 60), $minutes % 60)) : '—' ?></td>
-                        <td>
+                        <td class="actions">
                             <?php if (!$onLeave): ?>
                                 <form method="post" id="<?= h($id) ?>">
                                     <?php hidden_inputs(['_action' => 'attendance.set', '_token' => $_SESSION['web_csrf'], 'date' => $date, 'empId' => $person['id']]); ?>
@@ -86,5 +91,6 @@ $filters = ['department' => $department, 'q' => $search];
                 </tbody>
             </table>
         </div>
+        <?php pagination($pageRows, 'attendance', ['date' => $date] + $filters, 'employees'); ?>
     <?php endif; ?>
 </section>

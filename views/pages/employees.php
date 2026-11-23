@@ -22,7 +22,9 @@ function employees_view(array $state): void
         card('Leave history and balances');
         leave_balances($state, $id);
         if ($employee['status'] === 'Active') leave_form([$id => employee_name($employee)], true);
-        leave_table($state, array_filter($state['leaves'], fn($l) => $l['empId'] === $id));
+        $history = paginate(array_filter($state['leaves'], fn($l) => $l['empId'] === $id), 'leavePage');
+        leave_table($state, $history['rows']);
+        pagination($history, 'employees', ['id' => $id], 'requests', 'leavePage');
         echo '</section>';
         return;
     }
@@ -30,13 +32,8 @@ function employees_view(array $state): void
     $todayStatuses = employee_today_statuses($state);
     $list = employee_list($state, $todayStatuses);
     $filters = array_intersect_key($_GET, array_flip(['q', 'department', 'status', 'type', 'todayStatus']));
-    $total = count($list);
-    $pageSize = 9;
-    $pageCount = max(1, (int) ceil($total / $pageSize));
-    $pageNumber = max(1, min($pageCount, (int) ($_GET['p'] ?? 1)));
-    $offset = ($pageNumber - 1) * $pageSize;
-    $visible = array_slice($list, $offset, $pageSize);
-    $badges = ['office' => ['In office', 'ok'], 'remote' => ['Remote', ''], 'away' => ['Away', 'warn'], 'leave' => ['On leave', 'warn'], 'none' => ['No record', 'plain'], 'offboarded' => ['Offboarded', 'plain']];
+    $pagination = paginate($list);
+    $attendanceOptions = ['office' => 'In office', 'remote' => 'Remote', 'away' => 'Away', 'leave' => 'On leave', 'none' => 'No record', 'offboarded' => 'Offboarded'];
     $active = count(array_filter($state['employees'], fn($e) => $e['status'] === 'Active'));
     ?>
     <div class="page-head">
@@ -54,7 +51,7 @@ function employees_view(array $state): void
                 ['department', 'Department', ['' => 'All departments'] + options(DEPARTMENTS), ''],
                 ['type', 'Employment type', ['' => 'All types'] + options(EMP_TYPES), ''],
                 ['status', 'Employment status', ['' => 'Everyone'] + options(['Active', 'Offboarded']), 'Active'],
-                ['todayStatus', 'Today’s attendance', ['' => 'Any status today'] + array_map(fn($badge) => $badge[0], $badges), ''],
+                ['todayStatus', 'Today’s attendance', ['' => 'Any status today'] + $attendanceOptions, ''],
             ] as [$name, $label, $items, $default]): ?>
                 <select class="input" name="<?= h($name) ?>" aria-label="<?= h($label) ?>">
                     <?php foreach ($items as $value => $text): ?>
@@ -62,6 +59,7 @@ function employees_view(array $state): void
                     <?php endforeach; ?>
                 </select>
             <?php endforeach; ?>
+            <?php link_to('employees', 'Clear filters', [], 'btn ghost'); ?>
             <span class="muted" id="employee-count" role="status"><?= count($list) ?> <?= count($list) === 1 ? 'person' : 'people' ?></span>
         </form>
         <div id="employee-results">
@@ -69,11 +67,10 @@ function employees_view(array $state): void
             <table class="data">
                 <thead><tr><th>Name</th><th>Job title</th><th>Department</th><th>Type</th><th>Start date</th><th>Today</th><th class="num">Actions</th></tr></thead>
                 <tbody>
-                    <?php if (!$list): ?><tr><td colspan="7"><div class="empty"><strong>No one matches these filters</strong></div></td></tr><?php endif; ?>
-                    <?php foreach ($visible as $person):
+                    <?php if (!$list): ?><tr><td colspan="7"><div class="empty"><strong>No one matches these filters</strong><?php link_to('employees', 'Clear filters', [], 'btn sm'); ?></div></td></tr><?php endif; ?>
+                    <?php foreach ($pagination['rows'] as $person):
                         $name = employee_name($person);
                         $profile = page_url('employees', ['id' => $person['id']]);
-                        [$badge, $style] = $badges[$todayStatuses[$person['id']] ?? 'none'] ?? $badges['none'];
                     ?>
                         <tr>
                             <td><a class="who" href="<?= h($profile) ?>"><span class="avatar"><?= h(initials($name)) ?></span><span><strong><?= h($name) ?></strong><small><?= h($person['email']) ?></small></span></a></td>
@@ -81,23 +78,14 @@ function employees_view(array $state): void
                             <td><?= h($person['department']) ?></td>
                             <td><?= h($person['type']) ?></td>
                             <td class="tabular"><?= h((new DateTimeImmutable($person['startDate']))->format('M j, Y')) ?></td>
-                            <td><span class="badge <?= h($style) ?>"><?= h($badge) ?></span></td>
+                            <td><?php status_badge($todayStatuses[$person['id']] ?? 'none'); ?></td>
                             <td class="actions"><a class="sq" href="<?= h(page_url('employees', ['edit' => $person['id']] + array_intersect_key($_GET, ['p' => true]) + $filters)) ?>" data-edit-employee="<?= h(json_encode($person, JSON_INVALID_UTF8_SUBSTITUTE)) ?>" aria-label="<?= h("Edit $name") ?>" title="<?= h("Edit $name") ?>"><?= icon('edit', 14) ?></a></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
             </table>
         </div>
-        <?php if ($pageCount > 1): ?>
-            <nav class="card-foot" aria-label="Employee directory pages">
-                <span>Showing <?= $offset + 1 ?>–<?= min($offset + $pageSize, $total) ?> of <?= $total ?> employees</span>
-                <div class="toolbar">
-                    <?php if ($pageNumber > 1) link_to('employees', 'Previous', ['p' => $pageNumber - 1] + $filters, 'btn sm'); ?>
-                    <span>Page <?= $pageNumber ?> of <?= $pageCount ?></span>
-                    <?php if ($pageNumber < $pageCount) link_to('employees', 'Next', ['p' => $pageNumber + 1] + $filters, 'btn sm'); ?>
-                </div>
-            </nav>
-        <?php endif; ?>
+        <?php pagination($pagination, 'employees', $filters, 'employees'); ?>
         </div>
     </section>
     <script src="<?= h(versioned_asset('assets/js/employee-search.js')) ?>" defer></script>

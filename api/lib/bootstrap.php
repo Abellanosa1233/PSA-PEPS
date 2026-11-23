@@ -19,16 +19,16 @@ const ATT_STATUSES = ['office', 'remote', 'away'];
 final class ApiError extends Exception
 {
     public int $status;
-    public function __construct(string $message, int $status = 422)
+    public function __construct(string $message, int $status = 422, public readonly ?string $field = null)
     {
         parent::__construct($message);
         $this->status = $status;
     }
 }
 
-function fail(string $message, int $status = 422): never
+function fail(string $message, int $status = 422, ?string $field = null): never
 {
-    throw new ApiError($message, $status);
+    throw new ApiError($message, $status, $field);
 }
 
 function db(): PDO
@@ -144,8 +144,8 @@ function set_setting(string $k, $v): void
 function str_in(array $in, string $key, int $max = 255, bool $required = true, string $label = ''): string
 {
     $v = trim((string) ($in[$key] ?? ''));
-    if ($required && $v === '') fail(($label ?: ucfirst($key)) . ' is required.');
-    if (mb_strlen($v) > $max) fail(($label ?: ucfirst($key)) . " must be $max characters or fewer.");
+    if ($required && $v === '') fail(($label ?: ucfirst($key)) . ' is required.', field: $key);
+    if (mb_strlen($v) > $max) fail(($label ?: ucfirst($key)) . " must be $max characters or fewer.", field: $key);
     return $v;
 }
 
@@ -153,11 +153,11 @@ function date_in(array $in, string $key, bool $required = true, string $label = 
 {
     $v = trim((string) ($in[$key] ?? ''));
     if ($v === '') {
-        if ($required) fail("$label is required.");
+        if ($required) fail("$label is required.", field: $key);
         return null;
     }
     $d = DateTime::createFromFormat('!Y-m-d', $v);
-    if (!$d || $d->format('Y-m-d') !== $v) fail("$label must be a valid date.");
+    if (!$d || $d->format('Y-m-d') !== $v) fail("$label must be a valid date.", field: $key);
     return $v;
 }
 
@@ -165,7 +165,7 @@ function time_in(array $in, string $key): ?string
 {
     $v = trim((string) ($in[$key] ?? ''));
     if ($v === '') return null;
-    if (!preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $v)) fail('Times must look like 09:30.');
+    if (!preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $v)) fail('Times must look like 09:30.', field: $key);
     return $v;
 }
 

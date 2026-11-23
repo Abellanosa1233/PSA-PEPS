@@ -82,11 +82,15 @@ function action_button(string $action, string $label, array $values = []): void
     end_form($label);
 }
 
-function field(string $name, string $label, mixed $value = '', string $type = 'text', bool $required = true): void
+function field(string $name, string $label, mixed $value = '', string $type = 'text', bool $required = true, string $error = ''): void
 {
+    $errorId = 'field-error-' . $name;
     echo '<label class="field"><span>' . h($label) . '</span><input class="input" name="' . h($name)
         . '" type="' . h($type) . '" value="' . h($value) . '"' . ($required ? ' required' : '')
-        . ($type === 'number' ? ' step="any"' : '') . '></label>';
+        . ($type === 'number' ? ' step="any"' : '')
+        . ($error !== '' ? ' aria-invalid="true" aria-describedby="' . h($errorId) . '"' : '') . '>';
+    if ($error !== '') echo '<span class="field-error" id="' . h($errorId) . '">' . h($error) . '</span>';
+    echo '</label>';
 }
 
 function choice(string $name, string $label, array $options, mixed $selected = ''): void
@@ -115,8 +119,8 @@ function web_table(array $headers, array $rows): void
     echo '</tr></thead><tbody>';
     foreach ($rows as $row) {
         echo '<tr>';
-        foreach ($row as $cell) {
-            echo '<td>';
+        foreach ($row as $index => $cell) {
+            echo ($headers[$index] ?? '') === 'Actions' ? '<td class="actions">' : '<td>';
             if ($cell instanceof Closure) $cell();
             else echo h($cell);
             echo '</td>';
@@ -125,6 +129,61 @@ function web_table(array $headers, array $rows): void
     }
     if (!$rows) echo '<tr><td colspan="' . count($headers) . '">No records found.</td></tr>';
     echo '</tbody></table></div>';
+}
+
+function paginate(array $rows, string $parameter = 'p'): array
+{
+    $size = 9;
+    $total = count($rows);
+    $pages = max(1, (int) ceil($total / $size));
+    $current = max(1, min($pages, (int) ($_GET[$parameter] ?? 1)));
+    $offset = ($current - 1) * $size;
+    return [
+        'rows' => array_slice($rows, $offset, $size), 'current' => $current, 'pages' => $pages,
+        'first' => $total ? $offset + 1 : 0, 'last' => min($offset + $size, $total), 'total' => $total,
+    ];
+}
+
+function pagination(array $list, string $page, array $query, string $label, string $parameter = 'p'): void
+{
+    if (!$list['total']) return;
+    $current = $list['current'];
+    $pages = $list['pages'];
+    ?>
+    <nav class="card-foot list-pagination" aria-label="<?= h(ucfirst($label) . ' pages') ?>">
+        <span>Showing <?= $list['first'] ?>–<?= $list['last'] ?> of <?= $list['total'] ?> <?= h($label) ?></span>
+        <?php if ($pages > 1): ?>
+            <div class="toolbar">
+                <?php if ($current > 1) link_to($page, 'Previous', [$parameter => $current - 1] + $query, 'btn sm'); ?>
+                <?php
+                $numbers = array_unique([1, ...range(max(1, $current - 1), min($pages, $current + 1)), $pages]);
+                $previous = 0;
+                foreach ($numbers as $number):
+                    if ($previous && $number > $previous + 1) echo '<span aria-hidden="true">…</span>';
+                    $previous = $number;
+                    if ($number === $current): ?>
+                        <span class="btn sm primary" aria-current="page" aria-label="Page <?= $number ?>"><?= $number ?></span>
+                    <?php else: ?>
+                        <a class="btn sm" href="<?= h(page_url($page, [$parameter => $number] + $query)) ?>" aria-label="Page <?= $number ?>"><?= $number ?></a>
+                    <?php endif; ?>
+                <?php endforeach; ?>
+                <?php if ($current < $pages) link_to($page, 'Next', [$parameter => $current + 1] + $query, 'btn sm'); ?>
+            </div>
+        <?php endif; ?>
+    </nav>
+    <?php
+}
+
+function status_badge(string $status): void
+{
+    [$label, $style] = match ($status) {
+        'approved' => ['Approved', 'ok'], 'pending' => ['Pending', 'warn'], 'rejected' => ['Declined', 'bad'],
+        'office' => ['In office', 'ok'], 'remote' => ['Remote', ''], 'away' => ['Away', 'warn'],
+        'leave' => ['On leave', 'warn'], 'offboarded' => ['Offboarded', 'plain'],
+        'paid' => ['Paid', 'ok'], 'draft' => ['Draft', 'warn'],
+        default => ['No record', 'plain'],
+    };
+    echo '<span class="badge ' . h($style) . '">' . h($label) . '</span>';
 }
 
 function employee_name(array $employee): string
@@ -276,7 +335,7 @@ function export_page(string $page, array $state): void
 
 function confirm_action(string $action, string $label, string $prompt, array $values = []): void
 {
-    echo '<details><summary>' . h($label) . '</summary><p>' . h($prompt) . '</p>';
+    echo '<details class="form-disclosure destructive-action" data-form-dialog="confirm"><summary class="btn sm">' . h($label) . '</summary><p>' . h($prompt) . '</p>';
     action_button($action, $label, $values);
     echo '</details>';
 }

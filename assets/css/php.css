@@ -12,14 +12,65 @@
 }
 
 .web-card h2 { margin: 0; font-size: 16px; }
-.web-auth .brand-mark, .web-app .brand-mark { flex: none; }
-.web-auth .brand small, .web-app .brand small {
+.web-auth .brand-mark { flex: none; }
+.web-auth .brand small {
   display: block;
   color: var(--fg-3);
   font-size: 10.5px;
   font-weight: 500;
   letter-spacing: normal;
 }
+
+.web-app .sidebar {
+  gap: 0;
+  overflow: visible;
+  padding: 20px 16px 14px;
+  background: var(--surface);
+}
+.web-app .sidebar-brand {
+  gap: 9px;
+  padding: 0;
+  margin-bottom: 34px;
+  font-size: 23px;
+  font-weight: 700;
+}
+.sidebar-brand img {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
+.web-app .sidebar .side-label { padding-bottom: 8px; }
+.web-app .sidebar .ws-switch {
+  min-height: 55px;
+  margin-bottom: 32px;
+  padding: 8px 12px;
+  border: 0;
+  background: var(--surface-2);
+}
+.web-app .sidebar .nav { gap: 6px; }
+.web-app .sidebar .nav a { min-height: 40px; padding-inline: 14px; }
+.web-app .sidebar .nav a:not(.active) { color: var(--fg-2); }
+.web-app .sidebar .nav .ic { flex: none; }
+.web-app .sidebar .side-spacer { min-height: 30px; }
+.web-app .sidebar .side-links { gap: 8px; margin-bottom: 42px; }
+.web-app .sidebar .side-link {
+  justify-content: flex-start;
+  gap: 7px;
+  min-height: 38px;
+  padding-inline: 12px;
+  border: 0;
+  background: var(--surface-2);
+}
+.web-app .sidebar .side-link:is(:hover, .active) { background: var(--surface-3); }
+.web-app .sidebar .help-card {
+  margin-bottom: 18px;
+  padding: 14px 12px;
+  border: 0;
+  background: var(--surface-2);
+}
+.web-app .sidebar .help-card a { min-height: 28px; margin-top: 10px; }
+.web-app .sidebar .help-card a .ic { color: var(--fg-3); }
 .web-card > .btn { justify-self: start; }
 .web-card dd { margin: 0 0 12px; }
 .web-card summary { cursor: pointer; font-weight: 600; }
@@ -36,10 +87,10 @@
 .web-app .web-card table .web-fields { min-width: 150px; }
 .web-app .web-card table .web-fields .field { flex-basis: auto; }
 .web-bell { position: relative; }
+.desktop-full-screen[hidden] { display: none; }
+.desktop-full-screen-auth { position: fixed; top: 16px; right: 20px; }
 .web-user summary { list-style: none; }
 .web-user summary::-webkit-details-marker { display: none; }
-.web-user .popover form { display: block; }
-.web-user .popover form button { width: 100%; }
 .web-week { display: flex; align-items: center; gap: 6px; }
 .web-office { background: var(--bar-1); fill: var(--bar-1); }
 .web-remote { background: var(--bar-2); fill: var(--bar-2); }
@@ -120,15 +171,36 @@
 .employee-dialog .modal-foot [hidden] { display: none; }
 .employee-dialog::backdrop { background: var(--scrim); }
 .employee-dialog[open]:not(:modal) { z-index: 60; box-shadow: 0 0 0 100vmax var(--scrim); }
+.sign-out-dialog {
+  position: fixed;
+  inset: 0;
+  width: min(420px, calc(100% - 32px));
+  margin: auto;
+  padding: 0;
+  color: var(--fg);
+}
+.sign-out-dialog:not([open]) { display: none; }
+.sign-out-dialog::backdrop { background: var(--scrim); }
+.sign-out-dialog[open]:not(:modal) { z-index: 60; box-shadow: 0 0 0 100vmax var(--scrim); }
+.sign-out-dialog.wide { width: min(760px, calc(100% - 32px)); }
+.form-disclosure > summary { list-style: none; }
+.form-disclosure > summary::-webkit-details-marker { display: none; }
+.destructive-action { margin-top: 6px; }
+.destructive-action > summary { color: var(--bad); }
+.list-pagination { flex-wrap: wrap; }
+.card-foot.list-pagination .toolbar { gap: 4px; }
+.web-card > .toolbar { align-items: end; }
+.field .field-error { color: var(--bad); }
+.field .input[aria-invalid="true"] { border-color: var(--bad); }
 .employee-save-pending { display: none; align-items: center; gap: 7px; }
 .employee-save[data-saving] .employee-save-ready { display: none; }
 .employee-save[data-saving] .employee-save-pending { display: inline-flex; }
 
 @media (prefers-reduced-motion: no-preference) {
-  .employee-dialog[open] { animation: employee-dialog-in 180ms ease-out both; }
-  .employee-dialog[open]::backdrop { animation: employee-backdrop-in 180ms ease-out both; }
-  .employee-dialog[open][data-closing] { animation: employee-dialog-out 150ms ease-in both; }
-  .employee-dialog[open][data-closing]::backdrop { animation: employee-backdrop-out 150ms ease-in both; }
+  :is(.employee-dialog, .sign-out-dialog)[open] { animation: dialog-in 180ms ease-out both; }
+  :is(.employee-dialog, .sign-out-dialog)[open]::backdrop { animation: dialog-backdrop-in 180ms ease-out both; }
+  :is(.employee-dialog, .sign-out-dialog)[open][data-closing] { animation: dialog-out 150ms ease-in both; }
+  :is(.employee-dialog, .sign-out-dialog)[open][data-closing]::backdrop { animation: dialog-backdrop-out 150ms ease-in both; }
   .employee-save-spinner {
     width: 13px;
     height: 13px;
@@ -139,20 +211,53 @@
   }
 }
 
-@keyframes employee-dialog-in {
+@keyframes dialog-in {
   from { opacity: 0; transform: translateY(10px) scale(.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
-@keyframes employee-dialog-out {
+@keyframes dialog-out {
   from { opacity: 1; transform: translateY(0) scale(1); }
   to { opacity: 0; transform: translateY(8px) scale(.98); }
 }
-@keyframes employee-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes employee-backdrop-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes dialog-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes dialog-backdrop-out { from { opacity: 1; } to { opacity: 0; } }
 @keyframes employee-spin { to { transform: rotate(360deg); } }
+
+@media (max-height: 900px) {
+  .web-app .sidebar { padding-block: 16px 12px; }
+  .web-app .sidebar-brand { margin-bottom: 22px; }
+  .web-app .sidebar .ws-switch { min-height: 48px; margin-bottom: 20px; }
+  .web-app .sidebar .nav { gap: 4px; }
+  .web-app .sidebar .nav a { min-height: 34px; padding-block: 5px; }
+  .web-app .sidebar .side-spacer { min-height: 16px; }
+  .web-app .sidebar .side-links { gap: 6px; margin-bottom: 22px; }
+  .web-app .sidebar .side-link { min-height: 33px; }
+  .web-app .sidebar .help-card { margin-bottom: 12px; padding-block: 10px; }
+  .web-app .sidebar .help-card a { min-height: 22px; margin-top: 6px; }
+}
+
+@media (max-height: 720px) {
+  .web-app .sidebar { padding-block: 12px 8px; }
+  .web-app .sidebar-brand { margin-bottom: 12px; }
+  .web-app .sidebar-brand img { width: 32px; height: 32px; }
+  .web-app .sidebar .side-label { padding-bottom: 4px; }
+  .web-app .sidebar .ws-switch { min-height: 42px; margin-bottom: 12px; padding-block: 4px; }
+  .web-app .sidebar .nav { gap: 2px; }
+  .web-app .sidebar .nav a { min-height: 30px; padding-block: 4px; }
+  .web-app .sidebar .side-spacer { min-height: 8px; }
+  .web-app .sidebar .side-links { margin-bottom: 12px; }
+  .web-app .sidebar .side-link { min-height: 28px; padding-block: 4px; }
+  .web-app .sidebar .help-card { margin-bottom: 8px; padding-block: 8px; }
+  .web-app .sidebar .help-card a { min-height: 18px; margin-top: 4px; }
+}
+
+@media (max-height: 600px) {
+  .web-app .sidebar { position: static; height: auto; align-self: start; min-height: 100vh; }
+}
 
 @media (max-width: 900px) {
   .web-app { display: block; }
-  .web-app .sidebar { position: static; width: auto; height: auto; transform: none; }
+  .web-app .sidebar { position: static; width: auto; height: auto; min-height: 0; transform: none; }
   .web-app .sidebar .nav { display: flex; flex-wrap: wrap; }
+  .web-app .sidebar .side-links { margin-bottom: 18px; }
 }

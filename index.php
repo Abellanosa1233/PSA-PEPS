@@ -24,9 +24,10 @@ $state = null;
 $error = '';
 $notice = '';
 $errorLevel = 'failure';
+$errorField = null;
 $formError = [];
 $isPost = $_SERVER['REQUEST_METHOD'] === 'POST';
-$query = array_intersect_key($_GET, array_flip(['id', 'date', 'q', 'department', 'status', 'month', 'type', 'todayStatus', 'week', 'p', 'candidate']));
+$query = array_intersect_key($_GET, array_flip(['id', 'date', 'q', 'department', 'status', 'month', 'type', 'todayStatus', 'week', 'p', 'candidate', 'candidates', 'rolesPage', 'leavePage', 'slipsPage']));
 $screen = 'Sign in';
 $theme = 'system';
 try {
@@ -85,6 +86,7 @@ try {
     }
 } catch (ApiError $e) {
     $error = $e->getMessage();
+    $errorField = $e->field;
     if ($e->status >= 500) $errorLevel = 'error';
     if (!$isPost) http_response_code($e->status);
 } catch (Throwable $e) {
@@ -104,12 +106,26 @@ if ($isPost) {
         && ($_POST['_action'] ?? '') === 'employee.save'
         && ($_POST['_employee_modal'] ?? '') === '1';
     $fields = array_flip(['id', 'firstName', 'lastName', 'email', 'phone', 'title', 'department', 'type', 'location', 'startDate', 'salary', 'managerId']);
+    $sharedFields = match ($_POST['_shared_form'] ?? '') {
+        'leave.create' => ['empId', 'type', 'start', 'end', 'reason', 'approveNow'],
+        'event.save' => ['date', 'title', 'detail', 'start', 'end'],
+        'position.save' => ['id', 'title', 'department', 'type', 'location'],
+        'candidate.save' => ['positionId', 'name', 'email', 'source'],
+        default => [],
+    };
     $_SESSION['web_form_error'] = [
         'page' => $page,
         'message' => $error,
         'level' => $errorLevel,
+        'field' => $errorField,
         'employeeModal' => $employeeModal,
         'values' => $employeeModal ? array_filter(array_intersect_key($_POST, $fields), 'is_string') : [],
+        'shared' => $sharedFields ? [
+            'action' => $_POST['_shared_form'],
+            'message' => $error,
+            'field' => $errorField,
+            'values' => array_filter(array_intersect_key($_POST, array_flip($sharedFields)), 'is_string'),
+        ] : null,
     ];
     header('Location: ' . page_url($page, $query), true, 303);
     exit;

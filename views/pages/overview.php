@@ -115,7 +115,7 @@ $events = array_filter($state['events'], fn($event) => $event['date'] === $date)
         </div>
         <div class="card-body" id="schedule-date">
             <?php get_form('overview'); field('date', 'Schedule date', $date, 'date'); end_form('Show'); ?>
-            <details><summary>Add event</summary>
+            <details class="form-disclosure" data-form-dialog="form"><summary class="btn">Add event</summary>
                 <?php post_form('event.save', ['date' => $date]); field('title', 'Event title'); field('detail', 'Details', '', 'text', false); field('start', 'Start time', '', 'time'); field('end', 'End time', '', 'time'); end_form('Save event'); ?>
             </details>
         </div>

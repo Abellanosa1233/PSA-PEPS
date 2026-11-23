@@ -4,7 +4,7 @@ declare(strict_types=1);
 function leave_form(array $employees, bool $allowApproval = false): void
 {
     if (!$employees) return;
-    echo '<details><summary>Request time off</summary>';
+    echo '<details class="form-disclosure" data-form-dialog="form"><summary class="btn primary">Request time off</summary>';
     post_form('leave.create');
     choice('empId', 'Employee', $employees);
     choice('type', 'Leave type', options(LEAVE_TYPES));
@@ -27,16 +27,14 @@ function leave_table(array $state, array $leaves, bool $canDecide = true, bool $
                 echo h($l['start'] . ' – ' . $l['end']) . '<span class="sub">' . (int) $l['days'] . ' day(s)</span>';
             },
             function () use ($l) {
-                foreach (['approved' => ['Approve', 'check', 'approve'], 'rejected' => ['Decline', 'x', 'reject']] as $status => [$label, $glyph, $style]) {
-                    post_form('leave.decide', ['id' => $l['id'], 'status' => $status], true);
-                    echo '<button class="sq ' . $style . '" type="submit" aria-label="' . $label . '" title="' . $label . '">' . icon($glyph, 14) . '</button></form>';
-                }
+                action_button('leave.decide', 'Approve', ['id' => $l['id'], 'status' => 'approved']);
+                action_button('leave.decide', 'Decline', ['id' => $l['id'], 'status' => 'rejected']);
             },
         ], $leaves));
         return;
     }
     web_table(['Employee', 'Type', 'Dates', 'Days', 'Reason', 'Status', 'Actions'], array_map(fn($l) => [
-        $names[$l['empId']] ?? 'Former employee', $l['type'], $l['start'] . ' – ' . $l['end'], $l['days'], $l['reason'], ucfirst($l['status']),
+        $names[$l['empId']] ?? 'Former employee', $l['type'], $l['start'] . ' – ' . $l['end'], $l['days'], $l['reason'], fn() => status_badge($l['status']),
         function () use ($l, $state, $canDecide) {
             if ($l['status'] === 'pending' && $canDecide) {
                 action_button('leave.decide', 'Approve', ['id' => $l['id'], 'status' => 'approved']);

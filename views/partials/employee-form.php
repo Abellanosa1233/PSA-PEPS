@@ -18,18 +18,18 @@ function employee_form(array $state, array $employee = [], ?array $candidate = n
     echo '</section>';
 }
 
-function employee_fields(array $state, array $employee, ?int $employeeId = null): void
+function employee_fields(array $state, array $employee, ?int $employeeId = null, array $errors = []): void
 {
-    field('firstName', 'First name', $employee['firstName'] ?? '');
-    field('lastName', 'Last name', $employee['lastName'] ?? '');
-    field('email', 'Email', $employee['email'] ?? '', 'email');
-    field('phone', 'Phone', $employee['phone'] ?? '', 'tel', false);
-    field('title', 'Job title', $employee['title'] ?? '');
+    field('firstName', 'First name', $employee['firstName'] ?? '', error: $errors['firstName'] ?? '');
+    field('lastName', 'Last name', $employee['lastName'] ?? '', error: $errors['lastName'] ?? '');
+    field('email', 'Email', $employee['email'] ?? '', 'email', error: $errors['email'] ?? '');
+    field('phone', 'Phone', $employee['phone'] ?? '', 'tel', false, $errors['phone'] ?? '');
+    field('title', 'Job title', $employee['title'] ?? '', error: $errors['title'] ?? '');
     choice('department', 'Department', options(DEPARTMENTS), $employee['department'] ?? '');
     choice('type', 'Employment type', options(EMP_TYPES), $employee['type'] ?? '');
-    field('location', 'Location', $employee['location'] ?? '', 'text', false);
-    field('startDate', 'Start date', $employee['startDate'] ?? $state['today'], 'date');
-    field('salary', 'Annual salary', $employee['salary'] ?? 0, 'number');
+    field('location', 'Location', $employee['location'] ?? '', 'text', false, $errors['location'] ?? '');
+    field('startDate', 'Start date', $employee['startDate'] ?? $state['today'], 'date', error: $errors['startDate'] ?? '');
+    field('salary', 'Annual salary', $employee['salary'] ?? 0, 'number', error: $errors['salary'] ?? '');
     $managers = employee_options(array_filter($state['employees'], fn($e) =>
         $e['id'] !== $employeeId && $e['status'] === 'Active'
     ));
@@ -50,6 +50,9 @@ function add_employee_modal(array $state, string $page, array $formError): void
     $open = $failed || $editing || isset($_GET['add']) || ($_GET['id'] ?? '') === 'new';
     $query = array_intersect_key($_GET, array_flip(['q', 'department', 'status', 'type', 'todayStatus', 'p', 'date', 'week']));
     $values = $failed ? $formError['values'] : ($editing ?? []);
+    $errorField = $formError['field'] ?? '';
+    $errors = $failed && in_array($errorField, ['firstName', 'lastName', 'email', 'phone', 'title', 'location', 'startDate', 'salary'], true)
+        ? [$errorField => $formError['message']] : [];
     ?>
     <dialog id="add-employee" class="modal wide employee-dialog" aria-labelledby="add-employee-title"<?= $open ? ' open data-reopen' : '' ?>>
         <div class="modal-head">
@@ -61,8 +64,8 @@ function add_employee_modal(array $state, string $page, array $formError): void
             <input type="hidden" name="id" value="<?= h($editing['id'] ?? '') ?>">
             <input type="hidden" data-new-employee-date value="<?= h($state['today']) ?>">
             <div class="modal-body">
-                <?php if ($failed) web_message($formError['message'], ''); ?>
-                <div class="form-grid"><?php employee_fields($state, $values); ?></div>
+                <?php if ($failed && !$errors) web_message($formError['message'], ''); ?>
+                <div class="form-grid"><?php employee_fields($state, $values, errors: $errors); ?></div>
             </div>
             <div class="modal-foot">
                 <a class="btn" data-close-employee data-employee-cancel href="<?= h(page_url($page, $query)) ?>">Cancel</a>

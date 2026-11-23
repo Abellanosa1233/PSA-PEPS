@@ -22,13 +22,17 @@ function workspace_view(array $state, bool $supervisor): void
         $team = array_filter($active, fn($e) => $e['managerId'] === $profileId);
         $rows = [];
         foreach (attendance_records($state, $state['today']) as [$employee, $record, $onLeave]) {
-            if (isset($team[$employee['id']])) $rows[] = [employee_name($employee), $onLeave ? 'Leave' : ucfirst($record['status']), $record['in'], $record['out']];
+            if (isset($team[$employee['id']])) $rows[] = [employee_name($employee), fn() => status_badge($onLeave ? 'leave' : $record['status']), $record['in'], $record['out']];
         }
         card('Team today');
-        web_table(['Employee', 'Status', 'Clock in', 'Clock out'], $rows);
+        $teamPage = paginate($rows);
+        web_table(['Employee', 'Status', 'Clock in', 'Clock out'], $teamPage['rows']);
+        pagination($teamPage, 'supervisor', array_intersect_key($_GET, ['leavePage' => true]), 'employees');
         echo '</section>';
         card('Pending team requests');
-        leave_table($state, array_filter($state['leaves'], fn($l) => isset($team[$l['empId']]) && $l['status'] === 'pending'));
+        $requests = paginate(array_filter($state['leaves'], fn($l) => isset($team[$l['empId']]) && $l['status'] === 'pending'), 'leavePage');
+        leave_table($state, $requests['rows']);
+        pagination($requests, 'supervisor', array_intersect_key($_GET, ['p' => true]), 'requests', 'leavePage');
         echo '</section>';
         return;
     }
@@ -46,7 +50,9 @@ function workspace_view(array $state, bool $supervisor): void
     card('Time off');
     leave_balances($state, $profileId);
     leave_form([$profileId => employee_name($employees[$profileId])]);
-    leave_table($state, array_filter($state['leaves'], fn($l) => $l['empId'] === $profileId), false);
+    $requests = paginate(array_filter($state['leaves'], fn($l) => $l['empId'] === $profileId), 'leavePage');
+    leave_table($state, $requests['rows'], false);
+    pagination($requests, 'self-service', array_intersect_key($_GET, ['slipsPage' => true]), 'requests', 'leavePage');
     echo '</section>';
     card('Payslips');
     $rows = [];
@@ -57,7 +63,9 @@ function workspace_view(array $state, bool $supervisor): void
             }
         }
     }
-    web_table(['Period', 'Gross', 'Tax', 'Benefits', 'Net'], $rows);
+    $slips = paginate($rows, 'slipsPage');
+    web_table(['Period', 'Gross', 'Tax', 'Benefits', 'Net'], $slips['rows']);
+    pagination($slips, 'self-service', array_intersect_key($_GET, ['leavePage' => true]), 'payslips', 'slipsPage');
     echo '</section>';
 }
 

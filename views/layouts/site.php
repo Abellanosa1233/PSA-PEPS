@@ -11,6 +11,7 @@
 <body>
 <?php if (!$user): ?>
     <main class="auth web-auth">
+        <button class="btn desktop-full-screen desktop-full-screen-auth" type="button" hidden>Full screen</button>
         <section class="auth-card">
             <a class="brand" href="index.php"><span class="brand-mark" aria-hidden="true">H</span><span>HRMS<small>Human Resource Management System</small></span></a>
             <h1><?= h($screen) ?></h1>
@@ -37,10 +38,15 @@
     ];
     $pendingCount = count(array_filter($state['leaves'] ?? [], fn($leave) => $leave['status'] === 'pending'));
     $settings = $state['settings'] ?? [];
+    $signOutReturn = page_url($page, $query);
+    $showSignOut = ($_GET['confirmSignOut'] ?? '') === '1';
 ?>
     <div class="app web-app">
         <aside class="sidebar" aria-label="Main navigation">
-            <a class="brand" href="<?= h(page_url('overview')) ?>"><span class="brand-mark" aria-hidden="true">H</span><span>HRMS<small>Human Resource Management System</small></span></a>
+            <a class="brand sidebar-brand" href="<?= h(page_url('overview')) ?>" title="Human Resource Management System">
+                <img src="assets/psa-logo.svg" width="40" height="40" alt="Philippine Statistics Authority">
+                <span>HRMS</span>
+            </a>
             <div>
                 <div class="side-label">Workspace</div>
                 <a class="ws-switch" href="<?= h(page_url('preferences')) ?>">
@@ -65,7 +71,11 @@
                     <a class="side-link<?= $page === $key ? ' active' : '' ?>" href="<?= h(page_url($key)) ?>"><?= h($pages[$key]) ?><?= icon('arrowUpRight', 13) ?></a>
                 <?php endforeach; ?>
             </div>
-            <div class="help-card"><strong>HRMS help</strong><a href="<?= h(page_url('help')) ?>">Get support <?= icon('arrowRight', 13) ?></a></div>
+            <div class="help-card">
+                <strong>A little help goes a long way.</strong>
+                <p>Find answers in our help center.</p>
+                <a href="<?= h(page_url('help')) ?>">Get support <?= icon('arrowRight', 15) ?></a>
+            </div>
             <nav class="nav" aria-label="Settings and help">
                 <a class="<?= $page === 'preferences' ? 'active' : '' ?>" href="<?= h(page_url('preferences')) ?>"><?= icon('settings') ?> Settings</a>
                 <a class="<?= $page === 'help' ? 'active' : '' ?>" href="<?= h(page_url('help')) ?>"><?= icon('help') ?> Help &amp; resources</a>
@@ -75,6 +85,7 @@
             <header class="topbar">
                 <div class="crumbs"><span>Workspace</span><?= icon('chevRight', 13) ?><strong><?= h($pages[$page]) ?></strong></div>
                 <div class="top-actions">
+                    <button class="btn desktop-full-screen" type="button" hidden>Full screen</button>
                     <a class="icon-btn web-bell" href="<?= h(page_url('time-off', ['status' => 'pending'])) ?>" aria-label="Pending leave requests">
                         <?= icon('bell') ?><?php if ($pendingCount): ?><span class="dot"></span><?php endif; ?>
                     </a>
@@ -83,7 +94,7 @@
                         <div class="popover menu">
                             <a href="<?= h(page_url('preferences')) ?>"><?= icon('settings') ?> Settings</a>
                             <a href="<?= h(page_url('self-service')) ?>"><?= icon('user') ?> Employee workspace</a><hr>
-                            <?php post_form('logout'); ?><button type="submit"><?= icon('logOut') ?> Sign out</button></form>
+                            <a id="open-sign-out" href="<?= h(page_url($page, ['confirmSignOut' => 1] + $query)) ?>" aria-haspopup="dialog"><?= icon('logOut') ?> Sign out</a>
                         </div>
                     </details>
                 </div>
@@ -101,7 +112,24 @@
             </main>
         </div>
     </div>
+    <dialog id="sign-out-dialog" class="modal sign-out-dialog" aria-labelledby="sign-out-title" aria-describedby="sign-out-description"<?= $showSignOut ? ' open' : '' ?>>
+        <form method="post" action="<?= h($signOutReturn) ?>">
+            <?php hidden_inputs(['_action' => 'logout', '_token' => $_SESSION['web_csrf']]); ?>
+            <div class="modal-head"><h2 id="sign-out-title">Sign out?</h2></div>
+            <div class="modal-body"><p id="sign-out-description">Are you sure you want to sign out?</p></div>
+            <div class="modal-foot">
+                <a class="btn" id="cancel-sign-out" href="<?= h($signOutReturn) ?>" autofocus>Cancel</a>
+                <button class="btn primary" type="submit"><?= icon('logOut') ?> Sign out</button>
+            </div>
+        </form>
+    </dialog>
+    <?php if (!empty($formError['shared'])): ?>
+        <div id="shared-form-feedback" hidden data-feedback="<?= h(json_encode($formError['shared'], JSON_INVALID_UTF8_SUBSTITUTE)) ?>"></div>
+    <?php endif; ?>
+    <script src="<?= h(versioned_asset('assets/js/sign-out-dialog.js')) ?>" defer></script>
+    <script src="<?= h(versioned_asset('assets/js/form-dialog.js')) ?>" defer></script>
 <?php endif; ?>
 <?php if ($error !== '' || $notice !== '') require __DIR__ . '/../partials/notifications.php'; ?>
+<script src="<?= h(versioned_asset('assets/js/desktop-window.js')) ?>" defer></script>
 </body>
 </html>

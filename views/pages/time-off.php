@@ -1,13 +1,16 @@
 <?php
 $status = (string) ($_GET['status'] ?? 'pending');
 $type = (string) ($_GET['type'] ?? '');
+$search = trim((string) ($_GET['q'] ?? ''));
 $tabs = ['pending' => 'Pending', 'approved' => 'Approved', 'rejected' => 'Declined', '' => 'All'];
 $counts = array_count_values(array_column($state['leaves'], 'status'));
 $counts[''] = count($state['leaves']);
 $employees = employee_options($state['employees']);
 $active = employee_options(array_filter($state['employees'], fn($e) => $e['status'] === 'Active'));
 $requests = array_filter($state['leaves'], fn($l) =>
-    ($status === '' || $l['status'] === $status) && ($type === '' || $l['type'] === $type));
+    ($status === '' || $l['status'] === $status) && ($type === '' || $l['type'] === $type)
+    && ($search === '' || mb_stripos($employees[$l['empId']] ?? '', $search) !== false));
+$pageRows = paginate($requests);
 $monday = (new DateTimeImmutable($state['today']))->modify('monday this week');
 $friday = $monday->modify('+4 days')->format('Y-m-d');
 $approved = array_filter($state['leaves'], fn($l) => $l['status'] === 'approved');
@@ -17,26 +20,33 @@ $upcoming = array_slice(array_filter($approved, fn($l) => $l['start'] > $friday)
 ?>
 <div class="page-head">
     <div><h1>Time off</h1><p>Review requests, check who is out and manage leave balances.</p></div>
-    <?php if ($active): ?><a class="btn primary" href="#new-request"><?= icon('plus') ?> New request</a><?php endif; ?>
+    <?php leave_form($active, true); ?>
 </div>
 <div class="grid cols-main">
     <section class="card web-directory">
         <div class="card-head"><h3>Leave requests</h3></div>
         <div class="card-body toolbar">
             <?php foreach ($tabs as $value => $label): ?>
-                <a class="chip-btn<?= $value === $status ? ' on' : '' ?>" href="<?= h(page_url('time-off', ['status' => $value, 'type' => $type])) ?>"><?= h($label) ?> <span class="n"><?= $counts[$value] ?? 0 ?></span></a>
+                <a class="chip-btn<?= $value === $status ? ' on' : '' ?>" href="<?= h(page_url('time-off', ['status' => $value, 'type' => $type, 'q' => $search])) ?>"><?= h($label) ?> <span class="n"><?= $counts[$value] ?? 0 ?></span></a>
             <?php endforeach; ?>
             <?php get_form('time-off'); ?>
             <input type="hidden" name="status" value="<?= h($status) ?>">
+            <input class="input sm" type="search" name="q" value="<?= h($search) ?>" placeholder="Find an employee" aria-label="Find an employee">
             <select class="input sm" name="type" aria-label="Leave type">
                 <?php foreach (['' => 'All leave types'] + options(LEAVE_TYPES) as $value => $label): ?>
                     <option value="<?= h($value) ?>"<?= $type === $value ? ' selected' : '' ?>><?= h($label) ?></option>
                 <?php endforeach; ?>
             </select>
             <button class="btn sm">Filter</button></form>
+            <?php link_to('time-off', 'Clear filters', ['status' => ''], 'btn ghost'); ?>
+            <span class="muted web-push"><?= count($requests) ?> matches</span>
         </div>
-        <?php leave_table($state, $requests); ?>
-        <?php if ($active): ?><div class="card-body" id="new-request"><?php leave_form($active, true); ?></div><?php endif; ?>
+        <?php if ($requests): ?>
+            <?php leave_table($state, $pageRows['rows']); ?>
+            <?php pagination($pageRows, 'time-off', ['status' => $status, 'type' => $type, 'q' => $search], 'requests'); ?>
+        <?php else: ?>
+            <div class="empty"><strong>No matching requests</strong><?php link_to('time-off', 'Clear filters', ['status' => ''], 'btn sm'); ?></div>
+        <?php endif; ?>
     </section>
     <div class="web-stack">
         <?php foreach (['Out this week' => $out, 'Coming up' => $upcoming] as $heading => $list): ?>

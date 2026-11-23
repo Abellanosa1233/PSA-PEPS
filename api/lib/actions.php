@@ -27,10 +27,10 @@ function act_employee_save(array $in): array
         'salary' => (float) ($in['salary'] ?? 0),
         'manager_id' => int_in($in, 'managerId', false),
     ];
-    if (!filter_var($f['email'], FILTER_VALIDATE_EMAIL)) fail('Enter a valid email address, like name@company.com.');
-    if ($f['salary'] < 0 || $f['salary'] > 10000000) fail('Annual salary must be between 0 and 10,000,000.');
+    if (!filter_var($f['email'], FILTER_VALIDATE_EMAIL)) fail('Enter a valid email address, like name@company.com.', field: 'email');
+    if ($f['salary'] < 0 || $f['salary'] > 10000000) fail('Annual salary must be between 0 and 10,000,000.', field: 'salary');
     $dupe = q('SELECT id FROM employees WHERE email = ? AND id <> ?', [$f['email'], $id ?? 0])->fetchColumn();
-    if ($dupe) fail('Another employee already uses that email address.');
+    if ($dupe) fail('Another employee already uses that email address.', field: 'email');
     if ($f['manager_id'] !== null) {
         if ($id !== null && $f['manager_id'] === $id) fail('An employee cannot be their own manager.');
         employee_exists($f['manager_id']);
@@ -83,7 +83,7 @@ function act_leave_create(array $in): array
     $type = one_of((string) ($in['type'] ?? ''), LEAVE_TYPES, 'Leave type');
     $start = date_in($in, 'start', true, 'First day');
     $end = date_in($in, 'end', true, 'Last day');
-    if ($end < $start) fail('The last day must be on or after the first day.');
+    if ($end < $start) fail('The last day must be on or after the first day.', field: 'end');
     $days = workdays($start, $end);
     if ($days === 0) fail('Those dates fall on a weekend. Pick at least one weekday.');
     $overlap = q("SELECT COUNT(*) FROM leave_requests WHERE emp_id = ? AND status IN ('pending','approved') AND start_date <= ? AND end_date >= ?", [$emp['id'], $end, $start])->fetchColumn();
@@ -177,9 +177,9 @@ function act_attendance_clock(array $in): array
 function act_event_save(array $in): array
 {
     $id = int_in($in, 'id', false);
-    $start = time_in($in, 'start') ?? fail('Start time is required.');
-    $end = time_in($in, 'end') ?? fail('End time is required.');
-    if ($end <= $start) fail('The event must end after it starts.');
+    $start = time_in($in, 'start') ?? fail('Start time is required.', field: 'start');
+    $end = time_in($in, 'end') ?? fail('End time is required.', field: 'end');
+    if ($end <= $start) fail('The event must end after it starts.', field: 'end');
     $vals = [date_in($in, 'date'), $start, $end, str_in($in, 'title', 160, true, 'Title'), str_in($in, 'detail', 255, false)];
     if ($id) q('UPDATE events SET event_date=?, start_time=?, end_time=?, title=?, detail=? WHERE id = ?', [...$vals, $id]);
     else q('INSERT INTO events (event_date,start_time,end_time,title,detail) VALUES (?,?,?,?,?)', $vals);
@@ -227,7 +227,7 @@ function act_candidate_save(array $in): array
     $pid = int_in($in, 'positionId');
     if (!q('SELECT id FROM positions WHERE id = ?', [$pid])->fetch()) fail('That role no longer exists.', 404);
     $email = str_in($in, 'email', 160, false);
-    if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) fail('Enter a valid email address, or leave it blank.');
+    if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) fail('Enter a valid email address, or leave it blank.', field: 'email');
     q("INSERT INTO candidates (position_id,name,email,source,stage,applied_at) VALUES (?,?,?,?,'Applied',?)",
         [$pid, str_in($in, 'name', 160, true, 'Name'), $email, str_in($in, 'source', 60, false), today()]);
     return [];

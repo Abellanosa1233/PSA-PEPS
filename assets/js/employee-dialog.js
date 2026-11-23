@@ -42,6 +42,7 @@ if (employeeDialog && typeof employeeDialog.showModal === 'function') {
   if (employeeDialog.hasAttribute('data-reopen')) {
     employeeDialog.close();
     employeeDialog.showModal();
+    form.querySelector('[aria-invalid="true"]')?.focus();
   }
 
   document.addEventListener('click', (event) => {
@@ -66,6 +67,7 @@ if (employeeDialog && typeof employeeDialog.showModal === 'function') {
     title.textContent = employee.id ? 'Edit employee' : 'Add employee';
     const error = form.querySelector('[role="alert"]');
     if (error) error.remove();
+    form.querySelectorAll('[aria-invalid="true"]').forEach(clearEmployeeError);
     event.preventDefault();
     employeeDialog.showModal();
   });
@@ -82,7 +84,17 @@ if (employeeDialog && typeof employeeDialog.showModal === 'function') {
     closeEmployeeDialog();
   });
 
-  form.addEventListener('input', syncEmployeeButtons);
+  function clearEmployeeError(field) {
+    if (!field.hasAttribute('aria-invalid')) return;
+    document.getElementById(field.getAttribute('aria-describedby'))?.remove();
+    field.removeAttribute('aria-invalid');
+    field.removeAttribute('aria-describedby');
+  }
+
+  form.addEventListener('input', (event) => {
+    clearEmployeeError(event.target);
+    syncEmployeeButtons();
+  });
   form.addEventListener('change', syncEmployeeButtons);
 
   form.addEventListener('submit', (event) => {
