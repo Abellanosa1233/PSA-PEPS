@@ -1,0 +1,158 @@
+.web-auth {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.web-card {
+  padding: 18px;
+  display: grid;
+  gap: 12px;
+}
+
+.web-card h2 { margin: 0; font-size: 16px; }
+.web-auth .brand-mark, .web-app .brand-mark { flex: none; }
+.web-auth .brand small, .web-app .brand small {
+  display: block;
+  color: var(--fg-3);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: normal;
+}
+.web-card > .btn { justify-self: start; }
+.web-card dd { margin: 0 0 12px; }
+.web-card summary { cursor: pointer; font-weight: 600; }
+.web-card details > p { margin: 8px 0; }
+.web-message { padding: 12px; }
+.web-message[role="alert"] { border: 1px solid var(--danger, #b43c47); }
+.web-fields { display: flex; align-items: end; flex-wrap: wrap; gap: 10px; }
+.web-fields .field span { font-size: 12px; font-weight: 600; }
+.web-fields .input { width: 100%; }
+.web-fields .field { flex: 0 1 185px; }
+.web-inline { display: inline-block; margin: 2px 6px 2px 0; }
+.web-auth .web-fields { display: grid; align-items: stretch; }
+.web-app .topbar .web-inline { margin-left: auto; }
+.web-app .web-card table .web-fields { min-width: 150px; }
+.web-app .web-card table .web-fields .field { flex-basis: auto; }
+.web-bell { position: relative; }
+.web-user summary { list-style: none; }
+.web-user summary::-webkit-details-marker { display: none; }
+.web-user .popover form { display: block; }
+.web-user .popover form button { width: 100%; }
+.web-week { display: flex; align-items: center; gap: 6px; }
+.web-office { background: var(--bar-1); fill: var(--bar-1); }
+.web-remote { background: var(--bar-2); fill: var(--bar-2); }
+.web-away { background: var(--bar-3); fill: var(--bar-3); }
+.web-full { width: 100%; }
+.web-stack { display: grid; gap: 16px; min-width: 0; align-content: start; }
+.web-stack details summary { cursor: pointer; font-weight: 600; }
+.web-stack .cand .web-fields .field { flex-basis: 100%; }
+.cols-side .pos-list { margin-top: 8px; }
+.web-directory .toolbar { border-bottom: 1px solid var(--line); }
+.web-directory .toolbar .input { width: auto; }
+.web-directory .toolbar .grow { min-width: min(220px, 100%); }
+.web-directory .toolbar .muted { margin-left: auto; }
+.web-directory .who:hover strong { text-decoration: underline; }
+.web-directory table .input.sm { min-width: 110px; }
+.page-head .actions form > input[type="date"] { width: auto; }
+.web-push { margin-left: auto; }
+.web-people { display: grid; gap: 10px; }
+#action-notifications {
+  position: fixed;
+  top: 16px;
+  right: 20px;
+  bottom: auto;
+  left: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  width: min(360px, calc(100vw - 40px));
+  overflow: visible;
+}
+.web-toast {
+  --toast-accent: var(--ok);
+  --toast-tint: var(--ok-bg);
+  position: relative;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px 15px;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  background: var(--surface);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  animation: web-toast-in .18s ease-out both;
+}
+.web-toast.failure { --toast-accent: var(--warn); --toast-tint: var(--warn-bg); }
+.web-toast.error { --toast-accent: var(--bad); --toast-tint: var(--bad-bg); }
+.web-toast > .ic {
+  flex: none;
+  box-sizing: content-box;
+  padding: 6px;
+  border-radius: 8px;
+  background: var(--toast-tint);
+  color: var(--toast-accent);
+}
+.web-toast strong { display: block; margin-bottom: 2px; font-size: 13px; }
+.web-toast strong + div { color: var(--fg-2); }
+.web-toast-dismiss { background: transparent; border: 0; color: var(--fg-3); cursor: pointer; margin-left: auto; padding: 4px; border-radius: 6px; }
+.web-toast-dismiss:hover { background: var(--surface-2); color: var(--fg); }
+.web-toast-dismiss[hidden] { display: none; }
+.web-toast:has(.web-toast-dismiss:not([hidden]))::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 3px;
+  background: var(--toast-accent);
+  transform-origin: left;
+  animation: web-toast-countdown 3s linear forwards;
+}
+@keyframes web-toast-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes web-toast-countdown { to { transform: scaleX(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .web-toast, .web-toast:has(.web-toast-dismiss:not([hidden]))::after { animation: none; }
+}
+.employee-dialog { position: fixed; inset: 0; margin: auto; padding: 0; color: var(--fg); }
+.employee-dialog:not([open]) { display: none; }
+.employee-dialog .modal-foot [hidden] { display: none; }
+.employee-dialog::backdrop { background: var(--scrim); }
+.employee-dialog[open]:not(:modal) { z-index: 60; box-shadow: 0 0 0 100vmax var(--scrim); }
+.employee-save-pending { display: none; align-items: center; gap: 7px; }
+.employee-save[data-saving] .employee-save-ready { display: none; }
+.employee-save[data-saving] .employee-save-pending { display: inline-flex; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .employee-dialog[open] { animation: employee-dialog-in 180ms ease-out both; }
+  .employee-dialog[open]::backdrop { animation: employee-backdrop-in 180ms ease-out both; }
+  .employee-dialog[open][data-closing] { animation: employee-dialog-out 150ms ease-in both; }
+  .employee-dialog[open][data-closing]::backdrop { animation: employee-backdrop-out 150ms ease-in both; }
+  .employee-save-spinner {
+    width: 13px;
+    height: 13px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: employee-spin 650ms linear infinite;
+  }
+}
+
+@keyframes employee-dialog-in {
+  from { opacity: 0; transform: translateY(10px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes employee-dialog-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(8px) scale(.98); }
+}
+@keyframes employee-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes employee-backdrop-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes employee-spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 900px) {
+  .web-app { display: block; }
+  .web-app .sidebar { position: static; width: auto; height: auto; transform: none; }
+  .web-app .sidebar .nav { display: flex; flex-wrap: wrap; }
+}

@@ -1,0 +1,80 @@
+<?php
+declare(strict_types=1);
+
+function employee_form(array $state, array $employee = [], ?array $candidate = null): void
+{
+    $hidden = $employee ? ['id' => $employee['id']] : [];
+    if ($candidate) {
+        $hidden['fromCandidate'] = $candidate['id'];
+        [$first, $last] = array_pad(preg_split('/\s+/', $candidate['name'], 2), 2, '');
+        $employee += ['firstName' => $first, 'lastName' => $last, 'email' => $candidate['email'],
+            'title' => $candidate['position']['title'], 'department' => $candidate['position']['department'],
+            'type' => $candidate['position']['type'], 'location' => $candidate['position']['location']];
+    }
+    card($hidden && !$candidate ? employee_name($employee) : 'Add employee');
+    post_form('employee.save', $hidden);
+    employee_fields($state, $employee, $hidden['id'] ?? null);
+    end_form('Save employee');
+    echo '</section>';
+}
+
+function employee_fields(array $state, array $employee, ?int $employeeId = null): void
+{
+    field('firstName', 'First name', $employee['firstName'] ?? '');
+    field('lastName', 'Last name', $employee['lastName'] ?? '');
+    field('email', 'Email', $employee['email'] ?? '', 'email');
+    field('phone', 'Phone', $employee['phone'] ?? '', 'tel', false);
+    field('title', 'Job title', $employee['title'] ?? '');
+    choice('department', 'Department', options(DEPARTMENTS), $employee['department'] ?? '');
+    choice('type', 'Employment type', options(EMP_TYPES), $employee['type'] ?? '');
+    field('location', 'Location', $employee['location'] ?? '', 'text', false);
+    field('startDate', 'Start date', $employee['startDate'] ?? $state['today'], 'date');
+    field('salary', 'Annual salary', $employee['salary'] ?? 0, 'number');
+    $managers = employee_options(array_filter($state['employees'], fn($e) =>
+        $e['id'] !== $employeeId && $e['status'] === 'Active'
+    ));
+    choice('managerId', 'Manager', ['' => 'None'] + $managers, $employee['managerId'] ?? '');
+}
+
+function add_employee_button(string $page, array $query = []): void
+{
+    $url = page_url($page, ['add' => 1] + $query);
+    echo '<a class="btn primary" data-add-employee href="' . h($url) . '">' . icon('plus') . ' Add employee</a>';
+}
+
+function add_employee_modal(array $state, string $page, array $formError): void
+{
+    $failed = !empty($formError['employeeModal']);
+    $employees = array_column($state['employees'], null, 'id');
+    $editing = $page === 'employees' ? ($employees[(int) ($formError['values']['id'] ?? $_GET['edit'] ?? 0)] ?? null) : null;
+    $open = $failed || $editing || isset($_GET['add']) || ($_GET['id'] ?? '') === 'new';
+    $query = array_intersect_key($_GET, array_flip(['q', 'department', 'status', 'type', 'todayStatus', 'p', 'date', 'week']));
+    $values = $failed ? $formError['values'] : ($editing ?? []);
+    ?>
+    <dialog id="add-employee" class="modal wide employee-dialog" aria-labelledby="add-employee-title"<?= $open ? ' open data-reopen' : '' ?>>
+        <div class="modal-head">
+            <h2 id="add-employee-title"><?= $editing ? 'Edit employee' : 'Add employee' ?></h2>
+            <a class="sq" data-close-employee href="<?= h(page_url($page, $query)) ?>" aria-label="Close"><?= icon('x', 14) ?></a>
+        </div>
+        <form method="post" action="<?= h(page_url($page, $query)) ?>"<?= $editing ? ' data-original-employee="' . h(json_encode($editing, JSON_INVALID_UTF8_SUBSTITUTE)) . '"' : '' ?>>
+            <?php hidden_inputs(['_action' => 'employee.save', '_token' => $_SESSION['web_csrf'], '_employee_modal' => '1']); ?>
+            <input type="hidden" name="id" value="<?= h($editing['id'] ?? '') ?>">
+            <input type="hidden" data-new-employee-date value="<?= h($state['today']) ?>">
+            <div class="modal-body">
+                <?php if ($failed) web_message($formError['message'], ''); ?>
+                <div class="form-grid"><?php employee_fields($state, $values); ?></div>
+            </div>
+            <div class="modal-foot">
+                <a class="btn" data-close-employee data-employee-cancel href="<?= h(page_url($page, $query)) ?>">Cancel</a>
+                <a class="btn primary" data-close-employee data-employee-unchanged href="<?= h(page_url($page, $query)) ?>" hidden>Close</a>
+                <button class="btn primary employee-save" type="submit">
+                    <span class="employee-save-ready">Save employee</span>
+                    <span class="employee-save-pending"><span class="employee-save-spinner" aria-hidden="true"></span> Saving…</span>
+                </button>
+            </div>
+        </form>
+    </dialog>
+    <script src="<?= h(versioned_asset('assets/js/employee-dialog.js')) ?>" defer></script>
+    <?php
+}
+
