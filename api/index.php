@@ -43,11 +43,12 @@ try {
     switch ($action) {
         case 'status':
             $ok = installed();
-            respond(['installed' => $ok, 'hasUsers' => $ok && has_users(), 'user' => $ok ? current_user() : null]);
+            respond(['installed' => $ok, 'hasUsers' => $ok && has_users(), 'user' => $ok ? current_user() : null, 'needsSetupKey' => setup_key_required()]);
 
         case 'install':
             if ($method !== 'POST') fail('Use POST.', 405);
             if (installed() && has_users()) fail('Horizon HRMS is already set up.', 403);
+            check_setup_key($in);
             install_schema();
             if (!empty($in['demo'])) seed_demo();
             respond(['ok' => true]);
@@ -56,6 +57,7 @@ try {
             if ($method !== 'POST') fail('Use POST.', 405);
             if (!installed()) fail('Set up the database first.', 409);
             if (has_users()) fail('An administrator account already exists. Sign in instead.', 403);
+            check_setup_key($in);
             $username = strtolower(str_in($in, 'username', 60, true, 'Username'));
             if (!preg_match('/^[a-z0-9._-]{3,60}$/', $username)) fail('Usernames use 3–60 letters, numbers, dots, dashes or underscores.');
             $pw = (string) ($in['password'] ?? '');

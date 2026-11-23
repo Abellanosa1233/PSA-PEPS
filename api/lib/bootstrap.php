@@ -49,7 +49,7 @@ function db(): PDO
             $offset = (new DateTime())->format('P');
             $pdo->exec("SET time_zone = '$offset'");
         } catch (PDOException $e) {
-            fail('Cannot connect to MySQL. Start MySQL in UniController, then reload this page.', 503);
+            fail('Cannot connect to the database. Check the details in api/config.php and that MySQL is running (on UniServer, start it in UniController).', 503);
         }
     }
     return $pdo;
@@ -65,6 +65,20 @@ function q(string $sql, array $params = []): PDOStatement
 function installed(): bool
 {
     return (bool) q("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = ? AND table_name = 'pay_runs'", [DB_NAME])->fetchColumn();
+}
+
+/* Optional SETUP_KEY in config.php: when set, creating tables and the first
+   administrator requires it, so a stranger can't claim a fresh public install. */
+function setup_key_required(): bool
+{
+    return defined('SETUP_KEY') && (string) SETUP_KEY !== '';
+}
+
+function check_setup_key(array $in): void
+{
+    if (setup_key_required() && !hash_equals((string) SETUP_KEY, trim((string) ($in['setupKey'] ?? '')))) {
+        fail('The setup key is not correct. Use the SETUP_KEY value from api/config.php.', 403);
+    }
 }
 
 function has_users(): bool

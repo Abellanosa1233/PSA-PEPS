@@ -189,14 +189,22 @@ window.HR = window.HR || {};
   }
   function enter(state) { HR.store.set(state); shell(); HR.render(); }
 
+  var needsKey = false, setupKey = '';
+  function keyField() {
+    if (!needsKey) return '';
+    return setupKey ? '<input type="hidden" name="setupKey" value="' + ui.esc(setupKey) + '">'
+      : ui.field('setupKey', 'Setup key', '', 'password', { extra: 'autocomplete="off"', hint: 'The SETUP_KEY value in api/config.php on the server.' });
+  }
   function install() {
     var f = authCard('Set up Horizon HRMS', 'The database is empty. Create the tables to get started.',
+      keyField() +
       '<label class="check"><input type="checkbox" name="demo" checked> Load sample data (43 employees, requests, attendance, payroll)</label>' +
       '<button class="btn primary" type="submit">Create database tables</button>');
-    wire(f, function (v) { return HR.api('install', { demo: v.demo }).then(setup); });
+    wire(f, function (v) { return HR.api('install', { demo: v.demo, setupKey: v.setupKey }).then(function () { setupKey = v.setupKey || ''; setup(); }); });
   }
   function setup() {
     var f = authCard('Create the administrator', 'This account signs in to manage the whole workspace. Choose your own password.',
+      keyField() +
       ui.field('name', 'Your name', '') + ui.field('role', 'Your role', 'HR administrator') +
       ui.field('username', 'Username', '', 'text', { extra: 'autocomplete="username"' }) +
       ui.field('password', 'Password', '', 'password', { extra: 'autocomplete="new-password"', hint: 'At least 8 characters.' }) +
@@ -221,6 +229,7 @@ window.HR = window.HR || {};
     }
     root.innerHTML = '<div class="loading">Loading Horizon…</div>';
     HR.api('status').then(function (s) {
+      needsKey = !!s.needsSetupKey;
       if (!s.installed) return install();
       if (!s.hasUsers) return setup();
       if (!s.user) return signIn();
