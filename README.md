@@ -1,7 +1,9 @@
 # HRMS (Human Resource Management System)
 
+**Live demo: <http://horizonhrms.infinityfreeapp.com/>** (hosted on InfinityFree. Ask the admin for a login.)
+
 People management system built from the Figma file "HRMS · HR management – Overview".
-Runs on UniServer Zero (Apache + PHP 8.3 + MySQL 8).
+Runs on UniServer Zero (Apache + PHP 8.3 + MySQL 8) locally or on a compatible PHP 8.1+ host with MySQL. Set a nonempty `SETUP_KEY` in `api/config.php` before making a fresh installation publicly reachable.
 
 ## Run it
 

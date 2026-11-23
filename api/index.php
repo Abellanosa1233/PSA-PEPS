@@ -31,7 +31,7 @@ try {
     switch ($action) {
         case 'status':
             $ok = installed();
-            respond(['installed' => $ok, 'hasUsers' => $ok && has_users(), 'user' => $ok ? current_user() : null]);
+            respond(['installed' => $ok, 'hasUsers' => $ok && has_users(), 'user' => $ok ? current_user() : null, 'needsSetupKey' => setup_key_required()]);
 
         case 'install':
         case 'setup':

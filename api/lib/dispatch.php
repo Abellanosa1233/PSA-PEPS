@@ -23,6 +23,7 @@ function account_action(string $action, array $in): array
     switch ($action) {
         case 'install':
             if (installed() && has_users()) fail('Horizon HRMS is already set up.', 403);
+            check_setup_key($in);
             install_schema();
             if (!empty($in['demo'])) seed_demo();
             return ['ok' => true];
@@ -30,6 +31,7 @@ function account_action(string $action, array $in): array
         case 'setup':
             if (!installed()) fail('Set up the database first.', 409);
             if (has_users()) fail('An administrator account already exists. Sign in instead.', 403);
+            check_setup_key($in);
             $username = strtolower(str_in($in, 'username', 60, true, 'Username'));
             if (!preg_match('/^[a-z0-9._-]{3,60}$/', $username)) fail('Usernames use 3–60 letters, numbers, dots, dashes or underscores.');
             $pw = (string) ($in['password'] ?? '');

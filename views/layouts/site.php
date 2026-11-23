@@ -18,11 +18,13 @@
             <?php if ($screen === 'Install HRMS'): ?>
                 <p>Create the database tables before setting up your administrator account.</p>
                 <?php post_form('install'); ?>
+                <?php if (setup_key_required()) field('setupKey', 'Setup key', '', 'password'); ?>
                 <label><input type="checkbox" name="demo" value="1"> Load sample data</label>
                 <?php end_form('Install'); ?>
             <?php else: ?>
                 <?php post_form($screen === 'Sign in' ? 'login' : 'setup'); ?>
                 <?php if ($screen !== 'Sign in') field('name', 'Full name'); ?>
+                <?php if ($screen !== 'Sign in' && setup_key_required()) field('setupKey', 'Setup key', '', 'password'); ?>
                 <?php field('username', 'Username'); field('password', 'Password', '', 'password'); ?>
                 <?php end_form($screen); ?>
             <?php endif; ?>
