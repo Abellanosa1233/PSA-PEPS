@@ -1,0 +1,9 @@
+# Real database credentials — each machine keeps its own copy (see api/config.example.php)
+api/config.php
+
+# OS / editor clutter
+Thumbs.db
+Desktop.ini
+.DS_Store
+.vscode/
+.idea/
