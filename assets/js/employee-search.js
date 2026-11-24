@@ -1,17 +1,20 @@
-const employeeDirectory = document.getElementById('employee-directory');
+const employeeDirectory = document.querySelector('#employee-directory, #attendance-directory');
 
 if (employeeDirectory) {
   const searchForm = employeeDirectory.querySelector('form');
   const search = searchForm.elements.q;
+  const attendance = employeeDirectory.id === 'attendance-directory';
   const results = document.getElementById('employee-results');
   const count = document.getElementById('employee-count');
-  const suggestions = document.getElementById('employee-suggestions');
+  const suggestions = searchForm.querySelector('[role="listbox"]');
   const employees = JSON.parse(suggestions.dataset.employees).map((employee) => ({
     ...employee,
-    searchFields: [employee.name, employee.email, employee.title].map((value) => value.toLowerCase()),
+    searchFields: (attendance ? [employee.name] : [employee.name, employee.email, employee.title])
+      .map((value) => value.toLowerCase()),
   }));
   const filters = Array.from(searchForm.querySelectorAll('select[name]'));
   let resultsRequest;
+  let requestedQuery = search.value.trim();
   let activeOption = null;
   let suggestionsDismissed = false;
 
@@ -22,16 +25,12 @@ if (employeeDirectory) {
   search.setAttribute('autocomplete', 'off');
   search.addEventListener('input', (event) => {
     if (event.isComposing) return;
-    suggestionsDismissed = false;
-    updateSuggestions();
+    handleSearchInput();
   });
   search.addEventListener('compositionstart', () => {
     hideSuggestions();
   });
-  search.addEventListener('compositionend', () => {
-    suggestionsDismissed = false;
-    updateSuggestions();
-  });
+  search.addEventListener('compositionend', handleSearchInput);
   search.addEventListener('focus', () => {
     suggestionsDismissed = false;
     updateSuggestions();
@@ -45,7 +44,7 @@ if (employeeDirectory) {
       hideSuggestions();
     } else if (event.key === 'Enter' && activeOption) {
       event.preventDefault();
-      window.location.assign(activeOption.dataset.profile);
+      selectSuggestion(activeOption);
     } else if (['ArrowDown', 'ArrowUp'].includes(event.key) && suggestions.childElementCount) {
       event.preventDefault();
       suggestionsDismissed = false;
@@ -59,18 +58,43 @@ if (employeeDirectory) {
   });
   suggestions.addEventListener('mousedown', (event) => event.preventDefault());
   suggestions.addEventListener('click', (event) => {
-    const option = event.target.closest('[data-profile]');
-    if (option) window.location.assign(option.dataset.profile);
+    const option = event.target.closest('[role="option"]');
+    if (option) selectSuggestion(option);
   });
 
-  searchForm.addEventListener('change', (event) => {
-    if (event.target.matches('select')) updateDirectory();
-  });
+  if (!attendance) {
+    searchForm.addEventListener('change', (event) => {
+      if (event.target.matches('select')) updateDirectory();
+    });
 
-  searchForm.addEventListener('submit', (event) => {
-    event.preventDefault();
-    updateDirectory();
-  });
+    searchForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      updateDirectory();
+    });
+  }
+
+  function selectSuggestion(option) {
+    if (attendance) {
+      search.value = option.dataset.name;
+      searchForm.requestSubmit();
+      return;
+    }
+    window.location.assign(option.dataset.profile);
+  }
+
+  function handleSearchInput() {
+    if (!search.value.trim() && requestedQuery) {
+      if (attendance) {
+        requestedQuery = '';
+        searchForm.requestSubmit();
+      } else {
+        updateDirectory();
+      }
+      return;
+    }
+    suggestionsDismissed = false;
+    updateSuggestions();
+  }
 
   function setActiveOption(option) {
     activeOption?.setAttribute('aria-selected', 'false');
@@ -110,14 +134,15 @@ if (employeeDirectory) {
     }
     const options = ranked.flat().slice(0, 6).map((employee, index) => {
       const option = document.createElement('div');
-      option.id = `employee-suggestion-${index}`;
-      option.dataset.profile = employee.profile;
+      option.id = `${suggestions.id}-${index}`;
+      if (attendance) option.dataset.name = employee.name;
+      else option.dataset.profile = employee.profile;
       option.setAttribute('role', 'option');
       option.setAttribute('aria-selected', 'false');
       const name = document.createElement('strong');
       name.textContent = employee.name;
       const details = document.createElement('small');
-      details.textContent = `${employee.title} · ${employee.email}`;
+      details.textContent = attendance ? employee.department : `${employee.title} · ${employee.email}`;
       option.append(name, details);
       return option;
     });
@@ -127,7 +152,9 @@ if (employeeDirectory) {
 
   function directoryUrl() {
     const url = new URL(searchForm.action);
-    url.search = new URLSearchParams(new FormData(searchForm));
+    const parameters = new URLSearchParams(new FormData(searchForm));
+    if (!requestedQuery) parameters.delete('q');
+    url.search = parameters;
     return url;
   }
 
@@ -141,6 +168,7 @@ if (employeeDirectory) {
   }
 
   async function updateDirectory() {
+    requestedQuery = search.value.trim();
     hideSuggestions();
     suggestions.replaceChildren();
     suggestionsDismissed = true;

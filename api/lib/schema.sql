@@ -6,6 +6,9 @@ CREATE TABLE IF NOT EXISTS users (
   display_name VARCHAR(120) NOT NULL,
   role_title VARCHAR(120) NOT NULL DEFAULT 'HR administrator',
   password_hash VARCHAR(255) NOT NULL,
+  profile_image MEDIUMBLOB NULL,
+  profile_image_type VARCHAR(30) NULL,
+  profile_image_updated_at DATETIME NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -48,6 +51,28 @@ CREATE TABLE IF NOT EXISTS leave_requests (
   INDEX idx_leave_status (status),
   INDEX idx_leave_dates (start_date, end_date),
   CONSTRAINT fk_leave_emp FOREIGN KEY (emp_id) REFERENCES employees(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS employee_requests (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  emp_id INT NOT NULL,
+  request_type VARCHAR(24) NOT NULL,
+  purpose VARCHAR(160) NOT NULL,
+  destination VARCHAR(160) NOT NULL DEFAULT '',
+  start_date DATE NOT NULL,
+  end_date DATE NULL,
+  details VARCHAR(1000) NOT NULL DEFAULT '',
+  status VARCHAR(20) NOT NULL DEFAULT 'pending',
+  decision_role VARCHAR(24) NULL,
+  decided_by_user_id INT NULL,
+  decided_by_employee_id INT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  decided_at DATETIME NULL,
+  INDEX idx_employee_request_status (status),
+  INDEX idx_employee_request_emp (emp_id),
+  CONSTRAINT fk_employee_request_emp FOREIGN KEY (emp_id) REFERENCES employees(id) ON DELETE CASCADE,
+  CONSTRAINT fk_employee_request_user FOREIGN KEY (decided_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_employee_request_reviewer FOREIGN KEY (decided_by_employee_id) REFERENCES employees(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS attendance (

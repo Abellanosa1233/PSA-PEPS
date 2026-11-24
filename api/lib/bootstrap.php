@@ -130,9 +130,50 @@ function current_user(): ?array
 {
     start_session();
     if (empty($_SESSION['uid']) || !installed()) return null;
-    $u = q('SELECT id, username, display_name, role_title FROM users WHERE id = ?', [$_SESSION['uid']])->fetch();
+    ensure_profile_image_columns();
+    ensure_employee_requests_table();
+    $u = q('SELECT id, username, display_name, role_title, profile_image_updated_at FROM users WHERE id = ?', [$_SESSION['uid']])->fetch();
     if (!$u) return null;
-    return ['id' => (int) $u['id'], 'username' => $u['username'], 'name' => $u['display_name'], 'role' => $u['role_title']];
+    return [
+        'id' => (int) $u['id'], 'username' => $u['username'], 'name' => $u['display_name'], 'role' => $u['role_title'],
+        'avatarUrl' => $u['profile_image_updated_at']
+            ? 'api/index.php?action=profile.image&v=' . rawurlencode((string) strtotime($u['profile_image_updated_at']))
+            : null,
+    ];
+}
+
+function ensure_profile_image_columns(): void
+{
+    static $checked = false;
+    if ($checked) return;
+    $columns = q('SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema = ? AND table_name = ?', [DB_NAME, 'users'])->fetchAll(PDO::FETCH_COLUMN);
+    $columns = array_flip($columns);
+    foreach (['profile_image' => 'MEDIUMBLOB NULL', 'profile_image_type' => 'VARCHAR(30) NULL', 'profile_image_updated_at' => 'DATETIME NULL'] as $name => $definition) {
+        if (!isset($columns[$name])) q("ALTER TABLE users ADD COLUMN $name $definition");
+    }
+    $checked = true;
+}
+
+function ensure_employee_requests_table(): void
+{
+    static $checked = false;
+    if ($checked) return;
+    $exists = q('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = ? AND table_name = ?', [DB_NAME, 'employee_requests'])->fetchColumn();
+    if (!$exists) {
+        db()->exec("CREATE TABLE employee_requests (
+            id INT AUTO_INCREMENT PRIMARY KEY, emp_id INT NOT NULL, request_type VARCHAR(24) NOT NULL,
+            purpose VARCHAR(160) NOT NULL, destination VARCHAR(160) NOT NULL DEFAULT '',
+            start_date DATE NOT NULL, end_date DATE NULL, details VARCHAR(1000) NOT NULL DEFAULT '',
+            status VARCHAR(20) NOT NULL DEFAULT 'pending', decision_role VARCHAR(24) NULL,
+            decided_by_user_id INT NULL, decided_by_employee_id INT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, decided_at DATETIME NULL,
+            INDEX idx_employee_request_status (status), INDEX idx_employee_request_emp (emp_id),
+            CONSTRAINT fk_employee_request_emp FOREIGN KEY (emp_id) REFERENCES employees(id) ON DELETE CASCADE,
+            CONSTRAINT fk_employee_request_user FOREIGN KEY (decided_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
+            CONSTRAINT fk_employee_request_reviewer FOREIGN KEY (decided_by_employee_id) REFERENCES employees(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    }
+    $checked = true;
 }
 
 function require_user(): array
@@ -146,7 +187,7 @@ function require_user(): array
 function default_settings(): array
 {
     return [
-        'company' => 'Horizon Studio',
+        'company' => 'Philippine Statistics Authority',
         'workspace' => 'People workspace',
         'currency' => 'PHP',
         'allowances' => ['Annual leave' => 20, 'Personal leave' => 5, 'Sick leave' => 10, 'Parental leave' => 60, 'Unpaid leave' => 30],

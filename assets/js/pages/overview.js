@@ -22,14 +22,14 @@ HR.pages = HR.pages || {};
   }
 
   function attendanceChart(days) {
-    var W = 560, H = 210, L = 36, R = 6, T = 10, B = 26;
-    var ph = H - T - B, pw = W - L - R, slot = pw / days.length, bw = Math.min(44, slot * 0.5);
+    var W = 760, H = 210, L = 58, R = 8, T = 10, B = 26;
+    var ph = H - T - B, pw = W - L - R, slot = pw / days.length, bw = Math.min(48, slot * 0.5);
     var today = D.todayIso();
     var y = function (p) { return T + ph * (1 - p); };
     var out = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Attendance by day as a share of the workforce">';
     [0, 0.5, 1].forEach(function (p) {
       out += '<line class="grid-line" x1="' + L + '" x2="' + (W - R) + '" y1="' + y(p) + '" y2="' + y(p) + '"/>' +
-        '<text x="' + (L - 8) + '" y="' + (y(p) + 4) + '" text-anchor="end">' + (p * 100) + '%</text>';
+        '<text x="' + (L - 12) + '" y="' + (y(p) + 4) + '" text-anchor="end">' + (p * 100) + '%</text>';
     });
     days.forEach(function (di, i) {
       var x = L + slot * i + (slot - bw) / 2;
@@ -40,17 +40,20 @@ HR.pages = HR.pages || {};
         out += '<rect x="' + x + '" y="' + y(1) + '" width="' + bw + '" height="' + ph + '" rx="3" fill="none" stroke="var(--line-strong)" stroke-dasharray="3 3"><title>' + label + ': no data yet</title></rect>';
         return;
       }
-      var segs = [['office', 'var(--bar-1)'], ['remote', 'var(--bar-2)'], ['away', 'var(--bar-3)']];
+      var segs = [['office', 'var(--bar-1)'], ['remote', 'var(--attendance-remote)'], ['away', 'var(--attendance-away)']];
       var acc = 0;
       var awayish = s.away + s.leave + (di < today ? s.none : 0);
       var vals = { office: s.office / s.total, remote: s.remote / s.total, away: awayish / s.total };
+      var clipId = 'attendance-clip-' + i;
+      out += '<defs><clipPath id="' + clipId + '"><rect x="' + x + '" y="' + y(1) + '" width="' + bw + '" height="' + ph + '" rx="4"/></clipPath></defs><g clip-path="url(#' + clipId + ')">';
       segs.forEach(function (sg) {
         var v = vals[sg[0]];
         if (v <= 0) return;
         var top = y(acc + v), h = y(acc) - top;
-        out += '<rect x="' + x + '" y="' + top + '" width="' + bw + '" height="' + Math.max(h - 1, 0.5) + '" fill="' + sg[1] + '"><title>' + label + ' · ' + ui.attLabel[sg[0]] + ': ' + ui.pct(v) + '</title></rect>';
+        out += '<rect x="' + x + '" y="' + top + '" width="' + bw + '" height="' + h + '" fill="' + sg[1] + '"><title>' + label + ' · ' + ui.attLabel[sg[0]] + ': ' + ui.pct(v) + '</title></rect>';
         acc += v;
       });
+      out += '</g>';
     });
     return out + '</svg>';
   }
@@ -70,7 +73,7 @@ HR.pages = HR.pages || {};
       var inPipe = data.candidates.filter(function (c) { return c.stage !== 'Rejected' && c.stage !== 'Hired' && open.some(function (p) { return p.id === c.positionId; }); }).length;
       if (weekOffset === null) weekOffset = D.today().getDay() >= 1 && D.today().getDay() <= 2 ? -1 : 0;
       var days = weekDays(weekOffset);
-      var weekOpts = [0, -1, -2, -3, -4, -5].map(function (o) { var w = weekDays(o); return { value: o, label: ui.range(w[0], w[4]) + (o === 0 ? ' (this week)' : '') }; });
+      var weekOpts = [0, -1, -2, -3, -4, -5].map(function (o) { var w = weekDays(o); return { value: o, label: ui.range(w[0], w[4]) }; });
       var pending = q.pending().sort(function (a, b) { return a.start < b.start ? -1 : 1; });
       var events = data.events.filter(function (e) { return e.date === ti; });
       var nowHm = new Date().toTimeString().slice(0, 5);
@@ -82,9 +85,8 @@ HR.pages = HR.pages || {};
       var firstName = (data.user.name || '').split(' ')[0];
 
       el.innerHTML =
-        '<div class="page-head"><div><h1>' + greeting() + ', ' + ui.esc(firstName) + '</h1><p>Here\'s what\'s happening with your team today.</p></div>' +
-        '<div class="actions"><button class="btn" data-act="calendar">' + ic('calendar') + ui.esc(ui.dayLong(ti).replace(/^(\w+),/, '$1,')) + '</button>' +
-        '<button class="btn primary" data-act="add-emp">' + ic('plus') + 'Add employee</button></div></div>' +
+        '<div class="page-head"><div><h1>' + greeting() + ', ' + ui.esc(firstName) + '</h1><p>Review workforce activity and priority updates for today.</p></div>' +
+        '<div class="actions"><button class="btn" data-act="calendar">' + ic('calendar') + ui.esc(ui.dayLong(ti).replace(/^(\w+),/, '$1,')) + '</button></div></div>' +
 
         '<div class="grid kpis">' +
         kpi('Total employees', 'users', ui.num(active.length), '+' + newHires, 'joined in the last 30 days') +
@@ -94,17 +96,17 @@ HR.pages = HR.pages || {};
         '</div>' +
 
         '<div class="grid cols-main">' +
-        '<section class="card"><div class="card-head"><div><h3>Attendance overview</h3><p>A little perspective on your team\'s week.</p></div>' +
-        '<select class="input sm" style="width:auto" id="week-pick" aria-label="Week">' + ui.options(weekOpts, weekOffset) + '</select></div>' +
-        '<div class="legend"><span><i style="background:var(--bar-1)"></i>In office</span><span><i style="background:var(--bar-2)"></i>Remote</span><span><i style="background:var(--bar-3)"></i>Away or on leave</span></div>' +
-        '<div class="chart">' + attendanceChart(days) + '</div></section>' +
+        '<section class="card attendance-overview"><div class="card-head"><div><h3>Attendance overview</h3><p>A little perspective on your team’s week.</p></div>' +
+        '<form class="attendance-week" id="week-form"><select class="input sm" id="week-pick" aria-label="Week">' + ui.options(weekOpts, weekOffset) + '</select><button class="btn sm" type="submit">Show</button></form></div>' +
+        '<div class="legend attendance-legend"><span><i class="attendance-office"></i>In office</span><span><i class="attendance-remote"></i>Remote</span><span><i class="attendance-away"></i>Away</span></div>' +
+        '<div class="chart attendance-chart">' + attendanceChart(days) + '</div></section>' +
 
-        '<section class="card"><div class="card-head"><div><h3>Today\'s schedule</h3></div><button class="link-btn" data-act="calendar">View calendar</button></div>' +
+        '<section class="card schedule-card"><div class="card-head"><div><h3>Today\'s schedule</h3></div><button class="link-btn" data-act="calendar">View calendar</button></div>' +
         '<div class="sched-day" style="padding-top:4px">' + ui.esc(ui.dayShort(ti).toUpperCase() + ', ' + D.today().getDate() + ' ' + ui.date(ti).split(' ')[0].toUpperCase()) + '</div>' +
         (events.length ? '<div class="sched">' + events.map(function (e) {
           return '<div class="sched-item' + (e.end < nowHm ? ' past' : '') + '"><div class="t"><strong>' + e.start + '</strong><small>' + e.end + '</small></div><div class="rule"></div>' +
             '<div class="e"><strong>' + ui.esc(e.title) + '</strong><small>' + ui.esc(e.detail) + '</small></div></div>';
-        }).join('') + '</div>' : ui.empty('Nothing scheduled today', 'Add interviews, onboarding sessions and team meetings.', '<button class="btn sm" data-act="add-event">' + ic('plus') + 'Add event</button>')) +
+        }).join('') + '</div>' : ui.empty('No events scheduled', 'Add an activity to the schedule as needed.', '<button class="btn sm" data-act="add-event">' + ic('plus') + 'Add event</button>')) +
         '</section></div>' +
 
         '<div class="grid cols-main">' +
@@ -117,7 +119,7 @@ HR.pages = HR.pages || {};
               '<button class="sq reject" data-reject="' + l.id + '" aria-label="Decline" title="Decline">' + ic('x', 14) + '</button></td></tr>';
           }).join('') + '</tbody></table></div>' +
           '<div class="card-foot"><span>Showing ' + Math.min(5, pending.length) + ' of ' + pending.length + ' pending. Select a person to open their profile.</span></div>'
-          : ui.empty('You\'re all caught up', 'New requests will appear here for approval.')) +
+          : ui.empty('No pending requests', 'New leave requests will appear here for review.')) +
         '</section>' +
 
         '<section class="card"><div class="card-head"><div><h3>Hiring at a glance</h3></div><span class="pill">' + ui.plural(open.length, 'open role') + '</span></div>' +
@@ -135,12 +137,16 @@ HR.pages = HR.pages || {};
         if (t.dataset.approve) { e.stopPropagation(); return ui.act('leave.decide', { id: Number(t.dataset.approve), status: 'approved' }, 'Request approved'); }
         if (t.dataset.reject) { e.stopPropagation(); return ui.act('leave.decide', { id: Number(t.dataset.reject), status: 'rejected' }, 'Request declined'); }
         if (t.dataset.emp) { location.hash = 'employee-' + t.dataset.emp; return; }
-        if (t.dataset.act === 'add-emp') HR.forms.employee();
         if (t.dataset.act === 'calendar') HR.forms.calendar();
         if (t.dataset.act === 'add-event') HR.forms.event();
       };
       el.onchange = function (e) {
-        if (e.target.id === 'week-pick') { weekOffset = Number(e.target.value); HR.render(); }
+        if (e.target.id === 'week-pick') weekOffset = Number(e.target.value);
+      };
+      el.onsubmit = function (e) {
+        if (e.target.id !== 'week-form') return;
+        e.preventDefault();
+        HR.render();
       };
     }
   };

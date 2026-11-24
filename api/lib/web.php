@@ -24,7 +24,9 @@ function html_json(array $value): string
 
 function page_url(string $page, array $query = []): string
 {
-    return 'index.php?' . http_build_query(['page' => $page] + $query);
+    $route = $page === 'preferences' ? 'settings' : $page;
+    $parameters = http_build_query($query);
+    return $route . ($parameters === '' ? '' : '?' . $parameters);
 }
 
 function versioned_asset(string $path): string
@@ -52,6 +54,9 @@ function action_success_message(string $action, array $input): string
         'leave.create' => empty($input['approveNow']) ? 'Leave request submitted.' : 'Leave request approved.',
         'leave.decide' => ($input['status'] ?? '') === 'approved' ? 'Leave request approved.' : 'Leave request declined.',
         'leave.cancel' => 'Leave request canceled.',
+        'employee.request.create' => 'Request submitted for review.',
+        'employee.request.decide' => ($input['status'] ?? '') === 'approved' ? 'Request approved.' : 'Request declined.',
+        'employee.request.cancel' => 'Request canceled.',
         'attendance.set' => 'Attendance updated.',
         'attendance.fill' => 'Attendance fill completed.',
         'attendance.clock' => ($input['mode'] ?? '') === 'in' ? 'Clock-in recorded.' : 'Clock-out recorded.',
@@ -75,9 +80,10 @@ function action_success_message(string $action, array $input): string
     return $messages[$action] ?? 'Changes saved.';
 }
 
-function post_form(string $action, array $values = [], bool $inline = false): void
+function post_form(string $action, array $values = [], bool $inline = false, string $enctype = ''): void
 {
-    echo '<form method="post" class="' . ($inline ? 'web-inline' : 'web-fields') . '">';
+    echo '<form method="post" class="' . ($inline ? 'web-inline' : 'web-fields') . '"' .
+        ($enctype !== '' ? ' enctype="' . h($enctype) . '"' : '') . '>';
     hidden_inputs(['_action' => $action, '_token' => $_SESSION['web_csrf'] ?? ''] + $values);
 }
 
@@ -319,10 +325,14 @@ function export_page(string $page, array $state): void
             }
             break;
         case 'attendance':
-            $rows = [['Date', 'Employee', 'Department', 'Status', 'Clock in', 'Clock out']];
+            $rows = [['Date', 'Employee', 'Employee email', 'Department', 'Status', 'Clock in', 'Clock out']];
             $date = selected_date($state['today']);
             foreach (attendance_records($state, $date) as [$e, $record, $onLeave]) {
-                $rows[] = [$date, employee_name($e), $e['department'], $onLeave ? 'Leave' : $record['status'], $record['in'], $record['out']];
+                $rows[] = [$date, employee_name($e), $e['email'], $e['department'], $onLeave ? 'Leave' : $record['status'], $record['in'], $record['out']];
+            }
+            if (($_GET['export'] ?? '') === 'xlsx') {
+                require_once __DIR__ . '/attendance-workbook.php';
+                download_attendance_workbook($date, $rows);
             }
             break;
         case 'payroll':
@@ -349,6 +359,16 @@ function export_page(string $page, array $state): void
     exit;
 }
 
+function attendance_import_template(): void
+{
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="attendance-import-template.csv"');
+    $output = fopen('php://output', 'w');
+    fputcsv($output, ['Date', 'Employee email', 'Status', 'Clock in', 'Clock out']);
+    fclose($output);
+    exit;
+}
+
 function confirm_action(string $action, string $label, string $prompt, array $values = []): void
 {
     echo '<details class="form-disclosure destructive-action" data-form-dialog="confirm"><summary class="btn sm">' . h($label) . '</summary><p>' . h($prompt) . '</p>';
@@ -358,7 +378,7 @@ function confirm_action(string $action, string $label, string $prompt, array $va
 
 function get_form(string $page): void
 {
-    echo '<form method="get" class="web-fields"><input type="hidden" name="page" value="' . h($page) . '">';
+    echo '<form method="get" action="' . h(page_url($page)) . '" class="web-fields">';
 }
 
 function initials(string $name): string

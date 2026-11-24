@@ -24,8 +24,19 @@ $pages = [
     'reports' => 'Reports', 'supervisor' => 'Supervisor workspace',
     'self-service' => 'Employee workspace', 'preferences' => 'Settings', 'help' => 'Help & resources',
 ];
-$page = (string) ($_GET['page'] ?? 'overview');
+$path = rawurldecode(explode('?', $_SERVER['REQUEST_URI'] ?? '', 2)[0]);
+$route = basename($path);
+$entry = $path === '' || substr($path, -1) === '/' || $route === 'index.php';
+$legacyPage = $_GET['page'] ?? null;
+$page = $entry ? (is_string($legacyPage) ? $legacyPage : 'overview') : ($route === 'settings' ? 'preferences' : $route);
 if (!isset($pages[$page])) $page = 'overview';
+$method = $_SERVER['REQUEST_METHOD'];
+if ($entry && ($method === 'GET' || $method === 'HEAD') && ($legacyPage !== null || $route === 'index.php')) {
+    $parameters = $_GET;
+    unset($parameters['page']);
+    header('Location: ' . page_url($page, $parameters), true, 302);
+    exit;
+}
 $user = null;
 $state = null;
 $error = '';
@@ -33,8 +44,8 @@ $notice = '';
 $errorLevel = 'failure';
 $errorField = null;
 $formError = [];
-$isPost = $_SERVER['REQUEST_METHOD'] === 'POST';
-$query = array_intersect_key($_GET, array_flip(['id', 'date', 'q', 'department', 'status', 'month', 'type', 'todayStatus', 'week', 'p', 'candidate', 'candidates', 'rolesPage', 'leavePage', 'slipsPage']));
+$isPost = $method === 'POST';
+$query = array_intersect_key($_GET, array_flip(['id', 'date', 'q', 'department', 'status', 'month', 'type', 'todayStatus', 'week', 'p', 'candidate', 'candidates', 'rolesPage', 'leavePage', 'slipsPage', 'requestPage', 'orderRequestPage']));
 $screen = 'Sign in';
 $theme = 'system';
 try {
@@ -58,19 +69,33 @@ try {
         } elseif ($action === 'theme') {
             require_user();
             $_SESSION['web_theme'] = one_of((string) ($_POST['theme'] ?? ''), ['system', 'light', 'dark'], 'Theme');
+            if (($_SERVER['HTTP_X_HORIZON_VIEW'] ?? '') === 'theme-toggle') {
+                http_response_code(204);
+                exit;
+            }
         } else {
             $user = require_user();
-            $handler = action_handler($action);
-            $result = $handler($_POST, $user);
+            if ($action === 'profile.photo') $result = act_profile_photo($_FILES['profileImage'] ?? [], $user);
+            elseif ($action === 'profile.photo.remove') $result = act_profile_photo_remove($user);
+            elseif ($action === 'employee.import') $result = act_employee_import($_FILES['employeeCsv'] ?? []);
+            elseif ($action === 'attendance.import') $result = act_attendance_import($_FILES['attendanceCsv'] ?? []);
+            else {
+                $handler = action_handler($action);
+                $result = $handler($_POST, $user);
+            }
         }
         if (($result['changed'] ?? true) !== false) {
-            $_SESSION['web_notice'] = action_success_message($action, $_POST);
+            if ($action === 'employee.import') $_SESSION['web_notice'] = $result['imported'] . ' employee' . ($result['imported'] === 1 ? '' : 's') . ' imported successfully.';
+            elseif ($action === 'attendance.import') $_SESSION['web_notice'] = $result['imported'] . ' attendance record' . ($result['imported'] === 1 ? '' : 's') . ' imported successfully.';
+            else $_SESSION['web_notice'] = action_success_message($action, $_POST);
         }
         unset($query['candidate']);
         if (in_array($action, ['employee.save', 'position.save', 'payroll.create'], true)) {
             $query['id'] = $result['id'];
         } elseif (in_array($action, ['employee.delete', 'position.delete'], true)) {
             unset($query['id']);
+        } elseif ($action === 'event.save' && $page === 'overview') {
+            $query['date'] = $_POST['date'];
         }
         $destination = $action === 'employee.save' ? 'employees' : $page;
         if ($action === 'employee.save' && ($_POST['_employee_modal'] ?? '') === '1') {
@@ -108,7 +133,7 @@ if ($isPost) {
     } catch (Throwable $e) {
         error_log((string) $e);
     }
-    $employeeModal = in_array($page, ['employees', 'overview'], true)
+    $employeeModal = $page === 'employees'
         && ($_POST['_action'] ?? '') === 'employee.save'
         && ($_POST['_employee_modal'] ?? '') === '1';
     $fields = array_flip(['id', 'firstName', 'lastName', 'email', 'phone', 'title', 'department', 'type', 'location', 'startDate', 'salary', 'managerId']);
@@ -144,6 +169,8 @@ if ($user) {
     try {
         if (db()->inTransaction()) db()->rollBack();
         $state = build_state($user);
+        if ($page === 'employees' && isset($_GET['template'])) employee_import_template();
+        if ($page === 'attendance' && isset($_GET['template'])) attendance_import_template();
         if (isset($_GET['export'])) export_page($page, $state);
     } catch (Throwable $e) {
         error_log((string) $e);

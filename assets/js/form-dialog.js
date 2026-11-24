@@ -24,6 +24,65 @@ if (typeof HTMLDialogElement !== 'undefined' && typeof HTMLDialogElement.prototy
 
   dialog.addEventListener('cancel', cancel);
 
+  function showFieldError(field, message) {
+    const wrapper = field.closest('.field');
+    let error = wrapper.querySelector('.field-error');
+    if (message) {
+      if (!error) {
+        error = document.createElement('span');
+        error.className = 'field-error';
+        error.id = `dialog-error-${field.name}`;
+        error.setAttribute('aria-live', 'polite');
+        wrapper.append(error);
+      }
+      if (error.textContent !== message) error.textContent = message;
+      field.setAttribute('aria-invalid', 'true');
+      field.setAttribute('aria-describedby', error.id);
+    } else {
+      error?.remove();
+      field.removeAttribute('aria-invalid');
+      field.removeAttribute('aria-describedby');
+    }
+    return !message;
+  }
+
+  function eventValidation(form) {
+    form.noValidate = true;
+    const fields = Array.from(form.querySelectorAll('.field input'));
+    const start = form.elements.namedItem('start');
+    const end = form.elements.namedItem('end');
+    const limits = { title: 160, detail: 255 };
+
+    function validate(field) {
+      const label = field.closest('.field').firstElementChild.textContent.trim();
+      const value = field.value.trim();
+      const limit = limits[field.name];
+      let message = '';
+      if (field.validity.badInput) {
+        message = `Enter a valid ${field.type}.`;
+      } else if (field.required && !value) {
+        message = `${label} is required.`;
+      } else if (limit && Array.from(value).length > limit) {
+        message = `${label} must be ${limit} characters or fewer.`;
+      } else if (field === end && start.value && value && end.valueAsNumber <= start.valueAsNumber) {
+        message = 'End time must be after start time.';
+      }
+      return showFieldError(field, message);
+    }
+
+    for (const field of fields) {
+      field.addEventListener('input', () => {
+        if (field.hasAttribute('aria-invalid')) validate(field);
+        if (field === start && end.hasAttribute('aria-invalid')) validate(end);
+      });
+    }
+    return () => {
+      const invalid = fields.filter((field) => !validate(field));
+      invalid[0]?.focus();
+      return invalid.length === 0;
+    };
+  }
+
   function accountValidation(form) {
     form.noValidate = true;
     const fields = Array.from(form.querySelectorAll('.field input'));
@@ -52,24 +111,7 @@ if (typeof HTMLDialogElement !== 'undefined' && typeof HTMLDialogElement.prototy
         message = `${label} must be 120 characters or fewer.`;
       }
 
-      let error = wrapper.querySelector('.field-error');
-      if (message) {
-        if (!error) {
-          error = document.createElement('span');
-          error.className = 'field-error';
-          error.id = `account-error-${field.name}`;
-          error.setAttribute('aria-live', 'polite');
-          wrapper.append(error);
-        }
-        if (error.textContent !== message) error.textContent = message;
-        field.setAttribute('aria-invalid', 'true');
-        field.setAttribute('aria-describedby', error.id);
-      } else {
-        error?.remove();
-        field.removeAttribute('aria-invalid');
-        field.removeAttribute('aria-describedby');
-      }
-      return !message;
+      return showFieldError(field, message);
     }
 
     for (const field of fields) {
@@ -185,7 +227,9 @@ if (typeof HTMLDialogElement !== 'undefined' && typeof HTMLDialogElement.prototy
     if (isConfirmation) submit.className = 'btn danger';
     footer.append(cancelButton, submit);
     form.append(header, body, footer);
-    const validate = action === 'profile.save' || action === 'password.change' ? accountValidation(form) : null;
+    let validate;
+    if (action === 'event.save') validate = eventValidation(form);
+    if (action === 'profile.save' || action === 'password.change') validate = accountValidation(form);
     form.addEventListener('submit', (submitEvent) => {
       submitEvent.preventDefault();
       if (validate && !validate()) return;

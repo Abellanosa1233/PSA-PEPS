@@ -52,12 +52,23 @@ function employees_view(array $state): void
         <div><h1>Employees</h1><p><?= $active ?> active employee<?= $active === 1 ? '' : 's' ?> across <?= count(DEPARTMENTS) ?> departments.</p></div>
         <div class="actions">
             <a class="btn" id="employee-export" href="<?= h(page_url('employees', ['export' => 1] + $filters)) ?>"><?= icon('download') ?> Export CSV</a>
+            <details class="employee-import">
+                <summary class="btn"><?= icon('file') ?> Import CSV</summary>
+                <div class="employee-import-panel">
+                    <strong>Import employee records</strong>
+                    <p>Required: First name, Last name, Email, Job title, Department, Type, Start date, and Annual salary.</p>
+                    <a href="<?= h(page_url('employees', ['template' => 1])) ?>">Download CSV template</a>
+                    <?php post_form('employee.import', [], false, 'multipart/form-data'); ?>
+                    <div class="field"><label for="employeeCsv">CSV file</label><input class="input" id="employeeCsv" name="employeeCsv" type="file" accept=".csv,text/csv" required></div>
+                    <?php end_form('Import employees'); ?>
+                    <small>Maximum 2 MB and 500 employees. The import is all-or-nothing if any row is invalid.</small>
+                </div>
+            </details>
             <?php add_employee_button('employees', array_intersect_key($_GET, ['p' => true]) + $filters); ?>
         </div>
     </div>
     <section class="card web-directory" id="employee-directory">
-        <form class="card-body toolbar" method="get">
-            <input type="hidden" name="page" value="employees">
+        <form class="card-body toolbar" method="get" action="<?= h(page_url('employees')) ?>">
             <div class="grow employee-search">
                 <input class="input" name="q" type="search" placeholder="Search by name, email or title" aria-label="Search by name, email or title" value="<?= h($_GET['q'] ?? '') ?>">
                 <div id="employee-suggestions" role="listbox" aria-label="Employee suggestions"

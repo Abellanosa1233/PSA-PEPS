@@ -21,6 +21,7 @@ HR.pages = HR.pages || {};
         return (!dept || e.department === dept) && (!needle || HR.q.name(e).toLowerCase().indexOf(needle.toLowerCase()) >= 0);
       });
       var future = day > ti;
+      var past = day < ti;
       var weekend = D.weekend(D.parse(day));
       var chip = function (k, label) { return '<span class="pill" style="height:26px;padding:0 10px">' + label + ' <strong style="margin-left:4px">' + s[k] + '</strong></span>'; };
 
@@ -31,7 +32,7 @@ HR.pages = HR.pages || {};
         '<button class="btn sq" style="width:34px;height:34px" data-shift="1" aria-label="Next day">' + ic('chevRight') + '</button>' +
         (day !== ti ? '<button class="btn" data-act="today">Today</button>' : '') +
         '<button class="btn" data-act="export">' + ic('download') + 'Export</button>' +
-        (!future ? '<button class="btn primary" data-act="fill">' + ic('check') + 'Mark unrecorded as in office</button>' : '') + '</div></div>' +
+        (!future && !past ? '<button class="btn primary" data-act="fill">' + ic('check') + 'Mark unrecorded as in office</button>' : '') + '</div></div>' +
 
         '<div class="toolbar">' + chip('office', 'In office') + chip('remote', 'Remote') + chip('away', 'Away') + chip('leave', 'On leave') + chip('none', 'Not recorded') +
         '<span class="muted" style="margin-left:auto">' + ui.esc(ui.dayLong(day)) + (weekend ? ' · weekend' : '') + '</span></div>' +
@@ -46,11 +47,12 @@ HR.pages = HR.pages || {};
           var r = HR.q.record(e.id, day) || {};
           var dis = lv || r.status === 'away' || !r.status ? ' disabled' : '';
           return '<tr data-row="' + e.id + '"><td>' + ui.who(e, e.department) + '</td>' +
-            '<td>' + (lv ? ui.badge('On leave · ' + lv.type, 'warn') :
+            '<td>' + (lv ? ui.badge('On leave · ' + lv.type, 'warn') : past ? ui.esc(ui.attLabel[r.status || 'none']) :
               '<select class="input sm" style="width:140px" data-f="status" aria-label="Status for ' + ui.esc(HR.q.name(e)) + '">' +
               ui.options([{ value: 'office', label: 'In office' }, { value: 'remote', label: 'Remote' }, { value: 'away', label: 'Away' }], r.status || '', 'Not recorded') + '</select>') + '</td>' +
-            '<td><input class="input sm" style="width:110px" type="time" data-f="in" value="' + (r.in || '') + '"' + dis + ' aria-label="Clock in"></td>' +
-            '<td><input class="input sm" style="width:110px" type="time" data-f="out" value="' + (r.out || '') + '"' + dis + ' aria-label="Clock out"></td>' +
+            (past ? '<td>' + ui.esc(r.in || 'Did not clock in') + '</td><td>' + ui.esc(r.out || 'Did not clock out') + '</td>' :
+              '<td><input class="input sm" style="width:110px" type="time" data-f="in" value="' + (r.in || '') + '"' + dis + ' aria-label="Clock in"></td>' +
+              '<td><input class="input sm" style="width:110px" type="time" data-f="out" value="' + (r.out || '') + '"' + dis + ' aria-label="Clock out"></td>') +
             '<td class="num">' + hours(r) + '</td></tr>';
         }).join('') : '<tr><td colspan="5">' + ui.empty('Nobody matches', 'Try another name or department.') + '</td></tr>') +
         '</tbody></table></div>') + '</section>';
@@ -79,10 +81,10 @@ HR.pages = HR.pages || {};
         if (e.target.id === 'att-day') { if (e.target.value) { day = e.target.value; HR.render(); } return; }
         if (e.target.id === 'att-dept') { dept = e.target.value; HR.render(); return; }
         var row = e.target.closest('[data-row]');
-        if (!row) return;
+        if (!row || past) return;
         var status = row.querySelector('[data-f=status]').value;
         var tin = row.querySelector('[data-f=in]').value, tout = row.querySelector('[data-f=out]').value;
-        if (e.target.dataset.f === 'status' && status && status !== 'away' && !tin) tin = day === ti ? new Date().toTimeString().slice(0, 5) : '09:00';
+        if (e.target.dataset.f === 'status' && status && status !== 'away' && !tin) tin = new Date().toTimeString().slice(0, 5);
         HR.store.run('attendance.set', { date: day, empId: Number(row.dataset.row), status: status, in: tin, out: tout }).catch(function (err) { ui.toast(err.message, true); HR.render(); });
       };
     }

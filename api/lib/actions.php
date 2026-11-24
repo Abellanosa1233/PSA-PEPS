@@ -52,6 +52,65 @@ function act_employee_save(array $in): array
     return ['id' => $id];
 }
 
+function act_employee_import(array $file): array
+{
+    $code = $file['error'] ?? UPLOAD_ERR_NO_FILE;
+    if ($code !== UPLOAD_ERR_OK) fail($code === UPLOAD_ERR_INI_SIZE ? 'The CSV exceeds the server upload limit.' : 'Choose a valid CSV file.', 422, 'employeeCsv');
+    if (($file['size'] ?? 0) > 2 * 1024 * 1024) fail('Choose a CSV file smaller than 2 MB.', 422, 'employeeCsv');
+    $tmp = $file['tmp_name'] ?? '';
+    if (!is_uploaded_file($tmp)) fail('The uploaded CSV could not be verified.', 422, 'employeeCsv');
+    $handle = fopen($tmp, 'r');
+    if (!$handle) fail('The uploaded CSV could not be read.', 422, 'employeeCsv');
+    $headers = fgetcsv($handle, 0, ',', '"', '');
+    if (!$headers) { fclose($handle); fail('The CSV is empty.', 422, 'employeeCsv'); }
+    $aliases = [
+        'firstname' => 'firstName', 'lastname' => 'lastName', 'email' => 'email', 'phone' => 'phone',
+        'jobtitle' => 'title', 'title' => 'title', 'department' => 'department', 'type' => 'type',
+        'employmenttype' => 'type', 'location' => 'location', 'startdate' => 'startDate',
+        'annualsalary' => 'salary', 'salary' => 'salary', 'enddate' => 'endDate', 'status' => 'status',
+    ];
+    $columns = [];
+    foreach ($headers as $index => $header) {
+        $key = strtolower(preg_replace('/[^a-z0-9]/', '', trim((string) $header, " \t\n\r\0\x0B\xEF\xBB\xBF")));
+        if (isset($aliases[$key])) $columns[$aliases[$key]] = $index;
+    }
+    foreach (['firstName', 'lastName', 'email', 'title', 'department', 'type', 'startDate', 'salary'] as $required) {
+        if (!isset($columns[$required])) { fclose($handle); fail('The CSV is missing required column "' . $required . '".', 422, 'employeeCsv'); }
+    }
+    $row = 1;
+    $count = 0;
+    db()->beginTransaction();
+    try {
+        while (($values = fgetcsv($handle, 0, ',', '"', '')) !== false) {
+            $row++;
+            if ($values === [null] || !array_filter($values, function ($value) { return trim((string) $value) !== ''; })) continue;
+            if (count($values) > count($headers)) fail("CSV row $row has more values than the header.", 422, 'employeeCsv');
+            if ($count >= 500) fail('A CSV import can contain at most 500 employees.', 422, 'employeeCsv');
+            $value = function ($key) use ($columns, $values) { return isset($columns[$key]) ? trim((string) ($values[$columns[$key]] ?? '')) : ''; };
+            $result = act_employee_save([
+                'firstName' => $value('firstName'), 'lastName' => $value('lastName'), 'email' => $value('email'),
+                'phone' => $value('phone'), 'title' => $value('title'), 'department' => $value('department'),
+                'type' => $value('type'), 'location' => $value('location'), 'startDate' => $value('startDate'), 'salary' => $value('salary'),
+            ]);
+            $status = $value('status') ?: 'Active';
+            if ($status !== 'Active' || $value('endDate') !== '') act_employee_status(['id' => $result['id'], 'status' => $status, 'endDate' => $value('endDate')]);
+            $count++;
+        }
+        if (!$count) fail('The CSV does not contain any employee rows.', 422, 'employeeCsv');
+        db()->commit();
+    } catch (ApiError $e) {
+        if (db()->inTransaction()) db()->rollBack();
+        fclose($handle);
+        fail("CSV row $row: " . $e->getMessage(), $e->status, $e->field);
+    } catch (Throwable $e) {
+        if (db()->inTransaction()) db()->rollBack();
+        fclose($handle);
+        throw $e;
+    }
+    fclose($handle);
+    return ['imported' => $count];
+}
+
 function act_employee_status(array $in): array
 {
     $id = int_in($in, 'id');
@@ -121,10 +180,63 @@ function act_leave_cancel(array $in): array
     return [];
 }
 
+function act_employee_request_create(array $in): array
+{
+    ensure_employee_requests_table();
+    $employee = employee_exists(int_in($in, 'empId'));
+    if ($employee['status'] !== 'Active') fail('Requests can only be submitted for active employees.');
+    $type = one_of((string) ($in['type'] ?? ''), ['special_order', 'travel_order'], 'Request type');
+    $purpose = str_in($in, 'purpose', 160, true, $type === 'special_order' ? 'Order subject' : 'Travel purpose');
+    $start = date_in($in, 'start', true, $type === 'special_order' ? 'Effective date' : 'Departure date');
+    $end = null;
+    $destination = '';
+    if ($type === 'travel_order') {
+        $destination = str_in($in, 'destination', 160, true, 'Destination');
+        $end = date_in($in, 'end', true, 'Return date');
+        if ($end < $start) fail('Return date must be on or after departure date.', 422, 'end');
+    }
+    q('INSERT INTO employee_requests (emp_id, request_type, purpose, destination, start_date, end_date, details) VALUES (?,?,?,?,?,?,?)',
+        [$employee['id'], $type, $purpose, $destination, $start, $end, str_in($in, 'details', 1000, false)]);
+    return ['id' => (int) db()->lastInsertId()];
+}
+
+function act_employee_request_decide(array $in, array $user): array
+{
+    ensure_employee_requests_table();
+    $id = int_in($in, 'id');
+    $status = one_of((string) ($in['status'] ?? ''), ['approved', 'rejected'], 'Decision');
+    $request = q('SELECT emp_id, status FROM employee_requests WHERE id = ?', [$id])->fetch();
+    if (!$request) fail('That request no longer exists.', 404);
+    if ($request['status'] !== 'pending') fail('This request was already ' . $request['status'] . '.');
+    $reviewerId = int_in($in, 'reviewerId', false);
+    $reviewerRole = $reviewerId === null ? 'hr_admin' : 'supervisor';
+    if ($reviewerId !== null) {
+        $employee = employee_exists((int) $request['emp_id']);
+        if ((int) $employee['manager_id'] !== $reviewerId) fail('Only the employee’s direct supervisor can decide this request.', 403);
+    }
+    $updated = q('UPDATE employee_requests SET status=?, decision_role=?, decided_by_user_id=?, decided_by_employee_id=?, decided_at=NOW() WHERE id=? AND status="pending"',
+        [$status, $reviewerRole, $reviewerId === null ? $user['id'] : null, $reviewerId, $id]);
+    if (!$updated->rowCount()) fail('This request was already decided.', 409);
+    return [];
+}
+
+function act_employee_request_cancel(array $in): array
+{
+    ensure_employee_requests_table();
+    $id = int_in($in, 'id');
+    $employeeId = int_in($in, 'empId');
+    $request = q('SELECT status FROM employee_requests WHERE id=? AND emp_id=?', [$id, $employeeId])->fetch();
+    if (!$request) fail('That request no longer exists.', 404);
+    if ($request['status'] !== 'pending') fail('Only pending requests can be canceled.');
+    q('DELETE FROM employee_requests WHERE id=?', [$id]);
+    return [];
+}
+
 /* ---------- Attendance ---------- */
 function act_attendance_set(array $in): array
 {
     $date = date_in($in, 'date');
+    if ($date < today()) fail('Past attendance records are read-only.', 422, 'date');
     $emp = employee_exists(int_in($in, 'empId'));
     $status = (string) ($in['status'] ?? '');
     if ($status === '') {
@@ -144,13 +256,87 @@ function act_attendance_set(array $in): array
 function act_attendance_fill(array $in): array
 {
     $date = date_in($in, 'date');
-    $past = $date < today();
+    if ($date < today()) fail('Past attendance records are read-only.', 422, 'date');
     $n = q("INSERT IGNORE INTO attendance (work_date, emp_id, status, time_in, time_out)
-            SELECT ?, e.id, 'office', '09:00', ? FROM employees e
+            SELECT ?, e.id, 'office', '09:00', NULL FROM employees e
             WHERE e.status = 'Active' AND e.start_date <= ?
               AND NOT EXISTS (SELECT 1 FROM leave_requests l WHERE l.emp_id = e.id AND l.status = 'approved' AND l.start_date <= ? AND l.end_date >= ?)",
-        [$date, $past ? '17:30' : null, $date, $date, $date])->rowCount();
+        [$date, $date, $date, $date])->rowCount();
     return ['count' => $n];
+}
+
+function act_attendance_import(array $file): array
+{
+    $code = $file['error'] ?? UPLOAD_ERR_NO_FILE;
+    if ($code !== UPLOAD_ERR_OK) fail($code === UPLOAD_ERR_INI_SIZE ? 'The CSV exceeds the server upload limit.' : 'Choose a valid CSV file.', 422, 'attendanceCsv');
+    if (($file['size'] ?? 0) > 2 * 1024 * 1024) fail('Choose a CSV file smaller than 2 MB.', 422, 'attendanceCsv');
+    $tmp = $file['tmp_name'] ?? '';
+    if (!is_uploaded_file($tmp)) fail('The uploaded CSV could not be verified.', 422, 'attendanceCsv');
+    $handle = fopen($tmp, 'r');
+    if (!$handle) fail('The uploaded CSV could not be read.', 422, 'attendanceCsv');
+    $headers = fgetcsv($handle, 0, ',', '"', '');
+    if (!$headers) { fclose($handle); fail('The CSV is empty.', 422, 'attendanceCsv'); }
+    $aliases = ['date'=>'date', 'workdate'=>'date', 'employee'=>'name', 'employeename'=>'name', 'email'=>'email', 'employeeemail'=>'email',
+        'department'=>'department', 'status'=>'status', 'clockin'=>'in', 'timein'=>'in', 'clockout'=>'out', 'timeout'=>'out'];
+    $columns = [];
+    foreach ($headers as $index => $header) {
+        $key = strtolower(preg_replace('/[^a-z0-9]/', '', trim((string) $header, " \t\n\r\0\x0B\xEF\xBB\xBF")));
+        if (isset($aliases[$key])) $columns[$aliases[$key]] = $index;
+    }
+    foreach (['date', 'status', 'in', 'out'] as $required) {
+        if (!isset($columns[$required])) { fclose($handle); fail('The CSV is missing required column "' . $required . '".', 422, 'attendanceCsv'); }
+    }
+    if (!isset($columns['email']) && !isset($columns['name'])) { fclose($handle); fail('Include employee email or employee name.', 422, 'attendanceCsv'); }
+    $employees = q('SELECT id, first_name, last_name, email, department FROM employees')->fetchAll();
+    $byEmail = [];
+    foreach ($employees as $employee) $byEmail[strtolower($employee['email'])] = $employee;
+    $row = 1;
+    $count = 0;
+    $seen = [];
+    db()->beginTransaction();
+    try {
+        while (($values = fgetcsv($handle, 0, ',', '"', '')) !== false) {
+            $row++;
+            if ($values === [null] || !array_filter($values, function ($value) { return trim((string) $value) !== ''; })) continue;
+            if (count($values) > count($headers)) fail("CSV row $row has more values than the header.", 422, 'attendanceCsv');
+            if ($count >= 5000) fail('A CSV import can contain at most 5,000 attendance records.', 422, 'attendanceCsv');
+            $value = function ($key) use ($columns, $values) { return isset($columns[$key]) ? trim((string) ($values[$columns[$key]] ?? '')) : ''; };
+            $statusText = strtolower($value('status'));
+            if ($statusText === '' || $statusText === 'leave' || $statusText === 'on leave') continue;
+            $date = date_in(['date' => $value('date')], 'date');
+            if ($value('email') !== '') {
+                $employee = $byEmail[strtolower($value('email'))] ?? null;
+                if (!$employee) fail('No employee found for email ' . $value('email') . '.', 422, 'attendanceCsv');
+            } else {
+                $name = preg_replace('/\s+/', ' ', trim($value('name')));
+                $matches = array_values(array_filter($employees, function ($candidate) use ($name, $value) {
+                    return strcasecmp($candidate['first_name'] . ' ' . $candidate['last_name'], $name) === 0
+                        && ($value('department') === '' || strcasecmp($candidate['department'], $value('department')) === 0);
+                }));
+                if (count($matches) !== 1) fail(count($matches) ? 'More than one employee matches this name; use Employee email.' : 'No employee found for "' . $name . '".', 422, 'attendanceCsv');
+                $employee = $matches[0];
+            }
+            $statuses = ['office' => 'office', 'in office' => 'office', 'remote' => 'remote', 'away' => 'away'];
+            if (!isset($statuses[$statusText])) fail('Status must be office, remote, or away.', 422, 'attendanceCsv');
+            $key = $date . ':' . $employee['id'];
+            if (isset($seen[$key])) fail('The same employee and date appear more than once.', 422, 'attendanceCsv');
+            $seen[$key] = true;
+            act_attendance_set(['date' => $date, 'empId' => $employee['id'], 'status' => $statuses[$statusText], 'in' => $value('in'), 'out' => $value('out')]);
+            $count++;
+        }
+        if (!$count) fail('The CSV does not contain any attendance records.', 422, 'attendanceCsv');
+        db()->commit();
+    } catch (ApiError $e) {
+        if (db()->inTransaction()) db()->rollBack();
+        fclose($handle);
+        fail("CSV row $row: " . $e->getMessage(), $e->status, $e->field);
+    } catch (Throwable $e) {
+        if (db()->inTransaction()) db()->rollBack();
+        fclose($handle);
+        throw $e;
+    }
+    fclose($handle);
+    return ['imported' => $count];
 }
 
 function act_attendance_clock(array $in): array
@@ -319,6 +505,33 @@ function act_profile_save(array $in, array $user): array
     } else {
         q('UPDATE users SET display_name = ?, role_title = ? WHERE id = ?', [$name, $role, $user['id']]);
     }
+    return [];
+}
+
+function act_profile_photo(array $file, array $user): array
+{
+    $code = $file['error'] ?? UPLOAD_ERR_NO_FILE;
+    if ($code !== UPLOAD_ERR_OK) fail($code === UPLOAD_ERR_INI_SIZE ? 'The image exceeds the server upload limit.' : 'Choose a profile image first.', 422, 'profileImage');
+    if (($file['size'] ?? 0) > 2 * 1024 * 1024) fail('Choose an image smaller than 2 MB.', 422, 'profileImage');
+    $tmp = $file['tmp_name'] ?? '';
+    if (!is_uploaded_file($tmp)) fail('The uploaded image could not be verified.', 422, 'profileImage');
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    if (!$finfo) fail('The server could not verify the image type.', 500);
+    $mime = finfo_file($finfo, $tmp);
+    finfo_close($finfo);
+    $allowed = ['image/jpeg', 'image/png', 'image/webp'];
+    $image = @getimagesize($tmp);
+    if (!in_array($mime, $allowed, true) || !$image || ($image['mime'] ?? '') !== $mime) fail('Use a JPG, PNG, or WebP image.', 422, 'profileImage');
+    if ($image[0] > 2048 || $image[1] > 2048) fail('Image dimensions must be 2048 × 2048 pixels or smaller.', 422, 'profileImage');
+    $contents = file_get_contents($tmp);
+    if ($contents === false) fail('The uploaded image could not be read.', 500);
+    q('UPDATE users SET profile_image=?, profile_image_type=?, profile_image_updated_at=NOW() WHERE id=?', [$contents, $mime, $user['id']]);
+    return [];
+}
+
+function act_profile_photo_remove(array $user): array
+{
+    q('UPDATE users SET profile_image=NULL, profile_image_type=NULL, profile_image_updated_at=NULL WHERE id=?', [$user['id']]);
     return [];
 }
 

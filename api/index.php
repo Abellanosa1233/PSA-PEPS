@@ -38,6 +38,16 @@ try {
             $ok = installed();
             respond(['installed' => $ok, 'hasUsers' => $ok && has_users(), 'user' => $ok ? current_user() : null, 'needsSetupKey' => setup_key_required()]);
 
+        case 'profile.image':
+            $user = require_user();
+            $image = q('SELECT profile_image, profile_image_type FROM users WHERE id=?', [$user['id']])->fetch();
+            if (!$image || !$image['profile_image'] || !in_array($image['profile_image_type'], ['image/jpeg', 'image/png', 'image/webp'], true)) fail('No profile image is set.', 404);
+            header('Content-Type: ' . $image['profile_image_type']);
+            header('Cache-Control: private, max-age=3600');
+            header('Content-Length: ' . strlen($image['profile_image']));
+            echo $image['profile_image'];
+            exit;
+
         case 'install':
         case 'setup':
         case 'login':

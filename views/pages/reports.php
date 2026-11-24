@@ -64,7 +64,7 @@ function report_bars(string $title, array $values, callable $format): void
     ?>
     <section class="card">
         <div class="card-head"><h3><?= h($title) ?></h3></div>
-        <div class="card-body">
+        <div class="card-body report-bars">
             <?php if (!$values): ?><div class="empty">No records found.</div><?php endif; ?>
             <?php foreach ($values as $label => $value): ?>
                 <div class="hbar"><span><?= h($label) ?></span><div class="track"><span style="width:<?= 100 * $value / $max ?>%"></span></div><span class="v"><?= h($format($value)) ?></span></div>

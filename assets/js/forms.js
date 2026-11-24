@@ -89,26 +89,77 @@ window.HR = window.HR || {};
     },
 
     calendar: function () {
-      var t = HR.D.today();
-      var days = [];
-      for (var i = 0; i < 14; i++) days.push(HR.D.iso(HR.D.add(t, i)));
-      var evs = HR.store.data.events;
-      var body = days.map(function (d) {
-        var list = evs.filter(function (e) { return e.date === d; });
-        if (!list.length) return '';
-        return '<div><div class="side-label" style="padding:6px 0">' + ui.esc(ui.dayLong(d)) + '</div>' + list.map(function (e) {
-          return '<div class="who" style="justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)"><div><strong>' + ui.esc(e.title) + '</strong><small>' + ui.esc(e.start + '–' + e.end + (e.detail ? ' · ' + e.detail : '')) + '</small></div>' +
-            '<button type="button" class="sq reject" data-del-ev="' + e.id + '" aria-label="Delete ' + ui.esc(e.title) + '">' + HR.icon('trash', 14) + '</button></div>';
-        }).join('') + '</div>';
-      }).join('') || ui.empty('Nothing scheduled', 'Nothing is booked for the next two weeks.');
+      var selected = HR.D.parse(HR.D.todayIso());
+      var evs = HR.store.data.events || [];
+
+      function renderMonth() {
+        var first = new Date(selected.getFullYear(), selected.getMonth(), 1);
+        var lastDay = new Date(selected.getFullYear(), selected.getMonth() + 1, 0).getDate();
+        var leading = (first.getDay() + 6) % 7;
+        var cellCount = Math.ceil((leading + lastDay) / 7) * 7;
+        var html = '<div class="schedule-calendar-toolbar">' +
+          '<button type="button" class="icon-btn" data-cal-prev aria-label="Previous month">' + HR.icon('chevLeft', 16) + '</button>' +
+          '<strong>' + ui.esc(first.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })) + '</strong>' +
+          '<button type="button" class="icon-btn" data-cal-next aria-label="Next month">' + HR.icon('chevRight', 16) + '</button></div>' +
+          '<div class="schedule-calendar-weekdays">' +
+          ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(function (day) { return '<span>' + day + '</span>'; }).join('') +
+          '</div><div class="schedule-calendar-grid">';
+        for (var index = 0; index < cellCount; index++) {
+          var day = index - leading + 1;
+          if (day < 1 || day > lastDay) {
+            html += '<div class="schedule-calendar-day is-outside" aria-hidden="true"></div>';
+            continue;
+          }
+          var date = new Date(selected.getFullYear(), selected.getMonth(), day);
+          var iso = HR.D.iso(date);
+          var events = evs.filter(function (event) { return event.date === iso; }).sort(function (a, b) { return a.start.localeCompare(b.start); });
+          var classes = 'schedule-calendar-day';
+          if (iso === HR.D.todayIso()) classes += ' is-today';
+          if (iso === HR.D.iso(selected)) classes += ' is-selected';
+          html += '<button type="button" class="' + classes + '" data-cal-date="' + iso + '">' +
+            '<span class="schedule-calendar-number">' + day + '</span>' +
+            events.slice(0, 2).map(function (event) {
+              return '<span class="schedule-calendar-event"><b>' + ui.esc(event.start) + '</b> ' + ui.esc(event.title) + '</span>';
+            }).join('') +
+            (events.length > 2 ? '<span class="schedule-calendar-more">+' + (events.length - 2) + ' more</span>' : '') +
+            '</button>';
+        }
+        return html + '</div>';
+      }
+
       var m = ui.modal({
-        title: 'Calendar', subtitle: 'The next two weeks', wide: true, cancelLabel: 'Close',
-        body: body + '<div><button type="button" class="btn" data-new-ev>' + HR.icon('plus') + 'Add event</button></div>'
+        title: 'Schedule calendar',
+        subtitle: 'Monthly schedule view',
+        wide: true,
+        cancelLabel: 'Close',
+        body: renderMonth()
       });
+      var body = m.form.querySelector('.modal-body');
       m.form.addEventListener('click', function (e) {
-        var del = e.target.closest('[data-del-ev]');
-        if (del) { ui.act('event.delete', { id: Number(del.dataset.delEv) }, 'Event removed').then(function () { m.close(); HR.forms.calendar(); }); }
-        if (e.target.closest('[data-new-ev]')) { m.close(); HR.forms.event(); }
+        if (e.target.closest('[data-cal-prev]')) {
+          selected = new Date(selected.getFullYear(), selected.getMonth() - 1, 1);
+          body.innerHTML = renderMonth();
+          return;
+        }
+        if (e.target.closest('[data-cal-next]')) {
+          selected = new Date(selected.getFullYear(), selected.getMonth() + 1, 1);
+          body.innerHTML = renderMonth();
+          return;
+        }
+        var day = e.target.closest('[data-cal-date]');
+        if (!day) return;
+        var date = day.dataset.calDate;
+        var items = evs.filter(function (event) { return event.date === date; }).sort(function (a, b) { return a.start.localeCompare(b.start); });
+        m.close();
+        ui.modal({
+          title: ui.dayLong(date),
+          subtitle: 'Schedule details',
+          cancelLabel: 'Close',
+          noFooter: true,
+          body: items.length ? '<div class="calendar-day-events">' + items.map(function (event) {
+            return '<article class="calendar-day-event"><div class="calendar-day-event-time"><strong>' + ui.esc(event.start) + '</strong><span>' + ui.esc(event.end) + '</span></div><div class="calendar-day-event-info"><strong>' + ui.esc(event.title) + '</strong><span>' + ui.esc(event.detail || 'No additional details') + '</span></div></article>';
+          }).join('') + '</div>' : '<div class="calendar-day-empty"><strong>No events scheduled</strong><p>This date is currently available.</p></div>'
+        });
       });
     }
   };

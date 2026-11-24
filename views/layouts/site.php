@@ -3,17 +3,24 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title><?= h($user ? $pages[$page] : $screen) ?> · HRMS (Human Resource Management System)</title>
-    <link rel="stylesheet" href="assets/css/app.css">
+    <title><?= h($user ? $pages[$page] : $screen) ?> · HRMS</title>
+    <link rel="stylesheet" href="<?= h(versioned_asset('assets/css/app.css')) ?>">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap">
     <link rel="stylesheet" href="<?= h(versioned_asset('assets/css/php.css')) ?>">
+    <script>
+        try {
+            if (localStorage.getItem('hrms-sidebar-collapsed') === '1') {
+                document.documentElement.classList.add('sidebar-collapsed');
+            }
+        } catch (_) {}
+    </script>
 </head>
 <body>
 <?php if (!$user): ?>
     <main class="auth web-auth">
         <button class="btn desktop-full-screen desktop-full-screen-auth" type="button" hidden>Full screen</button>
         <section class="auth-card">
-            <a class="brand" href="index.php"><span class="brand-mark" aria-hidden="true">H</span><span>HRMS<small>Human Resource Management System</small></span></a>
+            <a class="brand" href="<?= h(page_url('overview')) ?>"><img class="brand-logo" src="assets/psa-logo.svg" alt="Philippine Statistics Authority seal"><span class="brand-copy"><strong>HRMS</strong><small>Human Resource Management System</small></span></a>
             <h1><?= h($screen) ?></h1>
             <?php web_message($error, ''); ?>
             <?php if ($screen === 'Install HRMS'): ?>
@@ -37,15 +44,23 @@
         'payroll' => 'wallet', 'recruitment' => 'briefcase', 'reports' => 'chart',
     ];
     $pendingCount = count(array_filter($state['leaves'] ?? [], function ($leave) { return $leave['status'] === 'pending'; }));
+    $pendingEmployeeRequests = array_filter($state['employeeRequests'] ?? [], function ($request) { return $request['status'] === 'pending'; });
+    $pendingCount += count($pendingEmployeeRequests);
+    $employeesById = array_column($state['employees'] ?? [], null, 'id');
+    $notifications = [];
+    foreach (($state['leaves'] ?? []) as $leave) if ($leave['status'] === 'pending') $notifications[] = ['leave', $leave];
+    foreach ($pendingEmployeeRequests as $request) $notifications[] = ['request', $request];
+    $notifications = array_slice($notifications, 0, 8);
     $settings = $state['settings'] ?? [];
     $signOutReturn = page_url($page, $query);
     $showSignOut = ($_GET['confirmSignOut'] ?? '') === '1';
 ?>
     <div class="app web-app">
-        <aside class="sidebar" aria-label="Main navigation">
+        <aside class="sidebar" id="web-sidebar" aria-label="Main navigation">
+            <button class="sidebar-toggle" id="web-sidebar-toggle" type="button" aria-controls="web-sidebar" aria-expanded="true" aria-label="Collapse sidebar" title="Collapse sidebar"><?= icon('chevLeft', 16) ?></button>
             <a class="brand sidebar-brand" href="<?= h(page_url('overview')) ?>" title="Human Resource Management System">
                 <img src="assets/psa-logo.svg" width="40" height="40" alt="Philippine Statistics Authority">
-                <span>HRMS</span>
+                <span class="brand-copy"><strong>HRMS</strong><small>Human Resource Management System</small></span>
             </a>
             <div>
                 <div class="side-label">Workspace</div>
@@ -58,7 +73,7 @@
                 <div class="side-label">Manage</div>
                 <nav class="nav">
                     <?php foreach ($navIcons as $key => $navIcon): ?>
-                        <a href="<?= h(page_url($key)) ?>"<?= $key === $page ? ' class="active" aria-current="page"' : '' ?>>
+                        <a href="<?= h(page_url($key)) ?>" title="<?= h($pages[$key]) ?>"<?= $key === $page ? ' class="active" aria-current="page"' : '' ?>>
                             <?= icon($navIcon) ?><span><?= h($pages[$key]) ?></span>
                             <?php if ($key === 'time-off' && $pendingCount): ?><span class="count"><?= $pendingCount ?></span><?php endif; ?>
                         </a>
@@ -68,29 +83,62 @@
             <div class="side-spacer"></div>
             <div class="side-links">
                 <?php foreach (['supervisor', 'self-service'] as $key): ?>
-                    <a class="side-link<?= $page === $key ? ' active' : '' ?>" href="<?= h(page_url($key)) ?>"><?= h($pages[$key]) ?><?= icon('arrowUpRight', 13) ?></a>
+                    <a class="side-link<?= $page === $key ? ' active' : '' ?>" href="<?= h(page_url($key)) ?>" title="<?= h($pages[$key]) ?>"><?= h($pages[$key]) ?><?= icon('arrowUpRight', 13) ?></a>
                 <?php endforeach; ?>
             </div>
             <div class="help-card">
-                <strong>A little help goes a long way.</strong>
-                <p>Find answers in our help center.</p>
-                <a href="<?= h(page_url('help')) ?>">Get support <?= icon('arrowRight', 15) ?></a>
+                <strong>Human Resource Support</strong>
+                <p>Access system guidance and assistance.</p>
+                <a href="<?= h(page_url('help')) ?>">Open help center <?= icon('arrowRight', 15) ?></a>
             </div>
             <nav class="nav" aria-label="Settings and help">
-                <a class="<?= $page === 'preferences' ? 'active' : '' ?>" href="<?= h(page_url('preferences')) ?>"><?= icon('settings') ?> Settings</a>
-                <a class="<?= $page === 'help' ? 'active' : '' ?>" href="<?= h(page_url('help')) ?>"><?= icon('help') ?> Help &amp; resources</a>
+                <a class="<?= $page === 'preferences' ? 'active' : '' ?>" href="<?= h(page_url('preferences')) ?>" aria-label="Settings" title="Settings"<?= $page === 'preferences' ? ' aria-current="page"' : '' ?>>
+                    <?= icon('settings') ?><span>Settings</span>
+                </a>
+                <a class="<?= $page === 'help' ? 'active' : '' ?>" href="<?= h(page_url('help')) ?>" aria-label="Help &amp; resources" title="Help &amp; resources"<?= $page === 'help' ? ' aria-current="page"' : '' ?>>
+                    <?= icon('help') ?><span>Help &amp; resources</span>
+                </a>
             </nav>
         </aside>
+        <div class="scrim" id="web-nav-scrim"></div>
         <div class="main">
             <header class="topbar">
+                <button class="icon-btn menu-btn" id="web-menu-btn" type="button" aria-label="Open navigation"><?= icon('menu', 18) ?></button>
                 <div class="crumbs"><span>Workspace</span><?= icon('chevRight', 13) ?><strong><?= h($pages[$page]) ?></strong></div>
                 <div class="top-actions">
                     <button class="btn desktop-full-screen" type="button" hidden>Full screen</button>
-                    <a class="icon-btn web-bell" href="<?= h(page_url('time-off', ['status' => 'pending'])) ?>" aria-label="Pending leave requests">
-                        <?= icon('bell') ?><?php if ($pendingCount): ?><span class="dot"></span><?php endif; ?>
-                    </a>
+                    <form method="post" id="web-theme-form">
+                        <?php hidden_inputs(['_action' => 'theme', '_token' => $_SESSION['web_csrf'], 'theme' => $theme === 'dark' ? 'light' : 'dark']); ?>
+                        <button type="submit" class="icon-btn" aria-label="<?= $theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode' ?>" title="<?= $theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode' ?>">
+                            <span class="theme-sun"><?= icon('sun', 17) ?></span>
+                            <span class="theme-moon"><?= icon('moon', 17) ?></span>
+                        </button>
+                    </form>
+                    <details class="popover-wrap web-notifications-wrap">
+                        <summary class="icon-btn web-bell" id="notification-bell" aria-label="Notifications<?= $pendingCount ? ', ' . $pendingCount . ' pending' : '' ?>" aria-haspopup="true" aria-expanded="false">
+                            <?= icon('bell') ?><?php if ($pendingCount): ?><span class="dot"></span><?php endif; ?>
+                        </summary>
+                        <div class="popover notification-popover" id="notification-popover">
+                            <div class="notification-popover-head"><strong>Notifications</strong><?php if ($pendingCount): ?><span class="pill"><?= $pendingCount ?> pending</span><?php endif; ?></div>
+                            <?php if ($notifications): ?>
+                                <?php foreach ($notifications as [$kind, $item]):
+                                    $employee = $employeesById[$item['empId']] ?? null;
+                                    $name = $employee ? employee_name($employee) : 'Former employee';
+                                    $label = $kind === 'leave' ? 'Requested ' . strtolower($item['type']) : ($item['type'] === 'travel_order' ? 'Travel Order' : 'Special Order') . ' · ' . $item['purpose'];
+                                ?>
+                                    <a class="notification-item" href="<?= h(page_url($kind === 'leave' ? 'time-off' : 'time-off', ['status' => 'pending'])) ?>">
+                                        <span class="avatar sm"><?= h(initials($name)) ?></span>
+                                        <span><strong><?= h($name) ?></strong><small><?= h($label) ?> · <?= h($item['start']) ?></small></span>
+                                    </a>
+                                <?php endforeach; ?>
+                                <a class="notification-footer" href="<?= h(page_url('time-off', ['status' => 'pending'])) ?>">Review pending requests</a>
+                            <?php else: ?>
+                                <div class="notification-empty"><?= icon('check', 18) ?><strong>No pending notifications</strong><span>There are no new notifications.</span></div>
+                            <?php endif; ?>
+                        </div>
+                    </details>
                     <details class="popover-wrap web-user">
-                        <summary class="user-btn"><span class="avatar"><?= h(initials($user['name'])) ?></span><span class="who-text"><strong><?= h($user['name']) ?></strong><span><?= h($user['role']) ?></span></span><?= icon('chevDown', 14) ?></summary>
+                        <summary class="user-btn"><span class="avatar"><?php if (!empty($user['avatarUrl'])): ?><img src="<?= h($user['avatarUrl']) ?>" alt=""><?php else: ?><?= h(initials($user['name'])) ?><?php endif; ?></span><span class="who-text"><strong><?= h($user['name']) ?></strong><span><?= h($user['role']) ?></span></span><?= icon('chevDown', 14) ?></summary>
                         <div class="popover menu">
                             <a href="<?= h(page_url('preferences')) ?>"><?= icon('settings') ?> Settings</a>
                             <a href="<?= h(page_url('self-service')) ?>"><?= icon('user') ?> Employee workspace</a><hr>
@@ -104,7 +152,7 @@
                     <div class="page-head"><h1><?= h($pages[$page]) ?></h1></div>
                 <?php endif; ?>
                 <?php
-                $hasEmployeeModal = $state && ($page === 'overview' || ($page === 'employees' && (int) ($_GET['id'] ?? 0) === 0));
+                $hasEmployeeModal = $state && $page === 'employees' && (int) ($_GET['id'] ?? 0) === 0;
                 web_message($hasEmployeeModal && !empty($formError['employeeModal']) ? '' : $error, '');
                 ?>
                 <?php if ($state) require __DIR__ . '/../pages/' . ($page === 'preferences' ? 'settings' : $page) . '.php'; ?>
@@ -126,10 +174,85 @@
     <?php if (!empty($formError['shared'])): ?>
         <div id="shared-form-feedback" hidden data-feedback="<?= html_json($formError['shared']) ?>"></div>
     <?php endif; ?>
+    <script>
+        (function () {
+            var wrap = document.querySelector('.web-notifications-wrap');
+            var bell = document.getElementById('notification-bell');
+            if (!wrap || !bell) return;
+            wrap.addEventListener('toggle', function () { bell.setAttribute('aria-expanded', wrap.open ? 'true' : 'false'); });
+            document.addEventListener('click', function (event) { if (wrap.open && !wrap.contains(event.target)) wrap.open = false; });
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape' && wrap.open) { wrap.open = false; bell.focus(); }
+            });
+        }());
+    </script>
     <script src="<?= h(versioned_asset('assets/js/sign-out-dialog.js')) ?>" defer></script>
     <script src="<?= h(versioned_asset('assets/js/form-dialog.js')) ?>" defer></script>
 <?php endif; ?>
 <?php if ($error !== '' || $notice !== '') require __DIR__ . '/../partials/notifications.php'; ?>
+<?php if ($user): ?>
+<script>
+    (function () {
+        var themeForm = document.getElementById('web-theme-form');
+        var themeButton = themeForm.querySelector('button');
+        var themeInput = themeForm.elements.theme;
+        var root = document.documentElement;
+        var systemTheme = window.matchMedia('(prefers-color-scheme: dark)');
+        function updateThemeButton() {
+            var dark = root.dataset.theme === 'dark' || (root.dataset.theme === 'system' && systemTheme.matches);
+            themeInput.value = dark ? 'light' : 'dark';
+            themeButton.title = dark ? 'Switch to light mode' : 'Switch to dark mode';
+            themeButton.setAttribute('aria-label', themeButton.title);
+        }
+        updateThemeButton();
+        systemTheme.addEventListener('change', updateThemeButton);
+        themeForm.addEventListener('submit', async function (event) {
+            event.preventDefault();
+            if (themeButton.disabled) return;
+            var nextTheme = themeInput.value;
+            themeButton.disabled = true;
+            try {
+                var response = await fetch(themeForm.action, {
+                    method: 'POST',
+                    body: new FormData(themeForm),
+                    headers: { 'X-Horizon-View': 'theme-toggle' },
+                    redirect: 'error'
+                });
+                if (response.status !== 204) throw new Error('Theme could not be saved.');
+                root.dataset.theme = nextTheme;
+                updateThemeButton();
+            } catch (_) {
+                themeForm.submit();
+            } finally {
+                themeButton.disabled = false;
+            }
+        });
+        var app = document.querySelector('.web-app');
+        var toggle = document.getElementById('web-sidebar-toggle');
+        var menu = document.getElementById('web-menu-btn');
+        var scrim = document.getElementById('web-nav-scrim');
+        function updateToggle() {
+            if (!toggle) return;
+            var collapsed = document.documentElement.classList.contains('sidebar-collapsed');
+            toggle.setAttribute('aria-expanded', String(!collapsed));
+            toggle.setAttribute('aria-label', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
+            toggle.setAttribute('title', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
+            toggle.innerHTML = collapsed ? <?= json_encode(icon('chevRight', 16)) ?> : <?= json_encode(icon('chevLeft', 16)) ?>;
+        }
+        if (toggle) toggle.addEventListener('click', function () {
+            document.documentElement.classList.toggle('sidebar-collapsed');
+            try { localStorage.setItem('hrms-sidebar-collapsed', document.documentElement.classList.contains('sidebar-collapsed') ? '1' : '0'); } catch (_) {}
+            updateToggle();
+        });
+        if (menu && app) menu.addEventListener('click', function () { app.classList.add('nav-open'); });
+        if (scrim && app) scrim.addEventListener('click', function () { app.classList.remove('nav-open'); });
+        if (app) app.querySelectorAll('.sidebar a').forEach(function (link) {
+            link.addEventListener('click', function () { app.classList.remove('nav-open'); });
+        });
+        updateToggle();
+    }());
+</script>
+<?php endif; ?>
 <script src="<?= h(versioned_asset('assets/js/desktop-window.js')) ?>" defer></script>
 </body>
 </html>

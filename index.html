@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Horizon HRMS</title>
-  <meta name="description" content="Horizon — people management: employees, attendance, time off, payroll and recruitment.">
+  <title>HRMS - Human Resource Management System</title>
+  <meta name="description" content="Philippine Statistics Authority Human Resource Management System for employee records, attendance, leave, payroll and recruitment.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
@@ -12,6 +12,7 @@
   <script>
     /* Apply the saved theme before first paint to avoid a flash */
     try { var t = localStorage.getItem('horizon-theme'); if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t); } catch (e) { }
+    try { if (localStorage.getItem('hrms-sidebar-collapsed') === '1') document.documentElement.classList.add('sidebar-collapsed'); } catch (e) { }
   </script>
 </head>
 <body>

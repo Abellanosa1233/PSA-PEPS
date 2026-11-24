@@ -75,7 +75,7 @@ internal static class Program
         window.Shown += async (_, _) =>
         {
             await webView.EnsureCoreWebView2Async();
-            var appUrl = new Uri("http://localhost:8080/PSA-PEPS-main/index.php");
+            var appUrl = new Uri("http://localhost:8080/PSA-PEPS-main/overview");
             webView.CoreWebView2.WebMessageReceived += (_, message) =>
             {
                 if (!Uri.TryCreate(message.Source, UriKind.Absolute, out var source)

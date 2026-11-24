@@ -22,6 +22,18 @@ function build_state(array $user): array
         ];
     }, q('SELECT * FROM leave_requests ORDER BY start_date DESC, id DESC')->fetchAll());
 
+    $employeeRequests = array_map(function ($r) {
+        $decidedBy = $r['reviewer_user_name'] ?: trim(($r['reviewer_first_name'] ?? '') . ' ' . ($r['reviewer_last_name'] ?? ''));
+        return [
+            'id' => (int) $r['id'], 'empId' => (int) $r['emp_id'], 'type' => $r['request_type'],
+            'purpose' => $r['purpose'], 'destination' => $r['destination'], 'start' => $r['start_date'],
+            'end' => $r['end_date'], 'details' => $r['details'], 'status' => $r['status'],
+            'decisionRole' => $r['decision_role'], 'decidedBy' => $decidedBy, 'decidedAt' => $r['decided_at'],
+        ];
+    }, q('SELECT r.*, u.display_name AS reviewer_user_name, e.first_name AS reviewer_first_name, e.last_name AS reviewer_last_name
+          FROM employee_requests r LEFT JOIN users u ON u.id=r.decided_by_user_id
+          LEFT JOIN employees e ON e.id=r.decided_by_employee_id ORDER BY r.created_at DESC, r.id DESC')->fetchAll());
+
     $attendance = [];
     $since = (new DateTime('-120 days'))->format('Y-m-d');
     foreach (q('SELECT * FROM attendance WHERE work_date >= ?', [$since])->fetchAll() as $a) {
@@ -34,7 +46,7 @@ function build_state(array $user): array
             'id' => (int) $e['id'], 'date' => $e['event_date'], 'start' => $hm($e['start_time']), 'end' => $hm($e['end_time']),
             'title' => $e['title'], 'detail' => $e['detail'],
         ];
-    }, q('SELECT * FROM events WHERE event_date >= ? ORDER BY event_date, start_time', [(new DateTime('-30 days'))->format('Y-m-d')])->fetchAll());
+    }, q('SELECT * FROM events ORDER BY event_date, start_time')->fetchAll());
 
     $positions = array_map(function ($p) {
         return [
@@ -75,6 +87,7 @@ function build_state(array $user): array
         'settings' => settings(),
         'employees' => $employees,
         'leaves' => $leaves,
+        'employeeRequests' => $employeeRequests,
         'attendance' => (object) $attendance,
         'events' => $events,
         'positions' => $positions,

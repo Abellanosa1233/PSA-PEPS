@@ -5,6 +5,8 @@ function action_handler(string $action): string
 {
     static $writeActions = [
         'employee.save' => 'act_employee_save', 'employee.status' => 'act_employee_status', 'employee.delete' => 'act_employee_delete',
+        'employee.request.create' => 'act_employee_request_create', 'employee.request.decide' => 'act_employee_request_decide',
+        'employee.request.cancel' => 'act_employee_request_cancel',
         'leave.create' => 'act_leave_create', 'leave.decide' => 'act_leave_decide', 'leave.cancel' => 'act_leave_cancel',
         'attendance.set' => 'act_attendance_set', 'attendance.fill' => 'act_attendance_fill', 'attendance.clock' => 'act_attendance_clock',
         'event.save' => 'act_event_save', 'event.delete' => 'act_event_delete',

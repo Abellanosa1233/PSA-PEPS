@@ -37,16 +37,16 @@ Philippine defaults: pesos (₱), Asia/Manila time, phone numbers saved as `+63 
 
 | Page | What it does |
 | --- | --- |
-| Overview | KPIs, weekly attendance chart, today's schedule, pending time off, hiring summary |
-| Employees | Search/filter, add, edit, offboard, delete, CSV export, profile with leave balance and history |
-| Attendance | Per-day status (office / remote / away), clock-in/out times, bulk fill, CSV export |
-| Time off | Requests with approve/decline/cancel, weekday counting, balance and overlap checks |
+| Overview | KPIs, weekly attendance chart, monthly calendar with event previews/details, pending time off, hiring summary |
+| Employees | Search/filter, add, edit, offboard, delete, CSV import/export, profile with leave balance and history |
+| Attendance | Per-day status (office / remote / away), clock-in/out times, bulk fill, CSV import/export |
+| Time off | Requests with approve/decline/cancel, weekday counting, balance and overlap checks; Special and Travel Order review |
 | Payroll | Monthly pay runs, bonuses, tax and benefits, approve and lock, payslips, CSV export |
 | Recruitment | Roles, candidate pipeline (Applied → Hired), convert a hire into an employee |
 | Reports | Headcount, turnover, attendance rate, leave by type, payroll cost, salary by department |
-| Supervisor workspace | A manager's team today, approvals and who's out |
-| Employee workspace | Self-service: clock in/out, request time off, view payslips |
-| Settings | Company, currency, tax, benefits, leave allowances, account password, theme, demo reset |
+| Supervisor workspace | A manager's team today, leave and Special/Travel Order approvals, and who's out |
+| Employee workspace | Self-service: clock in/out, request time off, Special/Travel Orders, view payslips |
+| Settings | Company, currency, tax, benefits, leave allowances, profile photo, account password, theme, demo reset |
 
 ## Structure
 
@@ -67,6 +67,6 @@ HRMS/
 ## Database
 
 * Database `horizon_hrms`, user `hrms_app` (access to this database only). Credentials are in `api/config.php`.
-* Tables: users, settings, employees, leave_requests, attendance, events, positions, candidates, pay_runs, pay_bonuses, payslips.
+* Tables: users, settings, employees, leave_requests, employee_requests, attendance, events, positions, candidates, pay_runs, pay_bonuses, payslips.
 * Back up with phpMyAdmin (<http://localhost/us_opt1/>) or UniServer's `db_backup_restore` folder.
 * **Settings → Reset demo data** replaces every record with sample data (the login is kept).

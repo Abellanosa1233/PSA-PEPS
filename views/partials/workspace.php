@@ -34,6 +34,32 @@ function workspace_view(array $state, bool $supervisor): void
         leave_table($state, $requests['rows']);
         pagination($requests, 'supervisor', array_intersect_key($_GET, ['p' => true]), 'requests', 'leavePage');
         echo '</section>';
+        $teamRequests = array_values(array_filter($state['employeeRequests'], function ($request) use ($team) { return isset($team[$request['empId']]); }));
+        $teamRequestPage = paginate($teamRequests, 'requestPage');
+        card('Special and travel order requests');
+        web_table(['Employee', 'Request', 'Purpose / destination', 'Dates', 'Status', 'Actions'], array_map(function ($request) use ($employees, $profileId) {
+            $employee = $employees[$request['empId']] ?? null;
+            $type = $request['type'] === 'travel_order' ? 'Travel Order' : 'Special Order';
+            return [
+                $employee ? employee_name($employee) : 'Former employee',
+                $type,
+                function () use ($request) {
+                    echo h($request['purpose']);
+                    if ($request['destination']) echo '<span class="sub">' . h($request['destination']) . '</span>';
+                    if ($request['details']) echo '<span class="sub">' . h($request['details']) . '</span>';
+                },
+                $request['start'] . ($request['end'] ? ' – ' . $request['end'] : ''),
+                function () use ($request) { status_badge($request['status']); },
+                function () use ($request, $profileId) {
+                    if ($request['status'] === 'pending') {
+                        action_button('employee.request.decide', 'Approve', ['id' => $request['id'], 'status' => 'approved', 'reviewerId' => $profileId]);
+                        action_button('employee.request.decide', 'Decline', ['id' => $request['id'], 'status' => 'rejected', 'reviewerId' => $profileId]);
+                    }
+                },
+            ];
+        }, $teamRequestPage['rows']));
+        pagination($teamRequestPage, 'supervisor', [], 'requests', 'requestPage');
+        echo '</section>';
         return;
     }
     $record = ((array) ($state['attendance']->{$state['today']} ?? []))[$profileId] ?? [];
@@ -54,6 +80,43 @@ function workspace_view(array $state, bool $supervisor): void
     leave_table($state, $requests['rows'], false);
     pagination($requests, 'self-service', array_intersect_key($_GET, ['slipsPage' => true]), 'requests', 'leavePage');
     echo '</section>';
+    $myRequests = array_values(array_filter($state['employeeRequests'], function ($request) use ($profileId) { return $request['empId'] === $profileId; }));
+    card('Special and travel orders');
+    echo '<div class="card-body"><p class="muted" style="margin-bottom:12px">Submit a request for review by your supervisor or HR administrator.</p><div class="toolbar">';
+    echo '<details class="form-disclosure" data-form-dialog="form"><summary class="btn primary">Request Special Order</summary>';
+    post_form('employee.request.create', ['empId' => $profileId, 'type' => 'special_order']);
+    field('purpose', 'Order subject');
+    field('start', 'Effective date', today(), 'date');
+    field('details', 'Details', '', 'text', false);
+    end_form('Submit Special Order');
+    echo '</details><details class="form-disclosure" data-form-dialog="form"><summary class="btn">Request Travel Order</summary>';
+    post_form('employee.request.create', ['empId' => $profileId, 'type' => 'travel_order']);
+    field('purpose', 'Travel purpose');
+    field('destination', 'Destination');
+    field('start', 'Departure date', today(), 'date');
+    field('end', 'Return date', today(), 'date');
+    field('details', 'Details', '', 'text', false);
+    end_form('Submit Travel Order');
+    echo '</details></div>';
+    web_table(['Request', 'Purpose / destination', 'Dates', 'Status', 'Actions'], array_map(function ($request) use ($profileId) {
+        return [
+            $request['type'] === 'travel_order' ? 'Travel Order' : 'Special Order',
+            function () use ($request) {
+                echo h($request['purpose']);
+                if ($request['destination']) echo '<span class="sub">' . h($request['destination']) . '</span>';
+                if ($request['details']) echo '<span class="sub">' . h($request['details']) . '</span>';
+            },
+            $request['start'] . ($request['end'] ? ' – ' . $request['end'] : ''),
+            function () use ($request) {
+                status_badge($request['status']);
+                if ($request['decisionRole']) echo '<span class="sub">Reviewed by ' . h($request['decisionRole'] === 'hr_admin' ? 'HR administrator' : 'supervisor') . ($request['decidedBy'] ? ' · ' . h($request['decidedBy']) : '') . '</span>';
+            },
+            function () use ($request, $profileId) {
+                if ($request['status'] === 'pending') confirm_action('employee.request.cancel', 'Cancel', 'Cancel this request?', ['id' => $request['id'], 'empId' => $profileId]);
+            },
+        ];
+    }, $myRequests));
+    echo '</div></section>';
     card('Payslips');
     $rows = [];
     foreach (array_reverse($state['payRuns']) as $run) {

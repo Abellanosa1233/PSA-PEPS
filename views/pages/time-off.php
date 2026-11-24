@@ -21,6 +21,34 @@ $upcoming = array_slice(array_filter($approved, function ($l) use ($friday) { re
     <div><h1>Time off</h1><p>Review requests, check who is out and manage leave balances.</p></div>
     <?php leave_form($active, true); ?>
 </div>
+<?php
+$orderRequests = paginate($state['employeeRequests'], 'orderRequestPage');
+card('Special and travel order requests');
+web_table(['Employee', 'Request', 'Purpose / destination', 'Dates', 'Status', 'Actions'], array_map(function ($request) use ($employees) {
+    return [
+        $employees[$request['empId']] ?? 'Former employee',
+        $request['type'] === 'travel_order' ? 'Travel Order' : 'Special Order',
+        function () use ($request) {
+            echo h($request['purpose']);
+            if ($request['destination']) echo '<span class="sub">' . h($request['destination']) . '</span>';
+            if ($request['details']) echo '<span class="sub">' . h($request['details']) . '</span>';
+        },
+        $request['start'] . ($request['end'] ? ' – ' . $request['end'] : ''),
+        function () use ($request) {
+            status_badge($request['status']);
+            if ($request['decisionRole']) echo '<span class="sub">Reviewed by ' . h($request['decisionRole'] === 'hr_admin' ? 'HR administrator' : 'supervisor') . ($request['decidedBy'] ? ' · ' . h($request['decidedBy']) : '') . '</span>';
+        },
+        function () use ($request) {
+            if ($request['status'] === 'pending') {
+                action_button('employee.request.decide', 'Approve', ['id' => $request['id'], 'status' => 'approved']);
+                action_button('employee.request.decide', 'Decline', ['id' => $request['id'], 'status' => 'rejected']);
+            }
+        },
+    ];
+}, $orderRequests['rows']));
+pagination($orderRequests, 'time-off', [], 'requests', 'orderRequestPage');
+echo '</section>';
+?>
 <div class="grid cols-main">
     <section class="card web-directory">
         <div class="card-head"><h3>Leave requests</h3></div>

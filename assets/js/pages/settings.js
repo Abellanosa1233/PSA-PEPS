@@ -78,10 +78,10 @@ HR.pages = HR.pages || {};
         ['How are leave days counted?', 'Only weekdays count. Each request is checked against the yearly allowance for its type, which you can change in Settings. Pending requests already count against the balance.'],
         ['What happens when I approve a pay run?', 'Payslips are calculated from current salaries, bonuses, the withholding tax rate and the SSS, PhilHealth and Pag-IBIG contributions, then saved and locked. The next month can be started from the Payroll page.'],
         ['How do employees clock in?', 'In the Employee workspace, pick the person and use Clock in or Clock out. HR can also edit any day on the Attendance page.'],
-        ['Where is the data stored?', 'In the MySQL database "horizon_hrms" on this UniServer. Back it up with phpMyAdmin or the db_backup_restore folder in UniServer.'],
-        ['I see "Cannot reach the server"', 'Open UniController and start both Apache and MySQL, then reload the page.']
+        ['Where is the data stored?', 'HRMS stores organization data in its configured MySQL database. Follow your agency backup procedures and verify backups regularly.'],
+        ['I see "Cannot reach the server"', 'Start Apache and MySQL from the XAMPP Control Panel, then reload the page.']
       ];
-      el.innerHTML = '<div class="page-head"><div><h1>Help & resources</h1><p>Answers to common questions about running Horizon.</p></div></div>' +
+      el.innerHTML = '<div class="page-head"><div><h1>Help & resources</h1><p>Guidance for using the Human Resource Management System.</p></div></div>' +
         '<section class="card">' + qa.map(function (x, i) {
           return '<div style="padding:16px;' + (i ? 'border-top:1px solid var(--line)' : '') + '"><h3 style="font-size:14px;margin-bottom:6px">' + x[0] + '</h3><p style="color:var(--fg-2);max-width:68ch">' + x[1] + '</p></div>';
         }).join('') + '</section>';

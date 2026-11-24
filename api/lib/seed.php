@@ -17,7 +17,7 @@ function seed_demo(): void
 {
     $pdo = db();
     $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
-    foreach (['payslips', 'pay_bonuses', 'pay_runs', 'candidates', 'positions', 'events', 'attendance', 'leave_requests', 'employees', 'settings'] as $t) {
+    foreach (['payslips', 'pay_bonuses', 'pay_runs', 'candidates', 'positions', 'events', 'attendance', 'employee_requests', 'leave_requests', 'employees', 'settings'] as $t) {
         $pdo->exec("TRUNCATE TABLE $t");
     }
     $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');

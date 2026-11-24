@@ -37,7 +37,7 @@ window.HR = window.HR || {};
     view.dataset.page = r.page + ':' + (r.param || '');
     if (same) window.scrollTo(0, scroll); else window.scrollTo(0, 0);
     var title = r.page === 'employee' && HR.q.emp(r.param) ? HR.q.name(HR.q.emp(r.param)) : page.title;
-    document.title = title + ' · Horizon HRMS';
+    document.title = title + ' · HRMS';
   };
 
   /* ---------- Chrome ---------- */
@@ -62,7 +62,8 @@ window.HR = window.HR || {};
     root.innerHTML =
       '<div class="app" id="app">' +
       '<aside class="sidebar" id="sidebar" aria-label="Main navigation">' +
-      '<a class="brand" href="#overview"><span class="brand-mark">h</span>horizon</a>' +
+      '<button class="sidebar-toggle" id="sidebar-toggle" type="button" aria-label="Collapse sidebar" title="Collapse sidebar">' + ic('chevLeft', 16) + '</button>' +
+      '<a class="brand" href="#overview"><img class="brand-logo" src="assets/psa-logo.svg" alt="Philippine Statistics Authority seal"><span class="brand-copy"><strong>HRMS</strong><small>Human Resource Management System</small></span></a>' +
       '<div><div class="side-label">Workspace</div><button class="ws-switch" data-go="preferences" title="Workspace settings"><div><strong id="ws-company"></strong><span id="ws-name"></span></div>' + ic('chevDown', 14) + '</button></div>' +
       '<div><div class="side-label">Manage</div><nav class="nav">' + NAV.map(function (n) {
         return '<a href="#' + n[0] + '" data-nav="' + n[0] + '">' + ic(n[2]) + '<span>' + n[1] + '</span>' + (n[0] === 'time-off' ? '<span class="count" id="nav-timeoff-count"></span>' : '') + '</a>';
@@ -70,7 +71,7 @@ window.HR = window.HR || {};
       '<div class="side-spacer"></div>' +
       '<div class="side-links"><a class="side-link" href="#supervisor" data-nav="supervisor">Supervisor workspace ' + ic('arrowUpRight', 13) + '</a>' +
       '<a class="side-link" href="#self-service" data-nav="self-service">Employee workspace ' + ic('arrowUpRight', 13) + '</a></div>' +
-      '<div class="help-card"><strong>A little help goes a long way.</strong><p>Find answers in our help center.</p><a href="#help">Get support ' + ic('arrowRight', 13) + '</a></div>' +
+      '<div class="help-card"><strong>Human Resource Support</strong><p>Access system guidance and assistance.</p><a href="#help">Open help center ' + ic('arrowRight', 13) + '</a></div>' +
       '<nav class="nav"><a href="#preferences" data-nav="preferences">' + ic('settings') + '<span>Settings</span></a><a href="#help" data-nav="help">' + ic('help') + '<span>Help &amp; resources</span></a></nav>' +
       '</aside><div class="scrim" id="scrim"></div>' +
       '<div class="main"><header class="topbar">' +
@@ -108,7 +109,23 @@ window.HR = window.HR || {};
     HR.paintThemeBtn = paintThemeBtn;
     paintThemeBtn();
 
-    document.getElementById('menu-btn').onclick = function () { document.getElementById('app').classList.add('nav-open'); };
+    var appShell = document.getElementById('app');
+    var sidebarToggle = document.getElementById('sidebar-toggle');
+    function updateSidebarToggle() {
+      if (!sidebarToggle) return;
+      var collapsed = document.documentElement.classList.contains('sidebar-collapsed');
+      sidebarToggle.innerHTML = ic(collapsed ? 'chevRight' : 'chevLeft', 16);
+      sidebarToggle.setAttribute('aria-expanded', String(!collapsed));
+      sidebarToggle.setAttribute('aria-label', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
+      sidebarToggle.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+    }
+    if (sidebarToggle) sidebarToggle.onclick = function () {
+      document.documentElement.classList.toggle('sidebar-collapsed');
+      try { localStorage.setItem('hrms-sidebar-collapsed', document.documentElement.classList.contains('sidebar-collapsed') ? '1' : '0'); } catch (_) {}
+      updateSidebarToggle();
+    };
+    updateSidebarToggle();
+    document.getElementById('menu-btn').onclick = function () { appShell.classList.add('nav-open'); };
     document.getElementById('scrim').onclick = function () { document.getElementById('app').classList.remove('nav-open'); };
     root.querySelector('.ws-switch').onclick = function () { location.hash = 'preferences'; };
 
@@ -173,7 +190,7 @@ window.HR = window.HR || {};
 
   /* ---------- Auth screens ---------- */
   function authCard(title, text, body) {
-    root.innerHTML = '<div class="auth"><form class="auth-card" novalidate><div class="brand" style="padding:0"><span class="brand-mark">h</span>horizon</div>' +
+    root.innerHTML = '<div class="auth"><form class="auth-card" novalidate><div class="brand" style="padding:0"><img class="brand-logo" src="assets/psa-logo.svg" alt="Philippine Statistics Authority seal"><span class="brand-copy"><strong>HRMS</strong><small>Human Resource Management System</small></span></div>' +
       '<div><h1>' + title + '</h1><p style="margin-top:4px">' + text + '</p></div>' + body + '<div class="form-error" hidden></div></form></div>';
     return root.querySelector('form');
   }
@@ -196,7 +213,7 @@ window.HR = window.HR || {};
       : ui.field('setupKey', 'Setup key', '', 'password', { extra: 'autocomplete="off"', hint: 'The SETUP_KEY value in api/config.php on the server.' });
   }
   function install() {
-    var f = authCard('Set up Horizon HRMS', 'The database is empty. Create the tables to get started.',
+    var f = authCard('Set up HRMS', 'Install the system and create an administrator account to get started.',
       keyField() +
       '<label class="check"><input type="checkbox" name="demo" checked> Load sample data (43 employees, requests, attendance, payroll)</label>' +
       '<button class="btn primary" type="submit">Create database tables</button>');
@@ -222,12 +239,12 @@ window.HR = window.HR || {};
 
   function boot() {
     if (location.protocol === 'file:') {
-      root.innerHTML = '<div class="auth"><div class="auth-card"><h1>Open Horizon through the server</h1>' +
+      root.innerHTML = '<div class="auth"><div class="auth-card"><h1>Open HRMS through the web server</h1>' +
         '<p>This page was opened as a file, so it can\'t reach the database. Start Apache and MySQL in UniController, then open the address below.</p>' +
         '<a class="btn primary" href="http://localhost/HRMS/">Open http://localhost/HRMS/</a></div></div>';
       return;
     }
-    root.innerHTML = '<div class="loading">Loading Horizon…</div>';
+    root.innerHTML = '<div class="loading">Loading HRMS…</div>';
     HR.api('status').then(function (s) {
       needsKey = !!s.needsSetupKey;
       if (!s.installed) return install();
@@ -235,7 +252,7 @@ window.HR = window.HR || {};
       if (!s.user) return signIn();
       return HR.store.load().then(function (state) { enter(state); });
     }).catch(function (err) {
-      root.innerHTML = '<div class="auth"><div class="auth-card"><h1>Can\'t start Horizon</h1><p>' + ui.esc(err.message) + '</p><button class="btn primary" onclick="location.reload()">Try again</button></div></div>';
+      root.innerHTML = '<div class="auth"><div class="auth-card"><h1>Unable to start HRMS</h1><p>' + ui.esc(err.message) + '</p><button class="btn primary" onclick="location.reload()">Try again</button></div></div>';
     });
   }
 
