@@ -52,7 +52,15 @@ function db(): PDO
             $offset = (new DateTime())->format('P');
             $pdo->exec("SET time_zone = '$offset'");
         } catch (PDOException $e) {
-            fail('Cannot connect to the database. Check the details in api/config.php and that MySQL is running (on UniServer, start it in UniController).', 503);
+            $code = (int) ($e->errorInfo[1] ?? $e->getCode());
+            $messages = [
+                1044 => 'The MySQL user does not have access to the database. Check its permissions and DB_USER in api/config.php.',
+                1045 => 'MySQL rejected the login. Set DB_USER and DB_PASS in api/config.php to the credentials created on this computer.',
+                1049 => 'The database does not exist. Create the database in phpMyAdmin and check DB_NAME in api/config.php.',
+                2002 => 'Cannot reach MySQL. Start MySQL in XAMPP and check DB_HOST and DB_PORT in api/config.php.',
+                2003 => 'Cannot reach MySQL. Start MySQL in XAMPP and check DB_HOST and DB_PORT in api/config.php.',
+            ];
+            fail($messages[$code] ?? 'Cannot connect to the database. Check api/config.php and make sure MySQL and the PHP PDO MySQL extension are enabled.', 503);
         }
     }
     return $pdo;
@@ -94,7 +102,12 @@ function start_session(): void
 {
     if (session_status() === PHP_SESSION_ACTIVE) return;
     session_name('horizon_hrms');
-    session_set_cookie_params(['httponly' => true, 'samesite' => 'Strict', 'path' => '/']);
+    if (PHP_VERSION_ID >= 70300) {
+        session_set_cookie_params(['httponly' => true, 'samesite' => 'Strict', 'path' => '/']);
+    } else {
+        // PHP 7.2 takes positional arguments. Append SameSite to the cookie path header.
+        session_set_cookie_params(0, '/; SameSite=Strict', '', false, true);
+    }
     session_start();
 }
 
