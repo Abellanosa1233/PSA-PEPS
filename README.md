@@ -18,7 +18,15 @@ Requires PHP 7.2 or newer with PDO MySQL and mbstring, plus a MySQL-compatible d
 3. Copy `api/config.example.php` to `api/config.php` and put that password in `DB_PASS`.
 4. Visit <http://localhost/HRMS/> (not the file itself — PHP must serve it). The first visit creates the tables, optionally loads sample data, and asks you to create the administrator account.
 
-On Windows, XAMPP 8.2.12 (64-bit) matches the tested local PHP version. Start Apache and MySQL and open `http://localhost/PSA-PEPS-main/index.php`. If Apache listens on port 8080, use `http://localhost:8080/PSA-PEPS-main/index.php`.
+### Set up a fresh GitHub checkout on XAMPP
+
+1. Put the checkout in `C:\xampp\htdocs\PSA-PEPS-main` and start **Apache** and **MySQL** in the XAMPP Control Panel. XAMPP 8.2.12 (64-bit) matches the tested local setup. PHP 7.2.0 also works with this project.
+2. Open phpMyAdmin at `http://localhost/phpmyadmin/` and run the database and user creation commands above. Use port `8080` in the browser URL if Apache is configured for it.
+3. Open `api/config.php`. If the file is missing, run `Copy-Item api/config.example.php api/config.php` from the project directory in PowerShell. Set `DB_USER` to `hrms_app` and `DB_PASS` to the password you chose. Check `DB_NAME` and `DB_PORT` if you used different settings. `DB_PORT` is the MySQL port, usually `3306`.
+4. Open `http://localhost/PSA-PEPS-main/index.php` (or use port `8080` if configured). Click **Install** to create the tables, choose whether to load sample data, and create your administrator account.
+
+The installer uses the tracked schema at `api/lib/schema.sql`. The tracked `horizon_hrms.sql` is a database dump for restoring an existing snapshot. For a fresh installation, start with an empty database and let HRMS create the tables. Each machine uses its own database credentials. Keep local passwords out of Git commits.
+
 The PHP interface renders pages and processes forms on the server, including sign-in and CSV exports. Apache serves it by default when directory overrides are enabled. Open `index.html` explicitly for the previous interface.
 
 To change a screen, edit its matching PHP template in `views/pages/` and refresh the browser. The sidebar, header, and sign-in markup are in `views/layouts/site.php`. Shared forms are in `views/partials/`. Styles are in `assets/css/app.css` and `assets/css/php.css`.
