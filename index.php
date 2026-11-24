@@ -4,6 +4,13 @@ declare(strict_types=1);
 header('Content-Type: text/html; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
+if (PHP_VERSION_ID < 80000) {
+    http_response_code(503);
+    header('Content-Type: text/plain; charset=utf-8');
+    echo 'HRMS requires PHP 8.0 or newer. Apache is running PHP ', PHP_VERSION,
+        '. Start Apache from an XAMPP installation that includes PHP 8.0 or newer.';
+    exit;
+}
 require_once __DIR__ . '/api/lib/bootstrap.php';
 require __DIR__ . '/api/lib/seed.php';
 require __DIR__ . '/api/lib/state.php';
@@ -32,7 +39,7 @@ $screen = 'Sign in';
 $theme = 'system';
 try {
     start_session();
-    $_SESSION['web_csrf'] ??= bin2hex(random_bytes(32));
+    if (!isset($_SESSION['web_csrf'])) $_SESSION['web_csrf'] = bin2hex(random_bytes(32));
     $theme = $_SESSION['web_theme'] ?? 'system';
     $user = current_user();
     $screen = !installed() ? 'Install HRMS' : (has_users() ? 'Sign in' : 'Create administrator');
@@ -60,12 +67,11 @@ try {
             $_SESSION['web_notice'] = action_success_message($action, $_POST);
         }
         unset($query['candidate']);
-        $returnedId = match ($action) {
-            'employee.save', 'position.save', 'payroll.create' => $result['id'],
-            'employee.delete', 'position.delete' => null,
-            default => $query['id'] ?? null,
-        };
-        $query['id'] = $returnedId;
+        if (in_array($action, ['employee.save', 'position.save', 'payroll.create'], true)) {
+            $query['id'] = $result['id'];
+        } elseif (in_array($action, ['employee.delete', 'position.delete'], true)) {
+            unset($query['id']);
+        }
         $destination = $action === 'employee.save' ? 'employees' : $page;
         if ($action === 'employee.save' && ($_POST['_employee_modal'] ?? '') === '1') {
             $destination = $page;
@@ -106,15 +112,16 @@ if ($isPost) {
         && ($_POST['_action'] ?? '') === 'employee.save'
         && ($_POST['_employee_modal'] ?? '') === '1';
     $fields = array_flip(['id', 'firstName', 'lastName', 'email', 'phone', 'title', 'department', 'type', 'location', 'startDate', 'salary', 'managerId']);
-    $sharedFields = match ($_POST['_shared_form'] ?? '') {
+    $sharedForm = $_POST['_shared_form'] ?? '';
+    $sharedFormFields = [
         'leave.create' => ['empId', 'type', 'start', 'end', 'reason', 'approveNow'],
         'event.save' => ['date', 'title', 'detail', 'start', 'end'],
         'position.save' => ['id', 'title', 'department', 'type', 'location'],
         'candidate.save' => ['positionId', 'name', 'email', 'source'],
         'profile.save' => ['name', 'role'],
         'password.change' => [],
-        default => null,
-    };
+    ];
+    $sharedFields = is_string($sharedForm) ? ($sharedFormFields[$sharedForm] ?? null) : null;
     $_SESSION['web_form_error'] = [
         'page' => $page,
         'message' => $error,
@@ -123,7 +130,7 @@ if ($isPost) {
         'employeeModal' => $employeeModal,
         'values' => $employeeModal ? array_filter(array_intersect_key($_POST, $fields), 'is_string') : [],
         'shared' => $sharedFields !== null ? [
-            'action' => $_POST['_shared_form'],
+            'action' => $sharedForm,
             'message' => $error,
             'field' => $errorField,
             'values' => array_filter(array_intersect_key($_POST, array_flip($sharedFields)), 'is_string'),

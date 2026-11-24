@@ -3,7 +3,7 @@
 **Live demo: <http://horizonhrms.infinityfreeapp.com/>** (hosted on InfinityFree. Ask the admin for a login.)
 
 People management system built from the Figma file "HRMS · HR management – Overview".
-Runs on UniServer Zero (Apache + PHP 8.3 + MySQL 8) locally or on a compatible PHP 8.1+ host with MySQL. Set a nonempty `SETUP_KEY` in `api/config.php` before making a fresh installation publicly reachable.
+Requires PHP 8.0 or newer with PDO MySQL and mbstring, plus a MySQL-compatible database. Set a nonempty `SETUP_KEY` in `api/config.php` before making a fresh installation publicly reachable.
 
 ## Run it
 
@@ -18,7 +18,7 @@ Runs on UniServer Zero (Apache + PHP 8.3 + MySQL 8) locally or on a compatible P
 3. Copy `api/config.example.php` to `api/config.php` and put that password in `DB_PASS`.
 4. Visit <http://localhost/HRMS/> (not the file itself — PHP must serve it). The first visit creates the tables, optionally loads sample data, and asks you to create the administrator account.
 
-On XAMPP, start Apache and MySQL and open `http://localhost/PSA-PEPS-main/index.php`.
+On Windows, XAMPP 8.2.12 (64-bit) matches the tested local PHP version. Start Apache and MySQL and open `http://localhost/PSA-PEPS-main/index.php`. If Apache listens on port 8080, use `http://localhost:8080/PSA-PEPS-main/index.php`.
 The PHP interface renders pages and processes forms on the server, including sign-in and CSV exports. Apache serves it by default when directory overrides are enabled. Open `index.html` explicitly for the previous interface.
 
 To change a screen, edit its matching PHP template in `views/pages/` and refresh the browser. The sidebar, header, and sign-in markup are in `views/layouts/site.php`. Shared forms are in `views/partials/`. Styles are in `assets/css/app.css` and `assets/css/php.css`.

@@ -19,14 +19,15 @@ const ATT_STATUSES = ['office', 'remote', 'away'];
 final class ApiError extends Exception
 {
     public int $status;
-    public function __construct(string $message, int $status = 422, public readonly ?string $field = null)
+    public function __construct(string $message, int $status = 422, public ?string $field = null)
     {
         parent::__construct($message);
         $this->status = $status;
     }
 }
 
-function fail(string $message, int $status = 422, ?string $field = null): never
+/** @return never */
+function fail(string $message, int $status = 422, ?string $field = null): void
 {
     throw new ApiError($message, $status, $field);
 }

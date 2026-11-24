@@ -1,22 +1,27 @@
 <?php
 declare(strict_types=1);
 
+header('Content-Type: application/json; charset=utf-8');
+header('Cache-Control: no-store');
+header('X-Content-Type-Options: nosniff');
+
+/** @return never */
+function respond(array $body, int $status = 200)
+{
+    http_response_code($status);
+    echo json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+if (PHP_VERSION_ID < 80000) {
+    respond(['error' => 'HRMS requires PHP 8.0 or newer. Apache is running PHP ' . PHP_VERSION . '.'], 503);
+}
+
 require __DIR__ . '/lib/bootstrap.php';
 require __DIR__ . '/lib/seed.php';
 require __DIR__ . '/lib/state.php';
 require __DIR__ . '/lib/actions.php';
 require __DIR__ . '/lib/dispatch.php';
 
-header('Content-Type: application/json; charset=utf-8');
-header('Cache-Control: no-store');
-header('X-Content-Type-Options: nosniff');
-
-function respond(array $body, int $status = 200): never
-{
-    http_response_code($status);
-    echo json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    exit;
-}
 try {
     $action = (string) ($_GET['action'] ?? '');
     $method = $_SERVER['REQUEST_METHOD'];
