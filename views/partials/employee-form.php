@@ -29,7 +29,7 @@ function employee_fields(array $state, array $employee, ?int $employeeId = null,
     choice('type', 'Employment type', options(EMP_TYPES), $employee['type'] ?? '');
     field('location', 'Location', $employee['location'] ?? '', 'text', false, $errors['location'] ?? '');
     field('startDate', 'Start date', $employee['startDate'] ?? $state['today'], 'date', error: $errors['startDate'] ?? '');
-    field('salary', 'Annual salary', $employee['salary'] ?? 0, 'number', error: $errors['salary'] ?? '');
+    field('salary', 'Annual salary', $employee['salary'] ?? '', 'number', error: $errors['salary'] ?? '');
     $managers = employee_options(array_filter($state['employees'], fn($e) =>
         $e['id'] !== $employeeId && $e['status'] === 'Active'
     ));
@@ -66,6 +66,16 @@ function add_employee_modal(array $state, string $page, array $formError): void
             <div class="modal-body">
                 <?php if ($failed && !$errors) web_message($formError['message'], ''); ?>
                 <div class="form-grid"><?php employee_fields($state, $values, errors: $errors); ?></div>
+                <div class="form-grid" data-employee-location hidden>
+                    <p class="full muted" data-current-location hidden></p>
+                    <label class="field"><span>Province</span><select class="input" data-province aria-describedby="employee-location-message"></select></label>
+                    <label class="field"><span>City or municipality</span><select class="input" data-city aria-describedby="employee-location-message" disabled></select></label>
+                    <label class="field"><span>Barangay</span><select class="input" data-barangay aria-describedby="employee-location-message" disabled></select></label>
+                    <div class="full">
+                        <span id="employee-location-message" data-location-message aria-live="polite"></span>
+                        <button class="btn" type="button" data-location-retry hidden>Retry loading locations</button>
+                    </div>
+                </div>
             </div>
             <div class="modal-foot">
                 <a class="btn" data-close-employee data-employee-cancel href="<?= h(page_url($page, $query)) ?>">Cancel</a>
@@ -77,6 +87,7 @@ function add_employee_modal(array $state, string $page, array $formError): void
             </div>
         </form>
     </dialog>
+    <script src="<?= h(versioned_asset('assets/js/employee-location.js')) ?>" defer></script>
     <script src="<?= h(versioned_asset('assets/js/employee-dialog.js')) ?>" defer></script>
     <?php
 }

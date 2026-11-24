@@ -14,6 +14,7 @@ function employee_exists(int $id): array
 function act_employee_save(array $in): array
 {
     $id = int_in($in, 'id', false);
+    $salary = filter_var($in['salary'] ?? '', FILTER_VALIDATE_FLOAT);
     $f = [
         'first_name' => str_in($in, 'firstName', 80, true, 'First name'),
         'last_name' => str_in($in, 'lastName', 80, true, 'Last name'),
@@ -24,11 +25,11 @@ function act_employee_save(array $in): array
         'location' => str_in($in, 'location', 80, false),
         'emp_type' => one_of(str_in($in, 'type', 20, true, 'Employment type'), EMP_TYPES, 'Employment type'),
         'start_date' => date_in($in, 'startDate', true, 'Start date'),
-        'salary' => (float) ($in['salary'] ?? 0),
+        'salary' => $salary,
         'manager_id' => int_in($in, 'managerId', false),
     ];
     if (!filter_var($f['email'], FILTER_VALIDATE_EMAIL)) fail('Enter a valid email address, like name@company.com.', field: 'email');
-    if ($f['salary'] < 0 || $f['salary'] > 10000000) fail('Annual salary must be between 0 and 10,000,000.', field: 'salary');
+    if ($salary === false || $salary < 0.01 || $salary > 10000000) fail('Annual salary must be between 0.01 and 10,000,000.', field: 'salary');
     $dupe = q('SELECT id FROM employees WHERE email = ? AND id <> ?', [$f['email'], $id ?? 0])->fetchColumn();
     if ($dupe) fail('Another employee already uses that email address.', field: 'email');
     if ($f['manager_id'] !== null) {
@@ -308,15 +309,40 @@ function act_workspace_view(array $in): array
 
 function act_profile_save(array $in, array $user): array
 {
-    q('UPDATE users SET display_name = ?, role_title = ? WHERE id = ?', [str_in($in, 'name', 120, true, 'Your name'), str_in($in, 'role', 120, true, 'Your role'), $user['id']]);
-    $new = (string) ($in['newPassword'] ?? '');
-    if ($new !== '') {
-        if (strlen($new) < 8) fail('The new password needs at least 8 characters.');
-        $hash = q('SELECT password_hash FROM users WHERE id = ?', [$user['id']])->fetchColumn();
-        if (!password_verify((string) ($in['currentPassword'] ?? ''), $hash)) fail('Your current password is not correct.');
-        q('UPDATE users SET password_hash = ? WHERE id = ?', [password_hash($new, PASSWORD_DEFAULT), $user['id']]);
+    $name = str_in($in, 'name', 120, true, 'Display name');
+    $role = str_in($in, 'role', 120, true, 'Role title');
+    if (($in['newPassword'] ?? '') !== '') {
+        [$oldHash, $newHash] = account_password_hashes($in, $user['id']);
+        $updated = q('UPDATE users SET display_name = ?, role_title = ?, password_hash = ? WHERE id = ? AND password_hash = ?',
+            [$name, $role, $newHash, $user['id'], $oldHash]);
+        if (!$updated->rowCount()) fail('Your password changed. Enter your current password and try again.', field: 'currentPassword');
+    } else {
+        q('UPDATE users SET display_name = ?, role_title = ? WHERE id = ?', [$name, $role, $user['id']]);
     }
     return [];
+}
+
+function act_password_change(array $in, array $user): array
+{
+    [$oldHash, $newHash] = account_password_hashes($in, $user['id'], true);
+    $updated = q('UPDATE users SET password_hash = ? WHERE id = ? AND password_hash = ?', [$newHash, $user['id'], $oldHash]);
+    if (!$updated->rowCount()) fail('Your password changed. Enter your current password and try again.', field: 'currentPassword');
+    return [];
+}
+
+function account_password_hashes(array $in, int $userId, bool $requireConfirmation = false): array
+{
+    $current = $in['currentPassword'] ?? '';
+    $new = $in['newPassword'] ?? '';
+    if (!is_string($current) || $current === '') fail('Enter your current password.', field: 'currentPassword');
+    if (!is_string($new) || mb_strlen($new) < 8) fail('Use at least 8 characters for the new password.', field: 'newPassword');
+    if (strlen($new) > 72 || str_contains($new, "\0")) fail('Use a password of up to 72 bytes without null characters.', field: 'newPassword');
+    if ($requireConfirmation && ($in['confirmPassword'] ?? '') !== $new) {
+        fail('The new passwords must match.', field: 'confirmPassword');
+    }
+    $oldHash = q('SELECT password_hash FROM users WHERE id = ?', [$userId])->fetchColumn();
+    if (!$oldHash || !password_verify($current, $oldHash)) fail('Your current password is not correct.', field: 'currentPassword');
+    return [$oldHash, password_hash($new, PASSWORD_DEFAULT)];
 }
 
 function act_demo_reset(array $in): array

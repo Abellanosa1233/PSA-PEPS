@@ -12,7 +12,7 @@ function action_handler(string $action): string
         'candidate.save' => 'act_candidate_save', 'candidate.move' => 'act_candidate_move',
         'payroll.bonus' => 'act_payroll_bonus', 'payroll.pay' => 'act_payroll_pay', 'payroll.create' => 'act_payroll_create',
         'settings.save' => 'act_settings_save', 'workspace.view' => 'act_workspace_view', 'profile.save' => 'act_profile_save',
-        'demo.reset' => 'act_demo_reset',
+        'password.change' => 'act_password_change', 'demo.reset' => 'act_demo_reset',
     ];
     if (!isset($writeActions[$action])) fail('Unknown action.', 404);
     return $writeActions[$action];

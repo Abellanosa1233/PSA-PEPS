@@ -17,10 +17,97 @@ if (typeof HTMLDialogElement !== 'undefined' && typeof HTMLDialogElement.prototy
 
   function cancel(event) {
     event.preventDefault();
-    finishDialog(() => {});
+    finishDialog(() => {
+      if (dialog.querySelector('[data-password-toggle]')) dialog.replaceChildren();
+    });
   }
 
   dialog.addEventListener('cancel', cancel);
+
+  function accountValidation(form) {
+    form.noValidate = true;
+    const fields = Array.from(form.querySelectorAll('.field input'));
+    const newPassword = form.elements.namedItem('newPassword');
+    const confirmation = form.elements.namedItem('confirmPassword');
+    const encoder = new TextEncoder();
+
+    function validate(field) {
+      const wrapper = field.closest('.field');
+      const label = wrapper.firstElementChild.textContent.trim();
+      const value = field.value;
+      let message = '';
+      if (field === newPassword && Array.from(value).length < 8) {
+        message = 'Use at least 8 characters for the new password.';
+      } else if (field === newPassword && (encoder.encode(value).length > 72 || value.includes(String.fromCharCode(0)))) {
+        message = 'Use a password of up to 72 bytes without null characters.';
+      } else if (field === confirmation && !value) {
+        message = 'Confirm your new password.';
+      } else if (field === confirmation && value !== newPassword.value) {
+        message = 'The new passwords must match.';
+      } else if (field === newPassword || field === confirmation || field.name === 'currentPassword') {
+        if (!value) message = `${label} is required.`;
+      } else if (!value.trim()) {
+        message = `${label} is required.`;
+      } else if (Array.from(value.trim()).length > 120) {
+        message = `${label} must be 120 characters or fewer.`;
+      }
+
+      let error = wrapper.querySelector('.field-error');
+      if (message) {
+        if (!error) {
+          error = document.createElement('span');
+          error.className = 'field-error';
+          error.id = `account-error-${field.name}`;
+          error.setAttribute('aria-live', 'polite');
+          wrapper.append(error);
+        }
+        if (error.textContent !== message) error.textContent = message;
+        field.setAttribute('aria-invalid', 'true');
+        field.setAttribute('aria-describedby', error.id);
+      } else {
+        error?.remove();
+        field.removeAttribute('aria-invalid');
+        field.removeAttribute('aria-describedby');
+      }
+      return !message;
+    }
+
+    for (const field of fields) {
+      field.addEventListener('input', () => {
+        validate(field);
+        if (field === newPassword && confirmation && (confirmation.value || confirmation.hasAttribute('aria-invalid'))) {
+          validate(confirmation);
+        }
+      });
+      field.addEventListener('blur', () => {
+        if (!field.hasAttribute('aria-invalid')) validate(field);
+      });
+
+      const toggle = field.closest('.field').querySelector('[data-password-toggle]');
+      if (!toggle) continue;
+      const label = field.closest('.field').querySelector('label');
+      field.id += '-dialog';
+      label.htmlFor = field.id;
+      toggle.hidden = false;
+      toggle.setAttribute('aria-controls', field.id);
+      const updateToggle = () => {
+        toggle.textContent = field.type === 'password' ? 'Show' : 'Hide';
+        toggle.setAttribute('aria-label', `${toggle.textContent} ${label.textContent.toLowerCase()}`);
+      };
+      updateToggle();
+      toggle.addEventListener('click', () => {
+        field.type = field.type === 'password' ? 'text' : 'password';
+        updateToggle();
+      });
+    }
+
+    return () => {
+      const invalid = fields.filter((field) => !validate(field));
+      invalid[0]?.focus();
+      return invalid.length === 0;
+    };
+  }
+
   function openFormDialog(trigger, feedback) {
     const disclosure = trigger.parentElement;
     const original = disclosure.querySelector('form');
@@ -28,6 +115,7 @@ if (typeof HTMLDialogElement !== 'undefined' && typeof HTMLDialogElement.prototy
     disclosure.open = false;
 
     const form = original.cloneNode(true);
+    const action = form.elements.namedItem('_action').value;
     form.className = '';
     const submit = form.querySelector('button[type="submit"]');
     const isConfirmation = disclosure.dataset.formDialog === 'confirm';
@@ -36,7 +124,7 @@ if (typeof HTMLDialogElement !== 'undefined' && typeof HTMLDialogElement.prototy
       const marker = document.createElement('input');
       marker.type = 'hidden';
       marker.name = '_shared_form';
-      marker.value = form.elements.namedItem('_action').value;
+      marker.value = action;
       form.append(marker);
     }
 
@@ -97,8 +185,10 @@ if (typeof HTMLDialogElement !== 'undefined' && typeof HTMLDialogElement.prototy
     if (isConfirmation) submit.className = 'btn danger';
     footer.append(cancelButton, submit);
     form.append(header, body, footer);
+    const validate = action === 'profile.save' || action === 'password.change' ? accountValidation(form) : null;
     form.addEventListener('submit', (submitEvent) => {
       submitEvent.preventDefault();
+      if (validate && !validate()) return;
       finishDialog(() => form.submit());
     });
     dialog.replaceChildren(form);

@@ -111,7 +111,9 @@ if ($isPost) {
         'event.save' => ['date', 'title', 'detail', 'start', 'end'],
         'position.save' => ['id', 'title', 'department', 'type', 'location'],
         'candidate.save' => ['positionId', 'name', 'email', 'source'],
-        default => [],
+        'profile.save' => ['name', 'role'],
+        'password.change' => [],
+        default => null,
     };
     $_SESSION['web_form_error'] = [
         'page' => $page,
@@ -120,7 +122,7 @@ if ($isPost) {
         'field' => $errorField,
         'employeeModal' => $employeeModal,
         'values' => $employeeModal ? array_filter(array_intersect_key($_POST, $fields), 'is_string') : [],
-        'shared' => $sharedFields ? [
+        'shared' => $sharedFields !== null ? [
             'action' => $_POST['_shared_form'],
             'message' => $error,
             'field' => $errorField,

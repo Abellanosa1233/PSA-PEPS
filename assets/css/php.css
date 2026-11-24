@@ -103,6 +103,19 @@
 .web-directory .toolbar { border-bottom: 1px solid var(--line); }
 .web-directory .toolbar .input { width: auto; }
 .web-directory .toolbar .grow { min-width: min(220px, 100%); }
+.employee-search { position: relative; }
+.web-directory .employee-search .input { width: 100%; }
+#employee-suggestions {
+  position: absolute; inset: calc(100% + 4px) 0 auto; z-index: 5;
+  max-height: 280px; overflow-y: auto; padding: 4px;
+  border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--surface); box-shadow: var(--shadow);
+}
+#employee-suggestions [role="option"] { padding: 7px 9px; border-radius: var(--radius-sm); cursor: pointer; }
+#employee-suggestions [role="option"]:hover,
+#employee-suggestions [aria-selected="true"] { background: var(--surface-3); }
+#employee-suggestions strong, #employee-suggestions small { display: block; overflow-wrap: anywhere; }
+#employee-suggestions small { color: var(--fg-2); }
 .web-directory .toolbar .muted { margin-left: auto; }
 .web-directory .who:hover strong { text-decoration: underline; }
 .web-directory table .input.sm { min-width: 110px; }
@@ -169,6 +182,9 @@
 .employee-dialog { position: fixed; inset: 0; margin: auto; padding: 0; color: var(--fg); }
 .employee-dialog:not([open]) { display: none; }
 .employee-dialog .modal-foot [hidden] { display: none; }
+.employee-dialog [data-employee-location][hidden],
+.employee-dialog .field[hidden] { display: none; }
+.employee-dialog [data-location-message][data-error] { color: var(--bad); }
 .employee-dialog::backdrop { background: var(--scrim); }
 .employee-dialog[open]:not(:modal) { z-index: 60; box-shadow: 0 0 0 100vmax var(--scrim); }
 .sign-out-dialog {
@@ -191,6 +207,9 @@
 .card-foot.list-pagination .toolbar { gap: 4px; }
 .web-card > .toolbar { align-items: end; }
 .field .field-error { color: var(--bad); }
+.account-password-input { display: flex; gap: 8px; }
+.account-password-input .input { min-width: 0; flex: 1; }
+.account-password-input [hidden] { display: none; }
 .field .input[aria-invalid="true"] { border-color: var(--bad); }
 .employee-save-pending { display: none; align-items: center; gap: 7px; }
 .employee-save[data-saving] .employee-save-ready { display: none; }

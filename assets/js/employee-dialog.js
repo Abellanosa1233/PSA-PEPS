@@ -7,13 +7,29 @@ if (employeeDialog && typeof employeeDialog.showModal === 'function') {
   const cancelButton = form.querySelector('[data-employee-cancel]');
   const closeButton = form.querySelector('[data-employee-unchanged]');
   const editableFields = ['firstName', 'lastName', 'email', 'phone', 'title', 'department', 'type', 'location', 'startDate', 'salary', 'managerId'];
+  const lengthLimits = { firstName: 80, lastName: 80, email: 160, phone: 40, title: 120, location: 80 };
+  const locationPicker = typeof employeeLocationPicker === 'function' ? employeeLocationPicker(form, syncEmployeeButtons) : null;
+  const validatedFields = Array.from(form.querySelectorAll('.field:not([hidden]) input'));
+  const fieldErrors = new Map(validatedFields.map((field) => {
+    const wrapper = field.closest('.field');
+    let message = wrapper.querySelector('.field-error');
+    if (!message) {
+      message = document.createElement('span');
+      message.className = 'field-error';
+      message.id = `field-error-${field.name}`;
+      wrapper.append(message);
+    }
+    message.setAttribute('aria-live', 'polite');
+    message.hidden = !message.textContent;
+    return [field, message];
+  }));
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   let original = form.dataset.originalEmployee ? JSON.parse(form.dataset.originalEmployee) : null;
   let submitting = false;
   let readyToSubmit = false;
 
   function syncEmployeeButtons() {
-    const unchanged = original !== null && editableFields.every((name) => {
+    const unchanged = original !== null && !locationPicker?.changing && editableFields.every((name) => {
       const value = form.elements[name].value.trim();
       const saved = original[name] ?? '';
       return name === 'salary' && value !== '' ? Number(value) === Number(saved) : value === String(saved);
@@ -40,9 +56,10 @@ if (employeeDialog && typeof employeeDialog.showModal === 'function') {
 
   syncEmployeeButtons();
   if (employeeDialog.hasAttribute('data-reopen')) {
+    locationPicker?.reset();
     employeeDialog.close();
     employeeDialog.showModal();
-    form.querySelector('[aria-invalid="true"]')?.focus();
+    form.querySelector('.field:not([hidden]) [aria-invalid="true"]')?.focus();
   }
 
   document.addEventListener('click', (event) => {
@@ -51,7 +68,6 @@ if (employeeDialog && typeof employeeDialog.showModal === 'function') {
     const employee = button.dataset.editEmployee ? JSON.parse(button.dataset.editEmployee) : {};
     const defaults = {
       startDate: form.querySelector('[data-new-employee-date]').value,
-      salary: 0,
       department: form.elements.department.options[0].value,
       type: form.elements.type.options[0].value,
     };
@@ -63,11 +79,11 @@ if (employeeDialog && typeof employeeDialog.showModal === 'function') {
       form.elements[name].value = employee[name] ?? defaults[name] ?? '';
     }
     original = employee.id ? employee : null;
+    locationPicker?.reset();
     syncEmployeeButtons();
     title.textContent = employee.id ? 'Edit employee' : 'Add employee';
-    const error = form.querySelector('[role="alert"]');
-    if (error) error.remove();
-    form.querySelectorAll('[aria-invalid="true"]').forEach(clearEmployeeError);
+    form.querySelector('[role="alert"]')?.remove();
+    validatedFields.forEach((field) => setEmployeeError(field, ''));
     event.preventDefault();
     employeeDialog.showModal();
   });
@@ -84,22 +100,78 @@ if (employeeDialog && typeof employeeDialog.showModal === 'function') {
     closeEmployeeDialog();
   });
 
-  function clearEmployeeError(field) {
-    if (!field.hasAttribute('aria-invalid')) return;
-    document.getElementById(field.getAttribute('aria-describedby'))?.remove();
-    field.removeAttribute('aria-invalid');
-    field.removeAttribute('aria-describedby');
+  function setEmployeeError(field, message) {
+    const error = fieldErrors.get(field);
+    error.hidden = !message;
+    if (error.textContent !== message) error.textContent = message;
+    if (message) {
+      field.setAttribute('aria-invalid', 'true');
+      field.setAttribute('aria-describedby', error.id);
+    } else {
+      field.removeAttribute('aria-invalid');
+      field.removeAttribute('aria-describedby');
+    }
+  }
+
+  function validateEmployeeField(field) {
+    const value = field.value.trim();
+    const label = field.closest('.field').firstElementChild.textContent;
+    const limit = lengthLimits[field.name];
+    let message = '';
+
+    if (field.validity.badInput) {
+      message = field.name === 'startDate' ? 'Enter a valid start date.' : 'Enter a valid annual salary.';
+    } else if (field.required && !value) {
+      message = `${label} is required.`;
+    } else if (limit && Array.from(value).length > limit) {
+      message = `${label} must be ${limit} characters or fewer.`;
+    } else if (field.name === 'email' && (field.validity.typeMismatch || !value.split('@')[1]?.includes('.'))) {
+      message = 'Enter a valid email address, like name@company.com.';
+    } else if (field.name === 'phone' && value &&
+        !/^(?:(?:\+?63|0)?9\d{9}|(?:\+?63|0)[2-8]\d{8})$/.test(value.replace(/[\s().-]/g, ''))) {
+      message = 'Enter a Philippine number, like 0917 123 4567 or (02) 8123 4567.';
+    } else if (field.name === 'startDate' && !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      message = 'Enter a valid start date.';
+    } else if (field.name === 'salary' && (Number(value) < 0.01 || Number(value) > 10000000)) {
+      message = 'Annual salary must be between 0.01 and 10,000,000.';
+    }
+
+    setEmployeeError(field, message);
+    return !message;
   }
 
   form.addEventListener('input', (event) => {
-    clearEmployeeError(event.target);
+    if (fieldErrors.has(event.target)) {
+      validateEmployeeField(event.target);
+    }
     syncEmployeeButtons();
   });
-  form.addEventListener('change', syncEmployeeButtons);
+  form.addEventListener('focusout', (event) => {
+    if (fieldErrors.has(event.target) && !event.target.hasAttribute('aria-invalid')) {
+      validateEmployeeField(event.target);
+    }
+  });
+  form.addEventListener('change', (event) => {
+    if (fieldErrors.has(event.target)) validateEmployeeField(event.target);
+    syncEmployeeButtons();
+  });
+
+  form.noValidate = true;
+  function firstInvalidField() {
+    const invalidFields = validatedFields.filter((field) => !validateEmployeeField(field));
+    const invalidLocation = locationPicker?.validate();
+    return invalidFields[0] ?? invalidLocation;
+  }
 
   form.addEventListener('submit', (event) => {
     if (readyToSubmit) {
       readyToSubmit = false;
+      const invalidField = firstInvalidField();
+      if (invalidField) {
+        event.preventDefault();
+        resetSavingState();
+        invalidField.focus();
+      }
       return;
     }
     event.preventDefault();
@@ -108,6 +180,11 @@ if (employeeDialog && typeof employeeDialog.showModal === 'function') {
       return;
     }
     if (submitting || employeeDialog.hasAttribute('data-closing')) return;
+    const invalidField = firstInvalidField();
+    if (invalidField) {
+      invalidField.focus();
+      return;
+    }
     submitting = true;
     saveButton.disabled = true;
     saveButton.setAttribute('data-saving', '');
@@ -125,10 +202,6 @@ if (employeeDialog && typeof employeeDialog.showModal === 'function') {
     saveButton.removeAttribute('data-saving');
     form.removeAttribute('aria-busy');
   }
-
-  form.addEventListener('invalid', () => {
-    if (readyToSubmit) resetSavingState();
-  }, true);
 
   window.addEventListener('pageshow', (event) => {
     if (event.persisted) resetSavingState();

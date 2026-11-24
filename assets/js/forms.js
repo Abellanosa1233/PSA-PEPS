@@ -22,7 +22,7 @@ window.HR = window.HR || {};
           ui.select('type', 'Employment type', ui.options(HR.EMP_TYPES, v.type)) +
           ui.field('location', 'Location', v.location, 'text', { hint: 'City, e.g. Makati City, Cebu City, or "Remote"' }) +
           ui.field('startDate', 'Start date', v.startDate, 'date', { extra: 'required' }) +
-          ui.field('salary', 'Annual salary (' + HR.store.data.settings.currency + ')', v.salary, 'number', { extra: 'min="0" step="500"' }) +
+          ui.field('salary', 'Annual salary (' + HR.store.data.settings.currency + ')', v.salary, 'number', { extra: 'min="0.01" max="10000000" step="any" required' }) +
           ui.select('managerId', 'Reports to', ui.options(mgrs, v.managerId, 'No manager'), { full: true }) +
           '</div>',
         onSubmit: function (vals) {

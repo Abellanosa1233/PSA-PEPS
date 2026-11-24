@@ -31,6 +31,16 @@ function employees_view(array $state): void
 
     $todayStatuses = employee_today_statuses($state);
     $list = employee_list($state, $todayStatuses);
+    $searchIndex = array_values(array_map(fn($person) => [
+        'name' => employee_name($person),
+        'email' => $person['email'],
+        'title' => $person['title'],
+        'department' => $person['department'],
+        'type' => $person['type'],
+        'status' => $person['status'],
+        'todayStatus' => $todayStatuses[$person['id']] ?? 'none',
+        'profile' => page_url('employees', ['id' => $person['id']]),
+    ], $state['employees']));
     $filters = array_intersect_key($_GET, array_flip(['q', 'department', 'status', 'type', 'todayStatus']));
     $pagination = paginate($list);
     $attendanceOptions = ['office' => 'In office', 'remote' => 'Remote', 'away' => 'Away', 'leave' => 'On leave', 'none' => 'No record', 'offboarded' => 'Offboarded'];
@@ -46,7 +56,11 @@ function employees_view(array $state): void
     <section class="card web-directory" id="employee-directory">
         <form class="card-body toolbar" method="get">
             <input type="hidden" name="page" value="employees">
-            <input class="input grow" name="q" type="search" placeholder="Search by name, email or title" aria-label="Search by name, email or title" value="<?= h($_GET['q'] ?? '') ?>">
+            <div class="grow employee-search">
+                <input class="input" name="q" type="search" placeholder="Search by name, email or title" aria-label="Search by name, email or title" value="<?= h($_GET['q'] ?? '') ?>">
+                <div id="employee-suggestions" role="listbox" aria-label="Employee suggestions"
+                    data-employees="<?= h(json_encode($searchIndex, JSON_INVALID_UTF8_SUBSTITUTE)) ?>" hidden></div>
+            </div>
             <?php foreach ([
                 ['department', 'Department', ['' => 'All departments'] + options(DEPARTMENTS), ''],
                 ['type', 'Employment type', ['' => 'All types'] + options(EMP_TYPES), ''],
