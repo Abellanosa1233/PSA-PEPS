@@ -21,8 +21,8 @@ Requires PHP 7.2 or newer with PDO MySQL and mbstring, plus a MySQL-compatible d
 ### Set up a fresh GitHub checkout on XAMPP
 
 1. Put the checkout in `C:\xampp\htdocs\PSA-PEPS-main` and start **Apache** and **MySQL** in the XAMPP Control Panel. XAMPP 8.2.12 (64-bit) matches the tested local setup. PHP 7.2.0 also works with this project.
-2. Open phpMyAdmin at `http://localhost/phpmyadmin/` and run the database and user creation commands above. Use port `8080` in the browser URL if Apache is configured for it.
-3. Open `api/config.php`. If the file is missing, run `Copy-Item api/config.example.php api/config.php` from the project directory in PowerShell. Set `DB_USER` to `hrms_app` and `DB_PASS` to the password you chose. Check `DB_NAME` and `DB_PORT` if you used different settings. `DB_PORT` is the MySQL port, usually `3306`.
+2. Open phpMyAdmin at `http://localhost/phpmyadmin/` and create an empty database named `horizon_hrms` if it does not exist. Use port `8080` in the browser URL if Apache is configured for it.
+3. When opened from localhost without an `api/config.php` file, HRMS uses MySQL user `root` with a blank password on port `3306`. If your MySQL credentials or port differ, copy `api/config.example.php` to `api/config.php` and update the connection settings.
 4. Open `http://localhost/PSA-PEPS-main/index.php` (or use port `8080` if configured). Click **Install** to create the tables, choose whether to load sample data, and create your administrator account.
 
 The installer uses the tracked schema at `api/lib/schema.sql`. The tracked `horizon_hrms.sql` is a database dump for restoring an existing snapshot. For a fresh installation, start with an empty database and let HRMS create the tables. Each machine uses its own database credentials. Keep local passwords out of Git commits.

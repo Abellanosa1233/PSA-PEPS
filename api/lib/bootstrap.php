@@ -1,13 +1,28 @@
 <?php
 declare(strict_types=1);
 
-if (!is_file(__DIR__ . '/../config.php')) {
+$configPath = __DIR__ . '/../config.php';
+$loopback = ['127.0.0.1', '::1'];
+$localRequest = in_array($_SERVER['REMOTE_ADDR'] ?? '', $loopback, true)
+    && preg_match('/^(?:localhost|127\.0\.0\.1|\[::1\])(?::[0-9]+)?$/iD', $_SERVER['HTTP_HOST'] ?? '')
+    && !isset($_SERVER['HTTP_FORWARDED'])
+    && !isset($_SERVER['HTTP_X_FORWARDED_FOR']);
+if (is_file($configPath)) {
+    require $configPath;
+} elseif ($localRequest) {
+    define('DB_HOST', '127.0.0.1');
+    define('DB_PORT', 3306);
+    define('DB_NAME', 'horizon_hrms');
+    define('DB_USER', 'root');
+    define('DB_PASS', '');
+    define('APP_TIMEZONE', 'Asia/Manila');
+    define('SETUP_KEY', '');
+} else {
     http_response_code(503);
     header('Content-Type: application/json; charset=utf-8');
-    echo json_encode(['error' => 'Database settings are missing. Copy api/config.example.php to api/config.php and fill in your MySQL details.']);
+    echo json_encode(['error' => 'This server requires a database configuration. Copy api/config.example.php to api/config.php and fill in your MySQL details.']);
     exit;
 }
-require __DIR__ . '/../config.php';
 date_default_timezone_set(APP_TIMEZONE);
 
 const LEAVE_TYPES = ['Annual leave', 'Personal leave', 'Sick leave', 'Parental leave', 'Unpaid leave'];
