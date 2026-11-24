@@ -3,7 +3,7 @@
 **Live demo: <http://horizonhrms.infinityfreeapp.com/>** (hosted on InfinityFree. Ask the admin for a login.)
 
 People management system built from the Figma file "HRMS · HR management – Overview".
-Requires PHP 7.3 or newer with PDO MySQL and mbstring, plus a MySQL-compatible database. Set a nonempty `SETUP_KEY` in `api/config.php` before making a fresh installation publicly reachable.
+Requires PHP 7.2 or newer with PDO MySQL and mbstring, plus a MySQL-compatible database. Set a nonempty `SETUP_KEY` in `api/config.php` before making a fresh installation publicly reachable.
 
 ## Run it
 

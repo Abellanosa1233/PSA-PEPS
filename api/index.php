@@ -12,8 +12,8 @@ function respond(array $body, int $status = 200)
     echo json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
-if (PHP_VERSION_ID < 70300) {
-    respond(['error' => 'HRMS requires PHP 7.3 or newer. Apache is running PHP ' . PHP_VERSION . '.'], 503);
+if (PHP_VERSION_ID < 70200) {
+    respond(['error' => 'HRMS requires PHP 7.2 or newer. Apache is running PHP ' . PHP_VERSION . '.'], 503);
 }
 
 require __DIR__ . '/lib/bootstrap.php';

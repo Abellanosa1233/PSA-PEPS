@@ -124,7 +124,7 @@
         </form>
     </dialog>
     <?php if (!empty($formError['shared'])): ?>
-        <div id="shared-form-feedback" hidden data-feedback="<?= h(json_encode($formError['shared'], JSON_INVALID_UTF8_SUBSTITUTE)) ?>"></div>
+        <div id="shared-form-feedback" hidden data-feedback="<?= html_json($formError['shared']) ?>"></div>
     <?php endif; ?>
     <script src="<?= h(versioned_asset('assets/js/sign-out-dialog.js')) ?>" defer></script>
     <script src="<?= h(versioned_asset('assets/js/form-dialog.js')) ?>" defer></script>

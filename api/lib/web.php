@@ -6,6 +6,22 @@ function h($value): string
     return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
+function html_json(array $value): string
+{
+    if (defined('JSON_INVALID_UTF8_SUBSTITUTE')) {
+        return h(json_encode($value, JSON_INVALID_UTF8_SUBSTITUTE));
+    }
+
+    $json = json_encode($value);
+    if ($json === false && json_last_error() === JSON_ERROR_UTF8) {
+        array_walk_recursive($value, function (&$item): void {
+            if (is_string($item)) $item = mb_scrub($item, 'UTF-8');
+        });
+        $json = json_encode($value);
+    }
+    return h($json);
+}
+
 function page_url(string $page, array $query = []): string
 {
     return 'index.php?' . http_build_query(['page' => $page] + $query);

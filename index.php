@@ -4,11 +4,11 @@ declare(strict_types=1);
 header('Content-Type: text/html; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
-if (PHP_VERSION_ID < 70300) {
+if (PHP_VERSION_ID < 70200) {
     http_response_code(503);
     header('Content-Type: text/plain; charset=utf-8');
-    echo 'HRMS requires PHP 7.3 or newer. Apache is running PHP ', PHP_VERSION,
-        '. Start Apache from an XAMPP installation that includes PHP 7.3 or newer.';
+    echo 'HRMS requires PHP 7.2 or newer. Apache is running PHP ', PHP_VERSION,
+        '. Start Apache from an XAMPP installation that includes PHP 7.2 or newer.';
     exit;
 }
 require_once __DIR__ . '/api/lib/bootstrap.php';

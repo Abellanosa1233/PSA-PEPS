@@ -61,7 +61,7 @@ function employees_view(array $state): void
             <div class="grow employee-search">
                 <input class="input" name="q" type="search" placeholder="Search by name, email or title" aria-label="Search by name, email or title" value="<?= h($_GET['q'] ?? '') ?>">
                 <div id="employee-suggestions" role="listbox" aria-label="Employee suggestions"
-                    data-employees="<?= h(json_encode($searchIndex, JSON_INVALID_UTF8_SUBSTITUTE)) ?>" hidden></div>
+                    data-employees="<?= html_json($searchIndex) ?>" hidden></div>
             </div>
             <?php foreach ([
                 ['department', 'Department', ['' => 'All departments'] + options(DEPARTMENTS), ''],
@@ -95,7 +95,7 @@ function employees_view(array $state): void
                             <td><?= h($person['type']) ?></td>
                             <td class="tabular"><?= h((new DateTimeImmutable($person['startDate']))->format('M j, Y')) ?></td>
                             <td><?php status_badge($todayStatuses[$person['id']] ?? 'none'); ?></td>
-                            <td class="actions"><a class="sq" href="<?= h(page_url('employees', ['edit' => $person['id']] + array_intersect_key($_GET, ['p' => true]) + $filters)) ?>" data-edit-employee="<?= h(json_encode($person, JSON_INVALID_UTF8_SUBSTITUTE)) ?>" aria-label="<?= h("Edit $name") ?>" title="<?= h("Edit $name") ?>"><?= icon('edit', 14) ?></a></td>
+                            <td class="actions"><a class="sq" href="<?= h(page_url('employees', ['edit' => $person['id']] + array_intersect_key($_GET, ['p' => true]) + $filters)) ?>" data-edit-employee="<?= html_json($person) ?>" aria-label="<?= h("Edit $name") ?>" title="<?= h("Edit $name") ?>"><?= icon('edit', 14) ?></a></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>

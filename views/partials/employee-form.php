@@ -58,7 +58,7 @@ function add_employee_modal(array $state, string $page, array $formError): void
             <h2 id="add-employee-title"><?= $editing ? 'Edit employee' : 'Add employee' ?></h2>
             <a class="sq" data-close-employee href="<?= h(page_url($page, $query)) ?>" aria-label="Close"><?= icon('x', 14) ?></a>
         </div>
-        <form method="post" action="<?= h(page_url($page, $query)) ?>"<?= $editing ? ' data-original-employee="' . h(json_encode($editing, JSON_INVALID_UTF8_SUBSTITUTE)) . '"' : '' ?>>
+        <form method="post" action="<?= h(page_url($page, $query)) ?>"<?= $editing ? ' data-original-employee="' . html_json($editing) . '"' : '' ?>>
             <?php hidden_inputs(['_action' => 'employee.save', '_token' => $_SESSION['web_csrf'], '_employee_modal' => '1']); ?>
             <input type="hidden" name="id" value="<?= h($editing['id'] ?? '') ?>">
             <input type="hidden" data-new-employee-date value="<?= h($state['today']) ?>">

@@ -4,7 +4,7 @@ declare(strict_types=1);
 function recruitment_view(array $state): void
 {
     $positions = array_column($state['positions'], null, 'id');
-    $id = (int) ($_GET['id'] ?? array_key_first($positions));
+    $id = (int) ($_GET['id'] ?? (reset($positions)['id'] ?? 0));
     $position = $positions[$id] ?? [];
     $roles = paginate($positions, 'rolesPage');
     ?>
