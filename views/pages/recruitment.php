@@ -51,7 +51,7 @@ function recruitment_pipeline(array $state, array $position, int $id): void
     echo '</section>';
     if (!$position) return;
 
-    $candidates = array_filter($state['candidates'], fn($c) => $c['positionId'] === $id);
+    $candidates = array_filter($state['candidates'], function ($c) use ($id) { return $c['positionId'] === $id; });
     $listMode = ($_GET['candidates'] ?? '') === 'all';
     $roleQuery = ['id' => $id] + array_intersect_key($_GET, ['rolesPage' => true]);
     ?>
@@ -73,7 +73,7 @@ function recruitment_pipeline(array $state, array $position, int $id): void
         <?php else: ?>
         <div class="board">
             <?php foreach (STAGES as $stage):
-                $column = array_filter($candidates, fn($c) => $c['stage'] === $stage);
+                $column = array_filter($candidates, function ($c) use ($stage) { return $c['stage'] === $stage; });
             ?>
                 <div class="col">
                     <h4><?= h($stage) ?> <span class="muted"><?= count($column) ?></span></h4>
@@ -82,7 +82,7 @@ function recruitment_pipeline(array $state, array $position, int $id): void
                 </div>
             <?php endforeach; ?>
         </div>
-        <?php $rejected = array_filter($candidates, fn($c) => $c['stage'] === 'Rejected'); ?>
+        <?php $rejected = array_filter($candidates, function ($c) { return $c['stage'] === 'Rejected'; }); ?>
         <?php if ($rejected): ?>
             <details class="card-body"><summary>Rejected candidates (<?= count($rejected) ?>)</summary>
                 <?php foreach (array_slice($rejected, 0, 5) as $candidate) candidate_card($candidate, $id); ?>
@@ -103,7 +103,7 @@ function candidate_list(array $candidates, array $roleQuery): void
 {
     $query = $roleQuery + ['candidates' => 'all'];
     $search = trim((string) ($_GET['q'] ?? ''));
-    $matches = array_filter($candidates, fn($c) => $search === '' || mb_stripos($c['name'] . ' ' . $c['email'], $search) !== false);
+    $matches = array_filter($candidates, function ($c) use ($search) { return $search === '' || mb_stripos($c['name'] . ' ' . $c['email'], $search) !== false; });
     $list = paginate($matches);
     echo '<form method="get" class="card-body toolbar">';
     hidden_inputs(['page' => 'recruitment'] + $query);
@@ -117,8 +117,7 @@ function candidate_list(array $candidates, array $roleQuery): void
         echo '</div>';
         return;
     }
-    web_table(['Candidate', 'Email', 'Stage', 'Actions'], array_map(fn($candidate) =>
-        [$candidate['name'], $candidate['email'], $candidate['stage'], fn() => candidate_actions($candidate, $roleQuery['id'])],
+    web_table(['Candidate', 'Email', 'Stage', 'Actions'], array_map(function ($candidate) use ($roleQuery) { return [$candidate['name'], $candidate['email'], $candidate['stage'], function () use ($candidate, $roleQuery) { return candidate_actions($candidate, $roleQuery['id']); }]; },
         $list['rows']));
     pagination($list, 'recruitment', $query + ['q' => $search], 'candidates');
 }
@@ -137,7 +136,7 @@ function candidate_card(array $candidate, int $positionId): void
 function candidate_actions(array $candidate, int $positionId): void
 {
     post_form('candidate.move', ['id' => $candidate['id']]);
-    choice('stage', 'Move to', options([...STAGES, 'Rejected']), $candidate['stage']);
+    choice('stage', 'Move to', options(array_merge(STAGES, ['Rejected'])), $candidate['stage']);
     end_form('Save stage');
     if ($candidate['stage'] === 'Hired' && !$candidate['employeeId']) {
         link_to('recruitment', 'Convert to employee', ['id' => $positionId, 'candidate' => $candidate['id']]

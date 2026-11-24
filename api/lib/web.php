@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-function h(mixed $value): string
+function h($value): string
 {
     return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
@@ -25,7 +25,7 @@ function web_message(string $error, string $notice): void
 
 function action_success_message(string $action, array $input): string
 {
-    return match ($action) {
+    $messages = [
         'install' => 'Database installed.',
         'setup' => 'Administrator account created.',
         'login' => 'Signed in successfully.',
@@ -55,8 +55,8 @@ function action_success_message(string $action, array $input): string
         'password.change' => 'Password changed.',
         'theme' => 'Appearance saved.',
         'demo.reset' => 'Demo data reset.',
-        default => 'Changes saved.',
-    };
+    ];
+    return $messages[$action] ?? 'Changes saved.';
 }
 
 function post_form(string $action, array $values = [], bool $inline = false): void
@@ -83,7 +83,7 @@ function action_button(string $action, string $label, array $values = []): void
     end_form($label);
 }
 
-function field(string $name, string $label, mixed $value = '', string $type = 'text', bool $required = true, string $error = ''): void
+function field(string $name, string $label, $value = '', string $type = 'text', bool $required = true, string $error = ''): void
 {
     $errorId = 'field-error-' . $name;
     echo '<label class="field"><span>' . h($label) . '</span><input class="input" name="' . h($name)
@@ -94,7 +94,7 @@ function field(string $name, string $label, mixed $value = '', string $type = 't
     echo '</label>';
 }
 
-function choice(string $name, string $label, array $options, mixed $selected = ''): void
+function choice(string $name, string $label, array $options, $selected = ''): void
 {
     echo '<label class="field"><span>' . h($label) . '</span><select class="input" name="' . h($name) . '">';
     foreach ($options as $value => $text) {
@@ -157,7 +157,7 @@ function pagination(array $list, string $page, array $query, string $label, stri
             <div class="toolbar">
                 <?php if ($current > 1) link_to($page, 'Previous', [$parameter => $current - 1] + $query, 'btn sm'); ?>
                 <?php
-                $numbers = array_unique([1, ...range(max(1, $current - 1), min($pages, $current + 1)), $pages]);
+                $numbers = array_unique(array_merge([1], range(max(1, $current - 1), min($pages, $current + 1)), [$pages]));
                 $previous = 0;
                 foreach ($numbers as $number):
                     if ($previous && $number > $previous + 1) echo '<span aria-hidden="true">…</span>';
@@ -177,13 +177,13 @@ function pagination(array $list, string $page, array $query, string $label, stri
 
 function status_badge(string $status): void
 {
-    [$label, $style] = match ($status) {
+    $badges = [
         'approved' => ['Approved', 'ok'], 'pending' => ['Pending', 'warn'], 'rejected' => ['Declined', 'bad'],
         'office' => ['In office', 'ok'], 'remote' => ['Remote', ''], 'away' => ['Away', 'warn'],
         'leave' => ['On leave', 'warn'], 'offboarded' => ['Offboarded', 'plain'],
         'paid' => ['Paid', 'ok'], 'draft' => ['Draft', 'warn'],
-        default => ['No record', 'plain'],
-    };
+    ];
+    [$label, $style] = $badges[$status] ?? ['No record', 'plain'];
     echo '<span class="badge ' . h($style) . '">' . h($label) . '</span>';
 }
 
@@ -202,7 +202,7 @@ function link_to(string $page, string $label, array $query = [], string $class =
     echo '<a class="' . h($class) . '" href="' . h(page_url($page, $query)) . '">' . h($label) . '</a>';
 }
 
-function money(mixed $amount, array $state): string
+function money($amount, array $state): string
 {
     return $state['settings']['currency'] . ' ' . number_format((float) $amount, 2);
 }
@@ -233,13 +233,12 @@ function employee_list(array $state, ?array $todayStatuses = null): array
     $status = (string) ($_GET['status'] ?? 'Active');
     $type = (string) ($_GET['type'] ?? '');
     $todayStatus = (string) ($_GET['todayStatus'] ?? '');
-    if ($todayStatus !== '') $todayStatuses ??= employee_today_statuses($state);
-    return array_values(array_filter($state['employees'], fn($e) =>
-        ($search === '' || mb_stripos(employee_name($e) . ' ' . $e['email'] . ' ' . $e['title'], $search) !== false)
+    if ($todayStatus !== '' && $todayStatuses === null) $todayStatuses = employee_today_statuses($state);
+    return array_values(array_filter($state['employees'], function ($e) use ($search, $department, $status, $type, $todayStatus, $todayStatuses) { return ($search === '' || mb_stripos(employee_name($e) . ' ' . $e['email'] . ' ' . $e['title'], $search) !== false)
         && ($department === '' || $e['department'] === $department)
         && ($status === '' || $e['status'] === $status)
         && ($type === '' || $e['type'] === $type)
-        && ($todayStatus === '' || ($todayStatuses[$e['id']] ?? 'none') === $todayStatus)
+        && ($todayStatus === '' || ($todayStatuses[$e['id']] ?? 'none') === $todayStatus); }
     ));
 }
 
@@ -327,7 +326,7 @@ function export_page(string $page, array $state): void
     header('Content-Disposition: attachment; filename="' . $page . '.csv"');
     $output = fopen('php://output', 'w');
     foreach ($rows as $row) {
-        $safe = array_map(fn($v) => is_string($v) && preg_match('/^(?:\s*[=+@-]|[\t\r\n])/', $v) ? "'" . $v : $v, $row);
+        $safe = array_map(function ($v) { return is_string($v) && preg_match('/^(?:\s*[=+@-]|[\t\r\n])/', $v) ? "'" . $v : $v; }, $row);
         fputcsv($output, $safe, ',', '"', '');
     }
     fclose($output);
@@ -349,7 +348,7 @@ function get_form(string $page): void
 function initials(string $name): string
 {
     $words = preg_split('/\s+/u', trim($name), 3) ?: [];
-    return mb_strtoupper(implode('', array_map(fn($word) => mb_substr($word, 0, 1), array_slice($words, 0, 2))));
+    return mb_strtoupper(implode('', array_map(function ($word) { return mb_substr($word, 0, 1); }, array_slice($words, 0, 2))));
 }
 
 require __DIR__ . '/../../views/partials/icons.php';

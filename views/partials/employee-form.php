@@ -20,18 +20,17 @@ function employee_form(array $state, array $employee = [], ?array $candidate = n
 
 function employee_fields(array $state, array $employee, ?int $employeeId = null, array $errors = []): void
 {
-    field('firstName', 'First name', $employee['firstName'] ?? '', error: $errors['firstName'] ?? '');
-    field('lastName', 'Last name', $employee['lastName'] ?? '', error: $errors['lastName'] ?? '');
-    field('email', 'Email', $employee['email'] ?? '', 'email', error: $errors['email'] ?? '');
+    field('firstName', 'First name', $employee['firstName'] ?? '', 'text', true, $errors['firstName'] ?? '');
+    field('lastName', 'Last name', $employee['lastName'] ?? '', 'text', true, $errors['lastName'] ?? '');
+    field('email', 'Email', $employee['email'] ?? '', 'email', true, $errors['email'] ?? '');
     field('phone', 'Phone', $employee['phone'] ?? '', 'tel', false, $errors['phone'] ?? '');
-    field('title', 'Job title', $employee['title'] ?? '', error: $errors['title'] ?? '');
+    field('title', 'Job title', $employee['title'] ?? '', 'text', true, $errors['title'] ?? '');
     choice('department', 'Department', options(DEPARTMENTS), $employee['department'] ?? '');
     choice('type', 'Employment type', options(EMP_TYPES), $employee['type'] ?? '');
     field('location', 'Location', $employee['location'] ?? '', 'text', false, $errors['location'] ?? '');
-    field('startDate', 'Start date', $employee['startDate'] ?? $state['today'], 'date', error: $errors['startDate'] ?? '');
-    field('salary', 'Annual salary', $employee['salary'] ?? '', 'number', error: $errors['salary'] ?? '');
-    $managers = employee_options(array_filter($state['employees'], fn($e) =>
-        $e['id'] !== $employeeId && $e['status'] === 'Active'
+    field('startDate', 'Start date', $employee['startDate'] ?? $state['today'], 'date', true, $errors['startDate'] ?? '');
+    field('salary', 'Annual salary', $employee['salary'] ?? '', 'number', true, $errors['salary'] ?? '');
+    $managers = employee_options(array_filter($state['employees'], function ($e) use ($employeeId) { return $e['id'] !== $employeeId && $e['status'] === 'Active'; }
     ));
     choice('managerId', 'Manager', ['' => 'None'] + $managers, $employee['managerId'] ?? '');
 }
@@ -65,7 +64,7 @@ function add_employee_modal(array $state, string $page, array $formError): void
             <input type="hidden" data-new-employee-date value="<?= h($state['today']) ?>">
             <div class="modal-body">
                 <?php if ($failed && !$errors) web_message($formError['message'], ''); ?>
-                <div class="form-grid"><?php employee_fields($state, $values, errors: $errors); ?></div>
+                <div class="form-grid"><?php employee_fields($state, $values, null, $errors); ?></div>
                 <div class="form-grid" data-employee-location hidden>
                     <p class="full muted" data-current-location hidden></p>
                     <label class="field"><span>Province</span><select class="input" data-province aria-describedby="employee-location-message"></select></label>

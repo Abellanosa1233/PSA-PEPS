@@ -5,20 +5,19 @@ $firstName = explode(' ', trim($state['user']['name']))[0];
 $hour = (int) date('G');
 $greeting = $hour < 12 ? 'Good morning' : ($hour < 18 ? 'Good afternoon' : 'Good evening');
 $recent = $day->modify('-30 days')->format('Y-m-d');
-$active = array_filter($state['employees'], fn($e) => $e['status'] === 'Active');
-$joined = count(array_filter($active, fn($e) => $e['startDate'] > $recent && $e['startDate'] <= $today));
-$open = array_column(array_filter($state['positions'], fn($p) => $p['status'] === 'open'), null, 'id');
-$pipeline = array_filter($state['candidates'], fn($c) => isset($open[$c['positionId']]) && !in_array($c['stage'], ['Rejected', 'Hired'], true));
-$pending = array_values(array_filter($state['leaves'], fn($l) => $l['status'] === 'pending'));
-usort($pending, fn($a, $b) => $a['start'] <=> $b['start']);
+$active = array_filter($state['employees'], function ($e) { return $e['status'] === 'Active'; });
+$joined = count(array_filter($active, function ($e) use ($recent, $today) { return $e['startDate'] > $recent && $e['startDate'] <= $today; }));
+$open = array_column(array_filter($state['positions'], function ($p) { return $p['status'] === 'open'; }), null, 'id');
+$pipeline = array_filter($state['candidates'], function ($c) use ($open) { return isset($open[$c['positionId']]) && !in_array($c['stage'], ['Rejected', 'Hired'], true); });
+$pending = array_values(array_filter($state['leaves'], function ($l) { return $l['status'] === 'pending'; }));
+usort($pending, function ($a, $b) { return $a['start'] <=> $b['start']; });
 $present = $out = 0;
 $records = attendance_records($state, $today);
 foreach ($records as [, $record, $onLeave]) {
     if ($onLeave) $out++;
     elseif (in_array($record['status'], ['office', 'remote'], true)) $present++;
 }
-$sick = count(array_filter($state['leaves'], fn($l) =>
-    $l['status'] === 'approved' && $l['type'] === 'Sick leave' && $l['start'] <= $today && $l['end'] >= $today
+$sick = count(array_filter($state['leaves'], function ($l) use ($today) { return $l['status'] === 'approved' && $l['type'] === 'Sick leave' && $l['start'] <= $today && $l['end'] >= $today; }
 ));
 $metrics = [
     ['Total employees', 'users', count($active), '+' . $joined, 'joined in the last 30 days'],
@@ -30,7 +29,7 @@ $offset = max(-5, min(0, (int) ($_GET['week'] ?? ((int) $day->format('N') <= 2 ?
 $thisMonday = $day->modify('monday this week');
 $monday = $thisMonday->modify("$offset weeks");
 $date = selected_date($today);
-$events = array_filter($state['events'], fn($event) => $event['date'] === $date);
+$events = array_filter($state['events'], function ($event) use ($date) { return $event['date'] === $date; });
 ?>
 <div class="page-head">
     <div><h1><?= h("$greeting, $firstName") ?></h1><p>Here's what's happening with your team today.</p></div>
@@ -125,7 +124,7 @@ $events = array_filter($state['events'], fn($event) => $event['date'] === $date)
     <section class="card">
         <div class="card-head"><h3>Time-off requests <span class="pill"><?= count($pending) ?> pending</span></h3><a class="link-btn" href="<?= h(page_url('time-off')) ?>">View all requests <?= icon('arrowRight', 14) ?></a></div>
         <?php if ($pending): ?>
-            <?php leave_table($state, array_slice($pending, 0, 5), compact: true); ?>
+            <?php leave_table($state, array_slice($pending, 0, 5), true, true); ?>
         <?php else: ?>
             <div class="empty"><strong>You're all caught up</strong><span>New requests will appear here for approval.</span></div>
         <?php endif; ?>
@@ -133,8 +132,8 @@ $events = array_filter($state['events'], fn($event) => $event['date'] === $date)
     <section class="card">
         <div class="card-head"><h3>Hiring at a glance</h3><span class="pill"><?= count($open) ?> open roles</span></div>
         <?php foreach (array_slice($open, 0, 3) as $position):
-            $candidates = array_filter($state['candidates'], fn($c) => $c['positionId'] === $position['id'] && $c['stage'] !== 'Rejected');
-            $progress = $candidates ? 25 * array_sum(array_map(fn($c) => array_search($c['stage'], STAGES, true), $candidates)) / count($candidates) : 0;
+            $candidates = array_filter($state['candidates'], function ($c) use ($position) { return $c['positionId'] === $position['id'] && $c['stage'] !== 'Rejected'; });
+            $progress = $candidates ? 25 * array_sum(array_map(function ($c) { return array_search($c['stage'], STAGES, true); }, $candidates)) / count($candidates) : 0;
         ?>
             <div class="role-row">
                 <div class="line"><strong><?= h($position['title']) ?></strong></div>

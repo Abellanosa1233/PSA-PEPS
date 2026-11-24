@@ -7,7 +7,7 @@ function reports_view(array $state): void
     $start = $month . '-01';
     $end = period_end($month);
     $rows = department_report($state, $month);
-    $departures = count(array_filter($state['employees'], fn($e) => $e['endDate'] && $e['endDate'] >= $start && $e['endDate'] <= $end));
+    $departures = count(array_filter($state['employees'], function ($e) use ($start, $end) { return $e['endDate'] && $e['endDate'] >= $start && $e['endDate'] <= $end; }));
     $headcount = array_sum(array_column($rows, 1));
     $turnoverBase = $headcount + $departures;
     $payroll = 0;
@@ -52,15 +52,15 @@ function reports_view(array $state): void
     </div>
     <div class="grid cols-even">
         <?php report_bars('Headcount by department', array_column($rows, 1, 0), 'strval'); ?>
-        <?php report_bars('Time off taken', $leave, fn($days) => "$days days"); ?>
+        <?php report_bars('Time off taken', $leave, function ($days) { return "$days days"; }); ?>
     </div>
-    <?php report_bars('Average base salary by department', array_column($rows, 2, 0), fn($salary) => money($salary, $state)); ?>
+    <?php report_bars('Average base salary by department', array_column($rows, 2, 0), function ($salary) use ($state) { return money($salary, $state); }); ?>
     <?php
 }
 
 function report_bars(string $title, array $values, callable $format): void
 {
-    $max = max([1, ...array_values($values)]);
+    $max = max(array_merge([1], array_values($values)));
     ?>
     <section class="card">
         <div class="card-head"><h3><?= h($title) ?></h3></div>

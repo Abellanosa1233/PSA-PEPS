@@ -22,7 +22,7 @@ function employees_view(array $state): void
         card('Leave history and balances');
         leave_balances($state, $id);
         if ($employee['status'] === 'Active') leave_form([$id => employee_name($employee)], true);
-        $history = paginate(array_filter($state['leaves'], fn($l) => $l['empId'] === $id), 'leavePage');
+        $history = paginate(array_filter($state['leaves'], function ($l) use ($id) { return $l['empId'] === $id; }), 'leavePage');
         leave_table($state, $history['rows']);
         pagination($history, 'employees', ['id' => $id], 'requests', 'leavePage');
         echo '</section>';
@@ -31,20 +31,22 @@ function employees_view(array $state): void
 
     $todayStatuses = employee_today_statuses($state);
     $list = employee_list($state, $todayStatuses);
-    $searchIndex = array_values(array_map(fn($person) => [
-        'name' => employee_name($person),
-        'email' => $person['email'],
-        'title' => $person['title'],
-        'department' => $person['department'],
-        'type' => $person['type'],
-        'status' => $person['status'],
-        'todayStatus' => $todayStatuses[$person['id']] ?? 'none',
-        'profile' => page_url('employees', ['id' => $person['id']]),
-    ], $state['employees']));
+    $searchIndex = array_values(array_map(function ($person) use ($todayStatuses) {
+        return [
+            'name' => employee_name($person),
+            'email' => $person['email'],
+            'title' => $person['title'],
+            'department' => $person['department'],
+            'type' => $person['type'],
+            'status' => $person['status'],
+            'todayStatus' => $todayStatuses[$person['id']] ?? 'none',
+            'profile' => page_url('employees', ['id' => $person['id']]),
+        ];
+    }, $state['employees']));
     $filters = array_intersect_key($_GET, array_flip(['q', 'department', 'status', 'type', 'todayStatus']));
     $pagination = paginate($list);
     $attendanceOptions = ['office' => 'In office', 'remote' => 'Remote', 'away' => 'Away', 'leave' => 'On leave', 'none' => 'No record', 'offboarded' => 'Offboarded'];
-    $active = count(array_filter($state['employees'], fn($e) => $e['status'] === 'Active'));
+    $active = count(array_filter($state['employees'], function ($e) { return $e['status'] === 'Active'; }));
     ?>
     <div class="page-head">
         <div><h1>Employees</h1><p><?= $active ?> active employee<?= $active === 1 ? '' : 's' ?> across <?= count(DEPARTMENTS) ?> departments.</p></div>

@@ -13,9 +13,8 @@ function payroll_view(array $state): void
     $draft = $run['status'] === 'draft';
     $search = trim((string) ($_GET['q'] ?? ''));
     $department = (string) ($_GET['department'] ?? '');
-    $matches = array_filter($lines, fn($line) =>
-        ($department === '' || $line['department'] === $department)
-        && ($search === '' || mb_stripos($line['name'], $search) !== false));
+    $matches = array_filter($lines, function ($line) use ($department, $search) { return ($department === '' || $line['department'] === $department)
+        && ($search === '' || mb_stripos($line['name'], $search) !== false); });
     $pageRows = paginate($matches);
     $labels = [];
     foreach ($runs as $item) $labels[$item['id']] = $item['period'] . ' · ' . ucfirst($item['status']);

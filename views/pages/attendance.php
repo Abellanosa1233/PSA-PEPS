@@ -11,9 +11,8 @@ foreach ($records as [, $record, $onLeave]) {
     $key = $onLeave ? 'leave' : $record['status'];
     if (isset($counts[$key])) $counts[$key]++;
 }
-$people = array_filter($records, fn($item) =>
-    ($department === '' || $item[0]['department'] === $department)
-    && ($search === '' || mb_stripos(employee_name($item[0]), $search) !== false));
+$people = array_filter($records, function ($item) use ($department, $search) { return ($department === '' || $item[0]['department'] === $department)
+    && ($search === '' || mb_stripos(employee_name($item[0]), $search) !== false); });
 $filters = ['department' => $department, 'q' => $search];
 $pageRows = paginate($people);
 ?>

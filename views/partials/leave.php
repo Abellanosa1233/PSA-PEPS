@@ -20,31 +20,35 @@ function leave_table(array $state, array $leaves, bool $canDecide = true, bool $
 {
     $names = employee_options($state['employees']);
     if ($compact) {
-        web_table(['Employee', 'Leave type', 'Dates', 'Actions'], array_map(fn($l) => [
-            fn() => link_to('employees', $names[$l['empId']] ?? 'Former employee', ['id' => $l['empId']]),
-            $l['type'],
-            function () use ($l) {
-                echo h($l['start'] . ' – ' . $l['end']) . '<span class="sub">' . (int) $l['days'] . ' day(s)</span>';
-            },
-            function () use ($l) {
-                action_button('leave.decide', 'Approve', ['id' => $l['id'], 'status' => 'approved']);
-                action_button('leave.decide', 'Decline', ['id' => $l['id'], 'status' => 'rejected']);
-            },
-        ], $leaves));
+        web_table(['Employee', 'Leave type', 'Dates', 'Actions'], array_map(function ($l) use ($names) {
+            return [
+                function () use ($names, $l) { return link_to('employees', $names[$l['empId']] ?? 'Former employee', ['id' => $l['empId']]); },
+                $l['type'],
+                function () use ($l) {
+                    echo h($l['start'] . ' – ' . $l['end']) . '<span class="sub">' . (int) $l['days'] . ' day(s)</span>';
+                },
+                function () use ($l) {
+                    action_button('leave.decide', 'Approve', ['id' => $l['id'], 'status' => 'approved']);
+                    action_button('leave.decide', 'Decline', ['id' => $l['id'], 'status' => 'rejected']);
+                },
+            ];
+        }, $leaves));
         return;
     }
-    web_table(['Employee', 'Type', 'Dates', 'Days', 'Reason', 'Status', 'Actions'], array_map(fn($l) => [
-        $names[$l['empId']] ?? 'Former employee', $l['type'], $l['start'] . ' – ' . $l['end'], $l['days'], $l['reason'], fn() => status_badge($l['status']),
-        function () use ($l, $state, $canDecide) {
-            if ($l['status'] === 'pending' && $canDecide) {
-                action_button('leave.decide', 'Approve', ['id' => $l['id'], 'status' => 'approved']);
-                action_button('leave.decide', 'Decline', ['id' => $l['id'], 'status' => 'rejected']);
-            }
-            if ($l['status'] === 'pending' || ($l['status'] === 'approved' && $l['end'] >= $state['today'])) {
-                confirm_action('leave.cancel', 'Cancel request', 'Remove this leave request?', ['id' => $l['id']]);
-            }
-        },
-    ], $leaves));
+    web_table(['Employee', 'Type', 'Dates', 'Days', 'Reason', 'Status', 'Actions'], array_map(function ($l) use ($names, $state, $canDecide) {
+        return [
+            $names[$l['empId']] ?? 'Former employee', $l['type'], $l['start'] . ' – ' . $l['end'], $l['days'], $l['reason'], function () use ($l) { return status_badge($l['status']); },
+            function () use ($l, $state, $canDecide) {
+                if ($l['status'] === 'pending' && $canDecide) {
+                    action_button('leave.decide', 'Approve', ['id' => $l['id'], 'status' => 'approved']);
+                    action_button('leave.decide', 'Decline', ['id' => $l['id'], 'status' => 'rejected']);
+                }
+                if ($l['status'] === 'pending' || ($l['status'] === 'approved' && $l['end'] >= $state['today'])) {
+                    confirm_action('leave.cancel', 'Cancel request', 'Remove this leave request?', ['id' => $l['id']]);
+                }
+            },
+        ];
+    }, $leaves));
 }
 
 function leave_balances(array $state, int $employeeId): void
@@ -52,7 +56,7 @@ function leave_balances(array $state, int $employeeId): void
     $year = substr($state['today'], 0, 4);
     $balances = [];
     foreach ($state['leaves'] as $leave) {
-        if ($leave['empId'] !== $employeeId || !str_starts_with($leave['start'], $year)) continue;
+        if ($leave['empId'] !== $employeeId || strpos($leave['start'], $year) !== 0) continue;
         $type = $leave['type'];
         $status = $leave['status'];
         $balances[$type][$status] = ($balances[$type][$status] ?? 0) + $leave['days'];

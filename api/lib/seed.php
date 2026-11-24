@@ -23,10 +23,10 @@ function seed_demo(): void
     $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
 
     mt_srand(20261123);
-    $pick = fn(array $a) => $a[mt_rand(0, count($a) - 1)];
-    $rnd = fn() => mt_rand() / mt_getrandmax();
+    $pick = function (array $a) { return $a[mt_rand(0, count($a) - 1)]; };
+    $rnd = function () { return mt_rand() / mt_getrandmax(); };
     $T = new DateTimeImmutable('today');
-    $d = fn(int $offset) => $T->modify(($offset >= 0 ? '+' : '') . $offset . ' days')->format('Y-m-d');
+    $d = function (int $offset) use ($T) { return $T->modify(($offset >= 0 ? '+' : '') . $offset . ' days')->format('Y-m-d'); };
 
     $titles = [
         'Design' => ['Product designer', 'UX researcher', 'Brand designer'],
@@ -92,7 +92,7 @@ function seed_demo(): void
     $req($namedIds[0], 'Annual leave', 3, 4, 'pending', 'Family visit', 2);
     $req($namedIds[1], 'Personal leave', 2, 2, 'pending', 'Moving apartments', 1);
     $req($namedIds[2], 'Annual leave', 7, 9, 'pending', 'Short trip', 1);
-    $veterans = array_values(array_filter($emps, fn($e) => $e['start'] < $d(-40)));
+    $veterans = array_values(array_filter($emps, function ($e) use ($d) { return $e['start'] < $d(-40); }));
     foreach ([12, 15, 19, 22] as $i => $k) $req($veterans[$k]['id'], 'Annual leave', -1 - $i % 2, 1 + $i % 3, 'approved', 'Holiday', 14);
     $req($veterans[25]['id'], 'Sick leave', 0, 0, 'approved', 'Flu', 0);
     for ($k = 0; $k < 12; $k++) {

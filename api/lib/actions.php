@@ -28,18 +28,18 @@ function act_employee_save(array $in): array
         'salary' => $salary,
         'manager_id' => int_in($in, 'managerId', false),
     ];
-    if (!filter_var($f['email'], FILTER_VALIDATE_EMAIL)) fail('Enter a valid email address, like name@company.com.', field: 'email');
-    if ($salary === false || $salary < 0.01 || $salary > 10000000) fail('Annual salary must be between 0.01 and 10,000,000.', field: 'salary');
+    if (!filter_var($f['email'], FILTER_VALIDATE_EMAIL)) fail('Enter a valid email address, like name@company.com.', 422, 'email');
+    if ($salary === false || $salary < 0.01 || $salary > 10000000) fail('Annual salary must be between 0.01 and 10,000,000.', 422, 'salary');
     $dupe = q('SELECT id FROM employees WHERE email = ? AND id <> ?', [$f['email'], $id ?? 0])->fetchColumn();
-    if ($dupe) fail('Another employee already uses that email address.', field: 'email');
+    if ($dupe) fail('Another employee already uses that email address.', 422, 'email');
     if ($f['manager_id'] !== null) {
         if ($id !== null && $f['manager_id'] === $id) fail('An employee cannot be their own manager.');
         employee_exists($f['manager_id']);
     }
     if ($id) {
         employee_exists($id);
-        $sets = implode(', ', array_map(fn($k) => "$k = ?", array_keys($f)));
-        $updated = q("UPDATE employees SET $sets WHERE id = ?", [...array_values($f), $id]);
+        $sets = implode(', ', array_map(function ($k) { return "$k = ?"; }, array_keys($f)));
+        $updated = q("UPDATE employees SET $sets WHERE id = ?", array_merge(array_values($f), [$id]));
         return ['id' => $id, 'changed' => $updated->rowCount() > 0];
     } else {
         $cols = implode(', ', array_keys($f));
@@ -84,7 +84,7 @@ function act_leave_create(array $in): array
     $type = one_of((string) ($in['type'] ?? ''), LEAVE_TYPES, 'Leave type');
     $start = date_in($in, 'start', true, 'First day');
     $end = date_in($in, 'end', true, 'Last day');
-    if ($end < $start) fail('The last day must be on or after the first day.', field: 'end');
+    if ($end < $start) fail('The last day must be on or after the first day.', 422, 'end');
     $days = workdays($start, $end);
     if ($days === 0) fail('Those dates fall on a weekend. Pick at least one weekday.');
     $overlap = q("SELECT COUNT(*) FROM leave_requests WHERE emp_id = ? AND status IN ('pending','approved') AND start_date <= ? AND end_date >= ?", [$emp['id'], $end, $start])->fetchColumn();
@@ -178,11 +178,11 @@ function act_attendance_clock(array $in): array
 function act_event_save(array $in): array
 {
     $id = int_in($in, 'id', false);
-    $start = time_in($in, 'start') ?? fail('Start time is required.', field: 'start');
-    $end = time_in($in, 'end') ?? fail('End time is required.', field: 'end');
-    if ($end <= $start) fail('The event must end after it starts.', field: 'end');
+    $start = time_in($in, 'start') ?? fail('Start time is required.', 422, 'start');
+    $end = time_in($in, 'end') ?? fail('End time is required.', 422, 'end');
+    if ($end <= $start) fail('The event must end after it starts.', 422, 'end');
     $vals = [date_in($in, 'date'), $start, $end, str_in($in, 'title', 160, true, 'Title'), str_in($in, 'detail', 255, false)];
-    if ($id) q('UPDATE events SET event_date=?, start_time=?, end_time=?, title=?, detail=? WHERE id = ?', [...$vals, $id]);
+    if ($id) q('UPDATE events SET event_date=?, start_time=?, end_time=?, title=?, detail=? WHERE id = ?', array_merge($vals, [$id]));
     else q('INSERT INTO events (event_date,start_time,end_time,title,detail) VALUES (?,?,?,?,?)', $vals);
     return [];
 }
@@ -203,9 +203,9 @@ function act_position_save(array $in): array
         one_of(str_in($in, 'type', 20, true, 'Employment type'), EMP_TYPES, 'Employment type'),
         str_in($in, 'location', 80, false),
     ];
-    if ($id) q('UPDATE positions SET title=?, department=?, emp_type=?, location=? WHERE id = ?', [...$vals, $id]);
+    if ($id) q('UPDATE positions SET title=?, department=?, emp_type=?, location=? WHERE id = ?', array_merge($vals, [$id]));
     else {
-        q("INSERT INTO positions (title,department,emp_type,location,status,created_at) VALUES (?,?,?,?,'open',?)", [...$vals, today()]);
+        q("INSERT INTO positions (title,department,emp_type,location,status,created_at) VALUES (?,?,?,?,'open',?)", array_merge($vals, [today()]));
         $id = (int) db()->lastInsertId();
     }
     return ['id' => $id];
@@ -228,7 +228,7 @@ function act_candidate_save(array $in): array
     $pid = int_in($in, 'positionId');
     if (!q('SELECT id FROM positions WHERE id = ?', [$pid])->fetch()) fail('That role no longer exists.', 404);
     $email = str_in($in, 'email', 160, false);
-    if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) fail('Enter a valid email address, or leave it blank.', field: 'email');
+    if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) fail('Enter a valid email address, or leave it blank.', 422, 'email');
     q("INSERT INTO candidates (position_id,name,email,source,stage,applied_at) VALUES (?,?,?,?,'Applied',?)",
         [$pid, str_in($in, 'name', 160, true, 'Name'), $email, str_in($in, 'source', 60, false), today()]);
     return [];
@@ -236,7 +236,7 @@ function act_candidate_save(array $in): array
 
 function act_candidate_move(array $in): array
 {
-    $stage = one_of((string) ($in['stage'] ?? ''), [...STAGES, 'Rejected'], 'Stage');
+    $stage = one_of((string) ($in['stage'] ?? ''), array_merge(STAGES, ['Rejected']), 'Stage');
     q('UPDATE candidates SET stage = ? WHERE id = ?', [$stage, int_in($in, 'id')]);
     return [];
 }
@@ -315,7 +315,7 @@ function act_profile_save(array $in, array $user): array
         [$oldHash, $newHash] = account_password_hashes($in, $user['id']);
         $updated = q('UPDATE users SET display_name = ?, role_title = ?, password_hash = ? WHERE id = ? AND password_hash = ?',
             [$name, $role, $newHash, $user['id'], $oldHash]);
-        if (!$updated->rowCount()) fail('Your password changed. Enter your current password and try again.', field: 'currentPassword');
+        if (!$updated->rowCount()) fail('Your password changed. Enter your current password and try again.', 422, 'currentPassword');
     } else {
         q('UPDATE users SET display_name = ?, role_title = ? WHERE id = ?', [$name, $role, $user['id']]);
     }
@@ -326,7 +326,7 @@ function act_password_change(array $in, array $user): array
 {
     [$oldHash, $newHash] = account_password_hashes($in, $user['id'], true);
     $updated = q('UPDATE users SET password_hash = ? WHERE id = ? AND password_hash = ?', [$newHash, $user['id'], $oldHash]);
-    if (!$updated->rowCount()) fail('Your password changed. Enter your current password and try again.', field: 'currentPassword');
+    if (!$updated->rowCount()) fail('Your password changed. Enter your current password and try again.', 422, 'currentPassword');
     return [];
 }
 
@@ -334,14 +334,14 @@ function account_password_hashes(array $in, int $userId, bool $requireConfirmati
 {
     $current = $in['currentPassword'] ?? '';
     $new = $in['newPassword'] ?? '';
-    if (!is_string($current) || $current === '') fail('Enter your current password.', field: 'currentPassword');
-    if (!is_string($new) || mb_strlen($new) < 8) fail('Use at least 8 characters for the new password.', field: 'newPassword');
-    if (strlen($new) > 72 || str_contains($new, "\0")) fail('Use a password of up to 72 bytes without null characters.', field: 'newPassword');
+    if (!is_string($current) || $current === '') fail('Enter your current password.', 422, 'currentPassword');
+    if (!is_string($new) || mb_strlen($new) < 8) fail('Use at least 8 characters for the new password.', 422, 'newPassword');
+    if (strlen($new) > 72 || strpos($new, "\0") !== false) fail('Use a password of up to 72 bytes without null characters.', 422, 'newPassword');
     if ($requireConfirmation && ($in['confirmPassword'] ?? '') !== $new) {
-        fail('The new passwords must match.', field: 'confirmPassword');
+        fail('The new passwords must match.', 422, 'confirmPassword');
     }
     $oldHash = q('SELECT password_hash FROM users WHERE id = ?', [$userId])->fetchColumn();
-    if (!$oldHash || !password_verify($current, $oldHash)) fail('Your current password is not correct.', field: 'currentPassword');
+    if (!$oldHash || !password_verify($current, $oldHash)) fail('Your current password is not correct.', 422, 'currentPassword');
     return [$oldHash, password_hash($new, PASSWORD_DEFAULT)];
 }
 

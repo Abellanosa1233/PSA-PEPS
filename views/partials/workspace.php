@@ -4,13 +4,13 @@ declare(strict_types=1);
 function workspace_view(array $state, bool $supervisor): void
 {
     $employees = array_column($state['employees'], null, 'id');
-    $active = array_filter($employees, fn($e) => $e['status'] === 'Active');
+    $active = array_filter($employees, function ($e) { return $e['status'] === 'Active'; });
     $key = $supervisor ? 'supervisorId' : 'selfEmpId';
     $profileId = (int) ($state['settings'][$key] ?? 0);
     $selectable = $active;
     if ($supervisor) {
         $managerIds = array_column($active, 'managerId');
-        $selectable = array_filter($active, fn($e) => in_array($e['id'], $managerIds, true));
+        $selectable = array_filter($active, function ($e) use ($managerIds) { return in_array($e['id'], $managerIds, true); });
     }
     card($supervisor ? 'Select supervisor' : 'Select employee');
     post_form('workspace.view');
@@ -19,10 +19,10 @@ function workspace_view(array $state, bool $supervisor): void
     echo '</section>';
     if (!isset($selectable[$profileId])) return;
     if ($supervisor) {
-        $team = array_filter($active, fn($e) => $e['managerId'] === $profileId);
+        $team = array_filter($active, function ($e) use ($profileId) { return $e['managerId'] === $profileId; });
         $rows = [];
         foreach (attendance_records($state, $state['today']) as [$employee, $record, $onLeave]) {
-            if (isset($team[$employee['id']])) $rows[] = [employee_name($employee), fn() => status_badge($onLeave ? 'leave' : $record['status']), $record['in'], $record['out']];
+            if (isset($team[$employee['id']])) $rows[] = [employee_name($employee), function () use ($onLeave, $record) { return status_badge($onLeave ? 'leave' : $record['status']); }, $record['in'], $record['out']];
         }
         card('Team today');
         $teamPage = paginate($rows);
@@ -30,7 +30,7 @@ function workspace_view(array $state, bool $supervisor): void
         pagination($teamPage, 'supervisor', array_intersect_key($_GET, ['leavePage' => true]), 'employees');
         echo '</section>';
         card('Pending team requests');
-        $requests = paginate(array_filter($state['leaves'], fn($l) => isset($team[$l['empId']]) && $l['status'] === 'pending'), 'leavePage');
+        $requests = paginate(array_filter($state['leaves'], function ($l) use ($team) { return isset($team[$l['empId']]) && $l['status'] === 'pending'; }), 'leavePage');
         leave_table($state, $requests['rows']);
         pagination($requests, 'supervisor', array_intersect_key($_GET, ['p' => true]), 'requests', 'leavePage');
         echo '</section>';
@@ -50,7 +50,7 @@ function workspace_view(array $state, bool $supervisor): void
     card('Time off');
     leave_balances($state, $profileId);
     leave_form([$profileId => employee_name($employees[$profileId])]);
-    $requests = paginate(array_filter($state['leaves'], fn($l) => $l['empId'] === $profileId), 'leavePage');
+    $requests = paginate(array_filter($state['leaves'], function ($l) use ($profileId) { return $l['empId'] === $profileId; }), 'leavePage');
     leave_table($state, $requests['rows'], false);
     pagination($requests, 'self-service', array_intersect_key($_GET, ['slipsPage' => true]), 'requests', 'leavePage');
     echo '</section>';

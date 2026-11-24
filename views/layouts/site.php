@@ -36,7 +36,7 @@
         'overview' => 'grid', 'employees' => 'users', 'attendance' => 'clock', 'time-off' => 'calendar',
         'payroll' => 'wallet', 'recruitment' => 'briefcase', 'reports' => 'chart',
     ];
-    $pendingCount = count(array_filter($state['leaves'] ?? [], fn($leave) => $leave['status'] === 'pending'));
+    $pendingCount = count(array_filter($state['leaves'] ?? [], function ($leave) { return $leave['status'] === 'pending'; }));
     $settings = $state['settings'] ?? [];
     $signOutReturn = page_url($page, $query);
     $showSignOut = ($_GET['confirmSignOut'] ?? '') === '1';

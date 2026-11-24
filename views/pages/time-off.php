@@ -6,17 +6,16 @@ $tabs = ['pending' => 'Pending', 'approved' => 'Approved', 'rejected' => 'Declin
 $counts = array_count_values(array_column($state['leaves'], 'status'));
 $counts[''] = count($state['leaves']);
 $employees = employee_options($state['employees']);
-$active = employee_options(array_filter($state['employees'], fn($e) => $e['status'] === 'Active'));
-$requests = array_filter($state['leaves'], fn($l) =>
-    ($status === '' || $l['status'] === $status) && ($type === '' || $l['type'] === $type)
-    && ($search === '' || mb_stripos($employees[$l['empId']] ?? '', $search) !== false));
+$active = employee_options(array_filter($state['employees'], function ($e) { return $e['status'] === 'Active'; }));
+$requests = array_filter($state['leaves'], function ($l) use ($status, $type, $search, $employees) { return ($status === '' || $l['status'] === $status) && ($type === '' || $l['type'] === $type)
+    && ($search === '' || mb_stripos($employees[$l['empId']] ?? '', $search) !== false); });
 $pageRows = paginate($requests);
 $monday = (new DateTimeImmutable($state['today']))->modify('monday this week');
 $friday = $monday->modify('+4 days')->format('Y-m-d');
-$approved = array_filter($state['leaves'], fn($l) => $l['status'] === 'approved');
-usort($approved, fn($a, $b) => $a['start'] <=> $b['start']);
-$out = array_filter($approved, fn($l) => $l['start'] <= $friday && $l['end'] >= $monday->format('Y-m-d'));
-$upcoming = array_slice(array_filter($approved, fn($l) => $l['start'] > $friday), 0, 6);
+$approved = array_filter($state['leaves'], function ($l) { return $l['status'] === 'approved'; });
+usort($approved, function ($a, $b) { return $a['start'] <=> $b['start']; });
+$out = array_filter($approved, function ($l) use ($friday, $monday) { return $l['start'] <= $friday && $l['end'] >= $monday->format('Y-m-d'); });
+$upcoming = array_slice(array_filter($approved, function ($l) use ($friday) { return $l['start'] > $friday; }), 0, 6);
 ?>
 <div class="page-head">
     <div><h1>Time off</h1><p>Review requests, check who is out and manage leave balances.</p></div>
