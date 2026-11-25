@@ -44,7 +44,10 @@
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  background: url("../sign-in-building.png") center / cover no-repeat;
+  background:
+    linear-gradient(0deg, rgba(5, 18, 38, .32), transparent 46%),
+    linear-gradient(112deg, rgba(5, 23, 48, .24), rgba(0, 62, 126, .06) 54%, rgba(5, 22, 46, .22)),
+    url("../sign-in-building.png") center / cover no-repeat;
 }
 .web-auth-signin .auth-card-signin {
   --surface: rgba(8, 25, 48, .96);
