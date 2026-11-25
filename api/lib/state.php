@@ -109,26 +109,46 @@ function build_state(array $user): array
 
 /* What an employee account may see: their own records and, if they supervise people,
    their direct reports' attendance and Special/Travel Orders. Never anyone else's leave
-   (planned time off is private between the employee and HR), salaries except their own,
-   other payslips, recruitment, schedule or payroll settings. */
+   request (planned time off is private between the employee and HR), salaries except
+   their own, other payslips, recruitment, schedule or payroll settings.
+   Once HR approves leave or an order, the person's team sees only that they are out and
+   when ("teamAbsences"): no leave type, reason, purpose or destination. */
 function scope_state_to_employee(array $state, int $me): array
 {
     $byId = array_column($state['employees'], null, 'id');
     $self = $byId[$me] ?? null;
-    $teamIds = [];
+    $myManager = $self['managerId'] ?? null;
+    $teamIds = [];   // direct reports
+    $peerIds = [];   // colleagues who share my supervisor
     foreach ($state['employees'] as $e) {
-        if ($e['managerId'] === $me && $e['status'] === 'Active') $teamIds[$e['id']] = true;
+        if ($e['status'] !== 'Active' || $e['id'] === $me) continue;
+        if ($e['managerId'] === $me) $teamIds[$e['id']] = true;
+        if ($myManager !== null && $e['managerId'] === $myManager) $peerIds[$e['id']] = true;
     }
     $peopleIds = [$me => true] + $teamIds;
-    $visible = $peopleIds;
-    if ($self && $self['managerId'] !== null) $visible[$self['managerId']] = true; // their supervisor's name only
+    $aroundMe = $teamIds + $peerIds + ($myManager !== null ? [$myManager => true] : []);
+    $visible = $peopleIds + $aroundMe;
 
     $employees = [];
     foreach ($state['employees'] as $e) {
         if (!isset($visible[$e['id']])) continue;
-        if ($e['id'] !== $me) $e['salary'] = null;
+        if ($e['id'] !== $me) { $e['salary'] = null; $e['phone'] = ''; }
         $employees[] = $e;
     }
+    // Approved absences of the people around me, reduced to who / what kind / when.
+    $teamAbsences = [];
+    foreach ($state['leaves'] as $l) {
+        if ($l['status'] === 'approved' && isset($aroundMe[$l['empId']]) && $l['end'] >= $state['today']) {
+            $teamAbsences[] = ['empId' => $l['empId'], 'kind' => 'leave', 'start' => $l['start'], 'end' => $l['end']];
+        }
+    }
+    foreach ($state['employeeRequests'] as $r) {
+        $end = $r['end'] ?: $r['start'];
+        if ($r['status'] === 'approved' && isset($aroundMe[$r['empId']]) && $end >= $state['today']) {
+            $teamAbsences[] = ['empId' => $r['empId'], 'kind' => $r['type'], 'start' => $r['start'], 'end' => $end];
+        }
+    }
+    usort($teamAbsences, function ($a, $b) { return [$a['start'], $a['empId']] <=> [$b['start'], $b['empId']]; });
     $mine = function (array $rows) use ($peopleIds) {
         return array_values(array_filter($rows, function ($row) use ($peopleIds) { return isset($peopleIds[$row['empId']]); }));
     };
@@ -153,6 +173,7 @@ function scope_state_to_employee(array $state, int $me): array
         'employees' => $employees,
         'leaves' => array_values(array_filter($state['leaves'], function ($l) use ($me) { return $l['empId'] === $me; })),
         'employeeRequests' => $mine($state['employeeRequests']),
+        'teamAbsences' => $teamAbsences,
         'attendance' => (object) $attendance,
         'events' => [],
         'positions' => [],

@@ -19,6 +19,49 @@ function dtr_card_form(int $employeeId, bool $ownRecord): void
     echo '</select></label><button class="btn primary" type="submit">' . icon('file', 15) . ' View DTR</button></form></section>';
 }
 
+/* "Out of office" wording for a teammate's approved absence. Deliberately vague: the type
+   of leave, its reason and an order's purpose or destination stay private. */
+function absence_label(string $kind): string
+{
+    return ['leave' => 'On leave', 'travel_order' => 'On travel order', 'special_order' => 'On special order'][$kind] ?? 'Out of office';
+}
+
+function absence_badge(string $kind): void
+{
+    echo '<span class="badge ' . ($kind === 'leave' ? 'warn' : '') . '">' . h(absence_label($kind)) . '</span>';
+}
+
+function absence_dates(array $a, string $today): string
+{
+    $from = new DateTimeImmutable($a['start']);
+    $to = new DateTimeImmutable($a['end']);
+    $range = $a['start'] === $a['end'] ? $from->format('M j')
+        : ($from->format('Y-m') === $to->format('Y-m') ? $from->format('M j') . '–' . $to->format('j') : $from->format('M j') . ' – ' . $to->format('M j'));
+    if ($a['start'] <= $today && $a['end'] >= $today) $range .= ' · out today' . ($a['end'] > $today ? ', back ' . $to->modify('+1 day')->format('M j') : '');
+    return $range;
+}
+
+/* Teammates' approved leave and orders (current and upcoming), so the team can plan around them. */
+function team_absence_card(array $state): void
+{
+    if (!isset($state['teamAbsences'])) return; // only employee accounts receive this
+    $people = array_column($state['employees'], null, 'id');
+    card('Team out of office');
+    echo '<p class="muted">Approved leave and Special/Travel Orders of your teammates, today and coming up. Details of the leave stay with HR.</p>';
+    web_table(['Teammate', 'Status', 'Dates'], array_map(function ($a) use ($people, $state) {
+        $person = $people[$a['empId']] ?? null;
+        return [
+            function () use ($person) {
+                echo '<strong>' . h($person ? employee_name($person) : 'Teammate') . '</strong>';
+                if ($person) echo '<span class="sub">' . h($person['title']) . '</span>';
+            },
+            function () use ($a) { absence_badge($a['kind']); },
+            absence_dates($a, $state['today']),
+        ];
+    }, $state['teamAbsences']));
+    echo '</section>';
+}
+
 function workspace_view(array $state, bool $supervisor): void
 {
     $employees = array_column($state['employees'], null, 'id');
@@ -50,8 +93,18 @@ function workspace_view(array $state, bool $supervisor): void
     if ($supervisor) {
         $team = array_filter($active, function ($e) use ($profileId) { return $e['managerId'] === $profileId; });
         $rows = [];
+        // Approved absences today (employee accounts get these instead of the leave records themselves).
+        $outToday = [];
+        foreach ($state['teamAbsences'] ?? [] as $a) {
+            if ($a['start'] <= $state['today'] && $a['end'] >= $state['today']) $outToday[$a['empId']] = $a['kind'];
+        }
         foreach (attendance_records($state, $state['today']) as [$employee, $record, $onLeave]) {
-            if (isset($team[$employee['id']])) $rows[] = [employee_name($employee), function () use ($onLeave, $record) { return status_badge($onLeave ? 'leave' : $record['status']); }, $record['in'], $record['out']];
+            if (!isset($team[$employee['id']])) continue;
+            $kind = $outToday[$employee['id']] ?? null;
+            $rows[] = [employee_name($employee), function () use ($onLeave, $record, $kind) {
+                if ($kind !== null && !$record['in']) absence_badge($kind);
+                else status_badge($onLeave ? 'leave' : $record['status']);
+            }, $record['in'], $record['out']];
         }
         card('Team today');
         $teamPage = paginate($rows);
@@ -98,6 +151,7 @@ function workspace_view(array $state, bool $supervisor): void
     }
     $record = ((array) ($state['attendance']->{$state['today']} ?? []))[$profileId] ?? [];
     dtr_card_form($profileId, $selfAccount);
+    if ($selfAccount) team_absence_card($state);
     card('Attendance today');
     if (empty($record['in'])) {
         action_button('attendance.clock', 'Clock in at office', ['empId' => $profileId, 'mode' => 'in', 'status' => 'office']);

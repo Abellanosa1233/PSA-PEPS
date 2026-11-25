@@ -73,6 +73,8 @@ There are two kinds of sign-in:
   * **My team** — only if they supervise someone (someone's "Reports to" is them): their direct reports' attendance today, and approve/decline their Special/Travel Order requests.
 
 **Leave is HR-only.** Only HR administrators see and approve leave requests. Supervisors don't see their team's leave at all (not even pending requests), so nobody learns of a colleague's planned time off before HR does.
+
+**Team out of office.** Once HR approves someone's leave or a supervisor approves a Special/Travel Order, their team sees it on **My workspace → Team out of office** (and on **My team → Team today**) as "On leave", "On travel order" or "On special order" with the dates, today and upcoming. The team is the people who share the same supervisor, the supervisor, and the person's direct reports. The leave type and reason, and an order's purpose and destination, are never shown.
   * **Settings** (profile photo and password only) and **Help**.
 
 The rules are enforced on the server (`authorize_action()` in `api/lib/dispatch.php` and `scope_state_to_employee()` in `api/lib/state.php`), not only hidden in the menus: employee accounts never receive other people's salaries, payslips, recruitment data or payroll settings, and any form an employee submits is forced onto their own record. Offboarding or deleting an employee stops their sign-in immediately. **Reset demo data** removes employee accounts and keeps administrator accounts.
