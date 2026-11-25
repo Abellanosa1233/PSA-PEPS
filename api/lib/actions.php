@@ -45,11 +45,27 @@ function act_employee_save(array $in): array
         if ($id !== null && $f['manager_id'] === $id) fail('An employee cannot be their own manager.');
         employee_exists($f['manager_id']);
     }
+    // The employee and their sign-in change together: if the login part fails, nothing is saved.
+    $ownTx = !db()->inTransaction();
+    if ($ownTx) db()->beginTransaction();
+    try {
+        [$id, $changed] = employee_save_rows($id, $f, $in);
+        if (employee_login_changes($id, $in)) $changed = true;
+        if ($ownTx) db()->commit();
+    } catch (Throwable $e) {
+        if ($ownTx && db()->inTransaction()) db()->rollBack();
+        throw $e;
+    }
+    return ['id' => $id, 'changed' => $changed];
+}
+
+function employee_save_rows(?int $id, array $f, array $in): array
+{
     if ($id) {
         employee_exists($id);
         $sets = implode(', ', array_map(function ($k) { return "$k = ?"; }, array_keys($f)));
         $updated = q("UPDATE employees SET $sets WHERE id = ?", array_merge(array_values($f), [$id]));
-        return ['id' => $id, 'changed' => $updated->rowCount() > 0];
+        $changed = $updated->rowCount() > 0;
     } else {
         $cols = implode(', ', array_keys($f));
         $marks = implode(', ', array_fill(0, count($f), '?'));
@@ -57,8 +73,53 @@ function act_employee_save(array $in): array
         $id = (int) db()->lastInsertId();
         $candId = int_in($in, 'fromCandidate', false);
         if ($candId) q('UPDATE candidates SET employee_id = ? WHERE id = ?', [$id, $candId]);
+        $changed = true;
     }
-    return ['id' => $id];
+    return [$id, $changed];
+}
+
+/* The "Sign-in access" part of the Add/Edit employee form (HR only):
+   loginUsername + loginPassword give a login (or rename / reset one), removeAccess deletes it.
+   Returns true when anything about the login changed. */
+function employee_login_changes(int $empId, array $in): bool
+{
+    if (!array_key_exists('loginUsername', $in) && !array_key_exists('loginPassword', $in) && empty($in['removeAccess'])) return false;
+    ensure_account_columns();
+    $account = q("SELECT id, username FROM users WHERE employee_id = ? AND account_role = 'employee'", [$empId])->fetch();
+    $username = strtolower(trim((string) ($in['loginUsername'] ?? '')));
+    $password = (string) ($in['loginPassword'] ?? '');
+    // Field names in errors match the form, so the message shows under the right box.
+    $relabel = function (callable $step) {
+        try { $step(); } catch (ApiError $e) {
+            $field = ['username' => 'loginUsername', 'password' => 'loginPassword'][$e->field ?? ''] ?? $e->field;
+            fail($e->getMessage(), $e->status, $field);
+        }
+    };
+    if (!empty($in['removeAccess'])) {
+        if (!$account) return false;
+        act_account_remove(['empId' => $empId]);
+        return true;
+    }
+    if (!$account) {
+        if ($username === '' && $password === '') return false; // no login wanted
+        if ($username === '') fail('Add a username to give sign-in access, or clear the temporary password.', 422, 'loginUsername');
+        if ($password === '') fail('Set a temporary password for the new login (at least 8 characters).', 422, 'loginPassword');
+        $relabel(function () use ($empId, $username, $password) { act_account_create(['empId' => $empId, 'username' => $username, 'password' => $password]); });
+        return true;
+    }
+    $changed = false;
+    if ($username === '') fail('Usernames can’t be blank. To stop this person signing in, tick “Remove sign-in access”.', 422, 'loginUsername');
+    if ($username !== $account['username']) {
+        if (!preg_match('/^[a-z0-9._-]{3,60}$/', $username)) fail('Usernames use 3–60 letters, numbers, dots, dashes or underscores.', 422, 'loginUsername');
+        if (q('SELECT id FROM users WHERE username = ? AND id <> ?', [$username, $account['id']])->fetch()) fail('That username is already taken. Choose another.', 422, 'loginUsername');
+        q('UPDATE users SET username = ? WHERE id = ?', [$username, $account['id']]);
+        $changed = true;
+    }
+    if ($password !== '') {
+        $relabel(function () use ($empId, $password) { act_account_password(['empId' => $empId, 'password' => $password]); });
+        $changed = true;
+    }
+    return $changed;
 }
 
 function act_employee_import(array $file): array

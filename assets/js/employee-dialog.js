@@ -6,8 +6,8 @@ if (employeeDialog && typeof employeeDialog.showModal === 'function') {
   const saveButton = form.querySelector('button[type="submit"]');
   const cancelButton = form.querySelector('[data-employee-cancel]');
   const closeButton = form.querySelector('[data-employee-unchanged]');
-  const editableFields = ['firstName', 'lastName', 'email', 'phone', 'title', 'department', 'type', 'location', 'startDate', 'salary', 'managerId', 'biometricId'];
-  const lengthLimits = { firstName: 80, lastName: 80, email: 160, phone: 40, title: 120, location: 80 };
+  const editableFields = ['firstName', 'lastName', 'email', 'phone', 'title', 'department', 'type', 'location', 'startDate', 'salary', 'managerId', 'biometricId', 'loginUsername', 'loginPassword'];
+  const lengthLimits = { firstName: 80, lastName: 80, email: 160, phone: 40, title: 120, location: 80, loginUsername: 60, loginPassword: 72 };
   const locationPicker = typeof employeeLocationPicker === 'function' ? employeeLocationPicker(form, syncEmployeeButtons) : null;
   const validatedFields = Array.from(form.querySelectorAll('.field:not([hidden]) input'));
   const fieldErrors = new Map(validatedFields.map((field) => {
@@ -29,7 +29,7 @@ if (employeeDialog && typeof employeeDialog.showModal === 'function') {
   let readyToSubmit = false;
 
   function syncEmployeeButtons() {
-    const unchanged = original !== null && !locationPicker?.changing && editableFields.every((name) => {
+    const unchanged = original !== null && !locationPicker?.changing && !form.elements.removeAccess?.checked && editableFields.every((name) => {
       const value = form.elements[name].value.trim();
       const saved = original[name] ?? '';
       return name === 'salary' && value !== '' ? Number(value) === Number(saved) : value === String(saved);
@@ -78,6 +78,7 @@ if (employeeDialog && typeof employeeDialog.showModal === 'function') {
     for (const name of ['id', ...editableFields]) {
       form.elements[name].value = employee[name] ?? defaults[name] ?? '';
     }
+    if (form.elements.removeAccess) form.elements.removeAccess.checked = false;
     original = employee.id ? employee : null;
     locationPicker?.reset();
     syncEmployeeButtons();
@@ -134,6 +135,10 @@ if (employeeDialog && typeof employeeDialog.showModal === 'function') {
       message = 'Enter a valid start date.';
     } else if (field.name === 'salary' && (Number(value) < 0.01 || Number(value) > 10000000)) {
       message = 'Annual salary must be between 0.01 and 10,000,000.';
+    } else if (field.name === 'loginUsername' && value && !/^[A-Za-z0-9._-]+$/.test(value)) {
+      message = 'Use letters, numbers, dots, dashes or underscores only.';
+    } else if (field.name === 'loginPassword' && field.value && Array.from(field.value).length < 8) {
+      message = 'Temporary password must be at least 8 characters.';
     }
 
     setEmployeeError(field, message);

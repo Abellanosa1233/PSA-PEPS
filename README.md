@@ -38,7 +38,7 @@ Philippine defaults: pesos (₱), Asia/Manila time, phone numbers saved as `+63 
 | Page | What it does |
 | --- | --- |
 | Overview | KPIs, weekly attendance chart, monthly calendar with event previews/details, pending time off, hiring summary |
-| Employees | Search/filter, add, edit, offboard, delete, CSV import/export, profile with leave balance and history, sign-in access for the employee |
+| Employees | Search/filter, add, edit, offboard, delete, CSV import/export, profile with leave balance and history; sign-in access is set in the Add/Edit employee form |
 | Attendance | Per-day status (office / remote / away), clock-in/out times, bulk fill, CSV import/export |
 | Time off | Requests with approve/decline/cancel, weekday counting, balance and overlap checks; Special and Travel Order review |
 | Payroll | Monthly pay runs, bonuses, tax and benefits, approve and lock, payslips, CSV export |
@@ -68,7 +68,7 @@ Web clock-ins also count as punches. Days without punches fall back to the atten
 There are two kinds of sign-in:
 
 * **HR administrator** — the account created at setup. Sees and manages everything.
-* **Employee** — created by HR from an employee's profile (**Employees → open a person → Sign-in access → Give sign-in access**) with a username and a temporary password. The employee is asked to change it after signing in. Employees see only:
+* **Employee** — created by HR in the **Add employee** or **Edit employee** form, under **Sign-in access (optional)**: a username and a temporary password (leave both empty for no login). The same fields rename a login, set a new temporary password when someone forgets theirs, or **Remove sign-in access**. If the login can't be created (for example, the username is taken), the employee isn't saved either, so nothing is half-done. The employee is asked to change the temporary password after signing in. Employees see only:
   * **Overview** — greeting and **Request leave**, leave balances (annual, sick, personal; pending requests aren't deducted until approved), recent leave requests, today's attendance with office hours and clock in/out, today's schedule (only calendar events HR marks "Show on employees' schedule"), and company updates.
   * **My time off** — balances, request history with a status filter, leave breakdown, Special/Travel Orders, and teammates out of office.
   * **Request leave** — leave type, dates, full or half day (morning/afternoon), a required reason and an optional supporting document (PDF/JPG/PNG, up to 5 MB, viewable only by HR and the employee). **Check days & balance** recalculates working days and the balance on the server; requests go to HR, and the employee's bell shows when HR approves or declines.

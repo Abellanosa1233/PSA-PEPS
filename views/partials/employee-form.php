@@ -14,6 +14,7 @@ function employee_form(array $state, array $employee = [], ?array $candidate = n
     card($hidden && !$candidate ? employee_name($employee) : 'Add employee');
     post_form('employee.save', $hidden);
     employee_fields($state, $employee, $hidden['id'] ?? null);
+    employee_login_fields($state, $employee, [], isset($employee['id']) ? isset(((array) ($state['accounts'] ?? []))[$employee['id']]) : false);
     end_form('Save employee');
     echo '</section>';
 }
@@ -36,6 +37,25 @@ function employee_fields(array $state, array $employee, ?int $employeeId = null,
     field('biometricId', 'Biometric ID', $employee['biometricId'] ?? '', 'text', false, $errors['biometricId'] ?? '', ['maxlength' => '30', 'pattern' => '[A-Za-z0-9_-]+']);
 }
 
+/* "Sign-in access" in the Add/Edit employee form. $knownAccount: true/false when we know whether this
+   person has a login (profile page), null in the shared Add/Edit dialog (filled in per person). */
+function employee_login_fields(array $state, array $employee, array $errors = [], ?bool $knownAccount = null): void
+{
+    $account = isset($employee['id']) ? (((array) ($state['accounts'] ?? []))[$employee['id']] ?? null) : null;
+    $username = $employee['loginUsername'] ?? ($account['username'] ?? '');
+    echo '<fieldset class="form-grid employee-login full"><legend>Sign-in access <span class="muted">(optional)</span></legend>';
+    echo '<p class="full muted employee-login-help">Give this person a login to their own workspace: attendance, time off, Special and Travel Orders, and payslips. '
+        . 'Leave both boxes empty if they don’t need one. To reset a forgotten password, enter a new temporary password.</p>';
+    field('loginUsername', 'Username', $username, 'text', false, $errors['loginUsername'] ?? '', ['maxlength' => '60', 'pattern' => '[A-Za-z0-9._-]+', 'autocomplete' => 'off']);
+    field('loginPassword', $account ? 'New temporary password' : 'Temporary password', '', 'password', false, $errors['loginPassword'] ?? '', ['minlength' => '8', 'maxlength' => '72', 'autocomplete' => 'new-password']);
+    echo '<p class="full hint">At least 8 characters. Share it privately; they’ll be asked to choose their own after signing in.'
+        . ($account && !empty($account['mustChangePassword']) ? ' They haven’t changed their current temporary password yet.' : '') . '</p>';
+    if ($knownAccount !== false) {
+        echo '<label class="check-line full"><input type="checkbox" name="removeAccess" value="1"> Remove sign-in access' . ($knownAccount === null ? ' (if they have one)' : '') . '</label>';
+    }
+    echo '</fieldset>';
+}
+
 function add_employee_button(string $page, array $query = []): void
 {
     $url = page_url($page, ['add' => 1] + $query);
@@ -51,7 +71,7 @@ function add_employee_modal(array $state, string $page, array $formError): void
     $query = array_intersect_key($_GET, array_flip(['q', 'department', 'status', 'type', 'todayStatus', 'p', 'date', 'week']));
     $values = $failed ? $formError['values'] : ($editing ?? []);
     $errorField = $formError['field'] ?? '';
-    $errors = $failed && in_array($errorField, ['firstName', 'lastName', 'email', 'phone', 'title', 'location', 'startDate', 'salary', 'biometricId'], true)
+    $errors = $failed && in_array($errorField, ['firstName', 'lastName', 'email', 'phone', 'title', 'location', 'startDate', 'salary', 'biometricId', 'loginUsername', 'loginPassword'], true)
         ? [$errorField => $formError['message']] : [];
     ?>
     <dialog id="add-employee" class="modal wide employee-dialog" aria-labelledby="add-employee-title"<?= $open ? ' open data-reopen' : '' ?>>
@@ -59,7 +79,7 @@ function add_employee_modal(array $state, string $page, array $formError): void
             <h2 id="add-employee-title"><?= $editing ? 'Edit employee' : 'Add employee' ?></h2>
             <a class="sq" data-close-employee href="<?= h(page_url($page, $query)) ?>" aria-label="Close"><?= icon('x', 14) ?></a>
         </div>
-        <form method="post" action="<?= h(page_url($page, $query)) ?>"<?= $editing ? ' data-original-employee="' . html_json($editing) . '"' : '' ?>>
+        <form method="post" action="<?= h(page_url($page, $query)) ?>"<?= $editing ? ' data-original-employee="' . html_json($editing + ['loginUsername' => ((array) ($state['accounts'] ?? []))[$editing['id']]['username'] ?? '']) . '"' : '' ?>>
             <?php hidden_inputs(['_action' => 'employee.save', '_token' => $_SESSION['web_csrf'], '_employee_modal' => '1']); ?>
             <input type="hidden" name="id" value="<?= h($editing['id'] ?? '') ?>">
             <input type="hidden" data-new-employee-date value="<?= h($state['today']) ?>">
@@ -76,6 +96,7 @@ function add_employee_modal(array $state, string $page, array $formError): void
                         <button class="btn" type="button" data-location-retry hidden>Retry loading locations</button>
                     </div>
                 </div>
+                <div class="form-grid"><?php employee_login_fields($state, $values, $errors, null); ?></div>
             </div>
             <div class="modal-foot">
                 <a class="btn" data-close-employee data-employee-cancel href="<?= h(page_url($page, $query)) ?>">Cancel</a>

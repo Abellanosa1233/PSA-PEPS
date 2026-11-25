@@ -187,7 +187,7 @@ if ($isPost) {
     $employeeModal = $page === 'employees'
         && ($_POST['_action'] ?? '') === 'employee.save'
         && ($_POST['_employee_modal'] ?? '') === '1';
-    $fields = array_flip(['id', 'firstName', 'lastName', 'email', 'phone', 'title', 'department', 'type', 'location', 'startDate', 'salary', 'managerId', 'biometricId']);
+    $fields = array_flip(['id', 'firstName', 'lastName', 'email', 'phone', 'title', 'department', 'type', 'location', 'startDate', 'salary', 'managerId', 'biometricId', 'loginUsername']); // never the password
     $sharedForm = $_POST['_shared_form'] ?? '';
     $sharedFormFields = [
         'leave.create' => ['empId', 'type', 'start', 'end', 'reason', 'approveNow'],
