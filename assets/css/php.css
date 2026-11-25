@@ -475,11 +475,12 @@
   .employee-subsection-heading { align-items: flex-start; flex-direction: column; gap: 4px; }
   .employee-payslip-details { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-#web-theme-form .theme-sun, :root[data-theme="dark"] #web-theme-form .theme-moon { display: none; }
-:root[data-theme="dark"] #web-theme-form .theme-sun { display: inline-flex; }
+#web-theme-form .theme-to-light,
+:root[data-theme="dark"] #web-theme-form .theme-to-dark { display: none; }
+:root[data-theme="dark"] #web-theme-form .theme-to-light { display: grid; }
 @media (prefers-color-scheme: dark) {
-  :root[data-theme="system"] #web-theme-form .theme-moon { display: none; }
-  :root[data-theme="system"] #web-theme-form .theme-sun { display: inline-flex; }
+  :root[data-theme="system"] #web-theme-form .theme-to-dark { display: none; }
+  :root[data-theme="system"] #web-theme-form .theme-to-light { display: grid; }
 }
 .attendance-clock {
   display: inline-flex;

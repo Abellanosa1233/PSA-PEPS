@@ -11,3 +11,9 @@ if ($error !== '') $notifications[] = [$errorLevel, $errorLevel === 'error' ? 'E
         </div>
     <?php endforeach; ?>
 </div>
+<script>
+    (() => {
+        const notifications = document.getElementById('action-notifications');
+        window.setTimeout(() => notifications.remove(), 2000);
+    })();
+</script>

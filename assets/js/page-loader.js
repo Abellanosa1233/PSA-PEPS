@@ -28,7 +28,12 @@
   });
 
   window.addEventListener('submit', (event) => {
-    if (!event.defaultPrevented && event.target.elements.namedItem('_action')?.value === 'login') {
+    if (event.defaultPrevented) return;
+
+    const form = event.target;
+    const action = form.elements.namedItem('_action')?.value;
+    if (action === 'login' ||
+        (action === 'employee.save' && form.closest('.employee-profile-details-card'))) {
       showLoader();
     }
   });
