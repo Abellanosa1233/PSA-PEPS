@@ -26,8 +26,10 @@ $pages = [
     'dtr' => 'Daily Time Record',
     // Employee-account pages
     'my-time-off' => 'My time off', 'my-attendance' => 'My attendance', 'my-payslips' => 'My payslips', 'my-profile' => 'My profile',
+    'request-leave' => 'Request leave',
+    'leave-file' => 'Leave attachment', // download of a supporting document (HR, or the employee who sent it)
 ];
-$employeeOnlyPages = ['my-time-off', 'my-attendance', 'my-payslips', 'my-profile'];
+$employeeOnlyPages = ['my-time-off', 'my-attendance', 'my-payslips', 'my-profile', 'request-leave'];
 $path = rawurldecode(explode('?', $_SERVER['REQUEST_URI'] ?? '', 2)[0]);
 $route = basename($path);
 $entry = $path === '' || substr($path, -1) === '/' || $route === 'index.php';
@@ -60,7 +62,7 @@ try {
     if ($user && !is_admin($user)) {
         // Employee accounts only see their own pages (and their team, if they supervise anyone).
         $pages['supervisor'] = 'Supervisor workspace';
-        $allowedPages = array_merge(['overview', 'preferences', 'help', 'dtr'], $employeeOnlyPages);
+        $allowedPages = array_merge(['overview', 'preferences', 'help', 'dtr', 'leave-file'], $employeeOnlyPages);
         if ($user['hasTeam']) $allowedPages[] = 'supervisor';
         if (!in_array($page, $allowedPages, true)) {
             if (!$isPost) {
@@ -72,6 +74,12 @@ try {
     } elseif ($user && in_array($page, $employeeOnlyPages, true) && !$isPost) {
         // HR administrators use the Employee workspace view instead of these pages.
         header('Location: ' . page_url('self-service'), true, 302);
+        exit;
+    }
+    if ($user && $page === 'request-leave' && isset($_GET['clear']) && !$isPost) {
+        // Cancel on Request leave: forget the half-filled form.
+        unset($_SESSION['leave_draft']);
+        header('Location: ' . page_url('my-time-off'), true, 302);
         exit;
     }
     $screen = !installed() ? 'Install HRMS' : (has_users() ? 'Sign in' : 'Create administrator');
@@ -87,6 +95,13 @@ try {
                 start_session();
                 session_regenerate_id(true);
             }
+        } elseif ($action === 'leave.preview') {
+            // "Check days & balance": keep what was typed (in the session, not the address bar,
+            // since the reason is personal) and show the page again with the numbers worked out.
+            require_user();
+            $_SESSION['leave_draft'] = array_map('strval', array_intersect_key(array_filter($_POST, 'is_string'), array_flip(['type', 'start', 'end', 'dayLength', 'reason'])));
+            header('Location: ' . page_url('request-leave'), true, 303);
+            exit;
         } elseif ($action === 'theme') {
             require_user();
             $_SESSION['web_theme'] = one_of((string) ($_POST['theme'] ?? ''), ['system', 'light', 'dark'], 'Theme');
@@ -97,13 +112,20 @@ try {
         } else {
             $user = require_user();
             $input = $_POST;
+            if ($action === 'leave.create' && $page === 'request-leave') {
+                // Keep what was typed so a failed submission (e.g. a missing reason) doesn't clear the form.
+                $_SESSION['leave_draft'] = array_map('strval', array_intersect_key(array_filter($_POST, 'is_string'), array_flip(['type', 'start', 'end', 'dayLength', 'reason'])));
+            }
             authorize_action($action, $input, $user);
             if ($action === 'profile.photo') $result = act_profile_photo($_FILES['profileImage'] ?? [], $user);
             elseif ($action === 'profile.photo.remove') $result = act_profile_photo_remove($user);
             elseif ($action === 'employee.import') $result = act_employee_import($_FILES['employeeCsv'] ?? []);
             elseif ($action === 'attendance.import') $result = act_attendance_import($_FILES['attendanceCsv'] ?? []);
             elseif ($action === 'attendance.biometrics') $result = act_attendance_biometrics($_FILES['biometricLog'] ?? []);
-            else {
+            elseif ($action === 'leave.create') {
+                $result = act_leave_create($input, $user, leave_attachment_upload($_FILES['attachment'] ?? []));
+                if ($page === 'request-leave') unset($_SESSION['leave_draft']);
+            } else {
                 $handler = action_handler($action);
                 $result = $handler($input, $user);
             }
@@ -122,7 +144,7 @@ try {
         } elseif ($action === 'event.save' && $page === 'overview') {
             $query['date'] = $_POST['date'];
         }
-        $destination = $action === 'employee.save' ? 'employees' : $page;
+        $destination = $action === 'employee.save' ? 'employees' : ($action === 'leave.create' && $page === 'request-leave' ? 'my-time-off' : $page);
         if ($action === 'employee.save' && ($_POST['_employee_modal'] ?? '') === '1') {
             $destination = $page;
             unset($query['id']);
@@ -208,6 +230,22 @@ if ($user) {
         $errorLevel = 'error';
         http_response_code(500);
     }
+}
+if ($user && $page === 'leave-file') {
+    $file = leave_attachment_for($user, (int) ($_GET['id'] ?? 0));
+    if (!$file) {
+        http_response_code(404);
+        header('Content-Type: text/plain; charset=utf-8');
+        echo 'This document was not found, or you do not have access to it.';
+        exit;
+    }
+    header('Content-Type: ' . (in_array($file['attachment_type'], ['application/pdf', 'image/jpeg', 'image/png'], true) ? $file['attachment_type'] : 'application/octet-stream'));
+    header('Content-Disposition: inline; filename="' . str_replace('"', '', $file['attachment_name'] ?: 'document') . '"');
+    header('Content-Length: ' . strlen($file['attachment']));
+    header('Cache-Control: private, no-store');
+    header("Content-Security-Policy: default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox");
+    echo $file['attachment'];
+    exit;
 }
 if ($user && $state && $page === 'dtr') {
     // The DTR is a standalone printable page, without the app's sidebar and header.

@@ -141,6 +141,7 @@
     foreach ($pendingLeaves as $leave) $notifications[] = ['leave', $leave];
     foreach ($pendingEmployeeRequests as $request) $notifications[] = ['request', $request];
     $notifications = array_slice($notifications, 0, 8);
+    $myUpdates = $isAdmin ? [] : employee_updates($state, (int) $user['employeeId']);
     $reviewPage = $isAdmin ? 'time-off' : 'supervisor';
     $reviewQuery = $isAdmin ? ['status' => 'pending'] : [];
     $homePage = 'overview';
@@ -167,7 +168,7 @@
                 <div class="side-label"><?= $isAdmin ? 'Manage' : 'My workspace' ?></div>
                 <nav class="nav">
                     <?php foreach ($navIcons as $key => $navIcon): ?>
-                        <a href="<?= h(page_url($key)) ?>" title="<?= h($pages[$key]) ?>"<?= $key === $page ? ' class="active" aria-current="page"' : '' ?>>
+                        <a href="<?= h(page_url($key)) ?>" title="<?= h($pages[$key]) ?>"<?= $key === $page || ($key === 'my-time-off' && $page === 'request-leave') ? ' class="active" aria-current="page"' : '' ?>>
                             <?= icon($navIcon) ?><span><?= h($pages[$key]) ?></span>
                             <?php if ($key === $reviewPage && $pendingCount): ?><span class="count"><?= $pendingCount ?></span><?php endif; ?>
                         </a>
@@ -207,7 +208,7 @@
         <div class="main">
             <header class="topbar">
                 <button class="icon-btn menu-btn" id="web-menu-btn" type="button" aria-label="Open navigation"><?= icon('menu', 18) ?></button>
-                <div class="crumbs"><span>Workspace</span><?= icon('chevRight', 13) ?><strong><?= h($pages[$page]) ?></strong></div>
+                <div class="crumbs"><span>Workspace</span><?= icon('chevRight', 13) ?><strong><?= h($page === 'request-leave' ? 'My time off / Request leave' : $pages[$page]) ?></strong></div>
                 <div class="top-actions">
                     <button class="btn desktop-full-screen" type="button" hidden>Full screen</button>
                     <form method="post" id="web-theme-form">
@@ -217,11 +218,17 @@
                         <button type="submit" name="theme" value="dark" class="icon-btn theme-to-dark" aria-label="Switch to dark mode" title="Switch to dark mode"><?= icon('moon', 17) ?></button>
                     </form>
                     <details class="popover-wrap web-notifications-wrap">
-                        <summary class="icon-btn web-bell" id="notification-bell" aria-label="Notifications<?= $pendingCount ? ', ' . $pendingCount . ' pending' : '' ?>" aria-haspopup="true" aria-expanded="false">
-                            <?= icon('bell') ?><?php if ($pendingCount): ?><span class="dot"></span><?php endif; ?>
+                        <summary class="icon-btn web-bell" id="notification-bell" aria-label="Notifications<?= $pendingCount ? ', ' . $pendingCount . ' pending' : '' ?><?= $myUpdates ? ', ' . count($myUpdates) . ' update' . (count($myUpdates) === 1 ? '' : 's') : '' ?>" aria-haspopup="true" aria-expanded="false">
+                            <?= icon('bell') ?><?php if ($pendingCount || $myUpdates): ?><span class="dot"></span><?php endif; ?>
                         </summary>
                         <div class="popover notification-popover" id="notification-popover">
-                            <div class="notification-popover-head"><strong>Notifications</strong><?php if ($pendingCount): ?><span class="pill"><?= $pendingCount ?> pending</span><?php endif; ?></div>
+                            <div class="notification-popover-head"><strong>Notifications</strong><?php if ($pendingCount): ?><span class="pill"><?= $pendingCount ?> pending</span><?php elseif ($myUpdates): ?><span class="pill"><?= count($myUpdates) ?> new</span><?php endif; ?></div>
+                            <?php foreach ($myUpdates as $u): ?>
+                                <a class="notification-item" href="<?= h(page_url('my-time-off')) ?>">
+                                    <span class="avatar sm"><?= icon($u['ok'] ? 'check' : 'x', 14) ?></span>
+                                    <span><strong><?= h($u['title']) ?></strong><small><?= h($u['detail']) ?></small></span>
+                                </a>
+                            <?php endforeach; ?>
                             <?php if ($notifications): ?>
                                 <?php foreach ($notifications as [$kind, $item]):
                                     $employee = $employeesById[$item['empId']] ?? null;
@@ -234,7 +241,7 @@
                                     </a>
                                 <?php endforeach; ?>
                                 <a class="notification-footer" href="<?= h(page_url($reviewPage, $reviewQuery)) ?>">Review pending requests</a>
-                            <?php else: ?>
+                            <?php elseif (!$myUpdates): ?>
                                 <div class="notification-empty"><?= icon('check', 18) ?><strong>No pending notifications</strong><span>There are no new notifications.</span></div>
                             <?php endif; ?>
                         </div>
@@ -250,7 +257,7 @@
                 </div>
             </header>
             <main class="content">
-                <?php if (!in_array($page, ['overview', 'employees', 'attendance', 'time-off', 'reports', 'my-time-off'], true) || !$state): ?>
+                <?php if (!in_array($page, ['overview', 'employees', 'attendance', 'time-off', 'reports', 'my-time-off', 'request-leave'], true) || !$state): ?>
                     <div class="page-head"><h1><?= h($pages[$page]) ?></h1></div>
                 <?php endif; ?>
                 <?php

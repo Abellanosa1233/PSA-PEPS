@@ -16,12 +16,16 @@ function build_state(array $user): array
         ];
     }, q('SELECT * FROM employees ORDER BY first_name, last_name')->fetchAll());
 
+    ensure_leave_extras();
     $leaves = array_map(function ($l) {
+        $days = (float) $l['days'];
         return [
             'id' => (int) $l['id'], 'empId' => (int) $l['emp_id'], 'type' => $l['leave_type'], 'start' => $l['start_date'],
-            'end' => $l['end_date'], 'days' => (int) $l['days'], 'status' => $l['status'], 'reason' => $l['reason'], 'createdAt' => $l['created_at'],
+            'end' => $l['end_date'], 'days' => $days == floor($days) ? (int) $days : $days, 'status' => $l['status'], 'reason' => $l['reason'], 'createdAt' => $l['created_at'],
+            'dayLength' => $l['day_length'], 'hasAttachment' => (bool) $l['has_attachment'], 'decidedAt' => $l['decided_at'],
         ];
-    }, q('SELECT * FROM leave_requests ORDER BY start_date DESC, id DESC')->fetchAll());
+    }, q('SELECT id, emp_id, leave_type, start_date, end_date, days, status, reason, created_at, decided_at, day_length, attachment IS NOT NULL AS has_attachment
+          FROM leave_requests ORDER BY start_date DESC, id DESC')->fetchAll()); // the document itself is never loaded here
 
     $employeeRequests = array_map(function ($r) {
         $decidedBy = $r['reviewer_user_name'] ?: trim(($r['reviewer_first_name'] ?? '') . ' ' . ($r['reviewer_last_name'] ?? ''));

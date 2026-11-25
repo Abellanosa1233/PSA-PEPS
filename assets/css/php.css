@@ -674,3 +674,21 @@ html.sidebar-collapsed .web-app .sidebar .nav .count { display: block; position:
 .self-tips li { display: grid; grid-template-columns: 26px 1fr; gap: 6px; }
 .self-tips span { color: var(--fg-3); font-variant-numeric: tabular-nums; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+/* ---------- Request leave ---------- */
+.request-leave .card-body > form { display: flex; flex-direction: column; gap: 14px; }
+.request-leave textarea.input { min-height: 96px; resize: vertical; }
+.request-days { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface-2); font-size: 12.5px; }
+.request-days strong { font-size: 13.5px; }
+.request-days span { color: var(--fg-3); }
+.request-days.warn { background: var(--warn-bg); color: var(--warn); }
+.request-foot { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding-top: 14px; border-top: 1px solid var(--line); }
+.request-foot .spacer { flex: 1; }
+.request-side { display: flex; flex-direction: column; gap: 16px; }
+.request-side .card-body { display: flex; flex-direction: column; gap: 8px; }
+.request-to { font-size: 17px; margin: 0; }
+.request-next { margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--fg-2); }
+.request-note { font-size: 12px; color: var(--fg-3); }
+.request-note strong { color: var(--fg); }
+.request-warn { font-size: 12.5px; color: var(--warn); background: var(--warn-bg); padding: 8px 10px; border-radius: var(--radius-sm); }
+.request-tip { background: var(--surface-2); }

@@ -51,11 +51,15 @@ CREATE TABLE IF NOT EXISTS leave_requests (
   leave_type VARCHAR(40) NOT NULL,
   start_date DATE NOT NULL,
   end_date DATE NOT NULL,
-  days INT NOT NULL,
+  days DECIMAL(5,1) NOT NULL, -- 0.5 for a half day
   status VARCHAR(20) NOT NULL DEFAULT 'pending',
   reason VARCHAR(255) NOT NULL DEFAULT '',
   created_at DATE NOT NULL,
   decided_at DATETIME NULL,
+  day_length VARCHAR(10) NOT NULL DEFAULT 'full', -- full, am or pm
+  attachment MEDIUMBLOB NULL, -- optional supporting document (PDF, JPG or PNG)
+  attachment_name VARCHAR(160) NULL,
+  attachment_type VARCHAR(60) NULL,
   INDEX idx_leave_status (status),
   INDEX idx_leave_dates (start_date, end_date),
   CONSTRAINT fk_leave_emp FOREIGN KEY (emp_id) REFERENCES employees(id) ON DELETE CASCADE

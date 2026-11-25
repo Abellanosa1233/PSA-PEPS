@@ -145,27 +145,69 @@ function act_employee_delete(array $in): array
 }
 
 /* ---------- Time off ---------- */
-function act_leave_create(array $in): array
+/* Working days a request will use: weekdays in the range, or ½ for a half day. */
+function leave_request_days(string $start, string $end, string $dayLength): float
 {
+    $days = workdays($start, $end);
+    if ($dayLength === 'full') return (float) $days;
+    if ($start !== $end) fail('A half day must start and end on the same date.', 422, 'dayLength');
+    if ($days === 0) fail('That date is a weekend. Pick a weekday.', 422, 'start');
+    return 0.5;
+}
+
+/* $attachment comes only from leave_attachment_upload() (a real uploaded file), never from form fields. */
+function act_leave_create(array $in, array $user = [], ?array $attachment = null): array
+{
+    ensure_leave_extras();
     $emp = employee_exists(int_in($in, 'empId'));
     if ($emp['status'] !== 'Active') fail('Time off can only be requested for active employees.');
     $type = one_of((string) ($in['type'] ?? ''), LEAVE_TYPES, 'Leave type');
     $start = date_in($in, 'start', true, 'First day');
     $end = date_in($in, 'end', true, 'Last day');
     if ($end < $start) fail('The last day must be on or after the first day.', 422, 'end');
-    $days = workdays($start, $end);
-    if ($days === 0) fail('Those dates fall on a weekend. Pick at least one weekday.');
+    $dayLength = one_of((string) ($in['dayLength'] ?? 'full'), ['full', 'am', 'pm'], 'Day length');
+    $days = leave_request_days($start, $end, $dayLength);
+    if ($days == 0) fail('Those dates fall on a weekend. Pick at least one weekday.');
     $overlap = q("SELECT COUNT(*) FROM leave_requests WHERE emp_id = ? AND status IN ('pending','approved') AND start_date <= ? AND end_date >= ?", [$emp['id'], $end, $start])->fetchColumn();
     if ($overlap) fail('These dates overlap another request for ' . $emp['first_name'] . '.');
     $s = settings();
-    $allow = (int) ($s['allowances'][$type] ?? 0);
+    $allow = (float) ($s['allowances'][$type] ?? 0);
     $year = substr($start, 0, 4);
-    $taken = (int) q("SELECT COALESCE(SUM(days),0) FROM leave_requests WHERE emp_id = ? AND leave_type = ? AND status IN ('pending','approved') AND YEAR(start_date) = ?", [$emp['id'], $type, $year])->fetchColumn();
-    if ($taken + $days > $allow) fail($emp['first_name'] . ' has ' . max(0, $allow - $taken) . " day(s) of $type left this year; this request needs $days.");
+    $taken = (float) q("SELECT COALESCE(SUM(days),0) FROM leave_requests WHERE emp_id = ? AND leave_type = ? AND status IN ('pending','approved') AND YEAR(start_date) = ?", [$emp['id'], $type, $year])->fetchColumn();
+    if ($taken + $days > $allow) fail($emp['first_name'] . ' has ' . days_label(max(0, $allow - $taken)) . " of $type left this year (counting pending requests); this request needs " . days_label($days) . '.');
     $status = !empty($in['approveNow']) ? 'approved' : 'pending';
-    q('INSERT INTO leave_requests (emp_id,leave_type,start_date,end_date,days,status,reason,created_at,decided_at) VALUES (?,?,?,?,?,?,?,?,?)',
-        [$emp['id'], $type, $start, $end, $days, $status, str_in($in, 'reason', 255, false), today(), $status === 'approved' ? date('Y-m-d H:i:s') : null]);
+    q('INSERT INTO leave_requests (emp_id,leave_type,start_date,end_date,days,status,reason,created_at,decided_at,day_length,attachment,attachment_name,attachment_type) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        [$emp['id'], $type, $start, $end, $days, $status, str_in($in, 'reason', 255, false), today(), $status === 'approved' ? date('Y-m-d H:i:s') : null,
+         $dayLength, $attachment['bytes'] ?? null, $attachment['name'] ?? null, $attachment['type'] ?? null]);
     return ['id' => (int) db()->lastInsertId()];
+}
+
+/* A leave request's supporting document, if this user may open it: HR, or the employee who
+   sent it. Nobody else, including supervisors. Returns null when not found or not allowed. */
+function leave_attachment_for(array $user, int $leaveId): ?array
+{
+    ensure_leave_extras();
+    $file = q('SELECT emp_id, attachment, attachment_name, attachment_type FROM leave_requests WHERE id = ? AND attachment IS NOT NULL', [$leaveId])->fetch();
+    if (!$file) return null;
+    if (!is_admin($user) && (int) $file['emp_id'] !== (int) ($user['employeeId'] ?? 0)) return null;
+    return $file;
+}
+
+/* Validates an uploaded supporting document by its contents (not its name): PDF, JPG or PNG, up to 5 MB. */
+function leave_attachment_upload(array $file): ?array
+{
+    $code = $file['error'] ?? UPLOAD_ERR_NO_FILE;
+    if ($code === UPLOAD_ERR_NO_FILE) return null;
+    if ($code === UPLOAD_ERR_INI_SIZE || $code === UPLOAD_ERR_FORM_SIZE) fail('That document is too large. Attach a file up to 5 MB.', 422, 'attachment');
+    if ($code !== UPLOAD_ERR_OK || !is_uploaded_file($file['tmp_name'] ?? '')) fail('The document could not be uploaded. Try again.', 422, 'attachment');
+    if (($file['size'] ?? 0) > 5 * 1024 * 1024) fail('That document is too large. Attach a file up to 5 MB.', 422, 'attachment');
+    $bytes = (string) file_get_contents($file['tmp_name']);
+    $type = strncmp($bytes, '%PDF', 4) === 0 ? 'application/pdf'
+        : (strncmp($bytes, "\xFF\xD8\xFF", 3) === 0 ? 'image/jpeg'
+        : (strncmp($bytes, "\x89PNG\r\n\x1A\n", 8) === 0 ? 'image/png' : null));
+    if ($type === null) fail('Attach a PDF, JPG or PNG file (for example a medical certificate).', 422, 'attachment');
+    $name = preg_replace('/[^A-Za-z0-9._ -]/', '_', basename((string) ($file['name'] ?? 'document')));
+    return ['bytes' => $bytes, 'type' => $type, 'name' => mb_substr($name !== '' ? $name : 'document', 0, 160)];
 }
 
 function act_leave_decide(array $in): array

@@ -135,6 +135,7 @@ function current_user(): ?array
     ensure_account_columns();
     ensure_biometrics();
     ensure_announcements();
+    ensure_leave_extras();
     $u = q('SELECT u.id, u.username, u.display_name, u.role_title, u.profile_image_updated_at, u.account_role, u.employee_id,
                    u.must_change_password, e.first_name, e.last_name, e.title, e.status AS employee_status
             FROM users u LEFT JOIN employees e ON e.id = u.employee_id WHERE u.id = ?', [$_SESSION['uid']])->fetch();
@@ -194,6 +195,31 @@ function ensure_announcements(): void
     $col = q("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = ? AND table_name = 'events' AND column_name = 'for_employees'", [DB_NAME])->fetchColumn();
     if (!$col) q('ALTER TABLE events ADD COLUMN for_employees TINYINT(1) NOT NULL DEFAULT 0');
     $checked = true;
+}
+
+/* Half-day leave and supporting documents on leave requests (older databases stored
+   whole days only). Every change is checked first, because DDL commits open transactions. */
+function ensure_leave_extras(): void
+{
+    static $checked = false;
+    if ($checked) return;
+    $cols = [];
+    foreach (q("SELECT COLUMN_NAME, DATA_TYPE FROM information_schema.columns WHERE table_schema = ? AND table_name = 'leave_requests'", [DB_NAME])->fetchAll() as $c) {
+        $cols[$c['COLUMN_NAME']] = strtolower($c['DATA_TYPE']);
+    }
+    if (($cols['days'] ?? 'decimal') !== 'decimal') q('ALTER TABLE leave_requests MODIFY days DECIMAL(5,1) NOT NULL');
+    if (!isset($cols['day_length'])) q("ALTER TABLE leave_requests ADD COLUMN day_length VARCHAR(10) NOT NULL DEFAULT 'full'");
+    if (!isset($cols['attachment'])) q('ALTER TABLE leave_requests ADD COLUMN attachment MEDIUMBLOB NULL, ADD COLUMN attachment_name VARCHAR(160) NULL, ADD COLUMN attachment_type VARCHAR(60) NULL');
+    $checked = true;
+}
+
+/* "½ day", "1 day", "2.5 days" */
+function days_label($days): string
+{
+    $d = (float) $days;
+    if ($d == 0.5) return '½ day';
+    $n = $d == floor($d) ? (string) (int) $d : rtrim(rtrim(number_format($d, 1), '0'), '.');
+    return $n . ($d == 1 ? ' day' : ' days');
 }
 
 function is_admin(array $user): bool

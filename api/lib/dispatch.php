@@ -47,6 +47,7 @@ function authorize_action(string $action, array &$in, array $user): void
         case 'leave.create':
             $in['empId'] = $me;
             unset($in['approveNow']);
+            if (trim((string) ($in['reason'] ?? '')) === '') fail('Add a reason so HR can review your request.', 422, 'reason');
             return;
 
         case 'leave.cancel':

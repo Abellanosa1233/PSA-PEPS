@@ -7,7 +7,7 @@ $greeting = $hour < 12 ? 'Good morning' : ($hour < 18 ? 'Good afternoon' : 'Good
 ?>
 <div class="page-head">
     <div><h1><?= h("$greeting, $firstName") ?></h1><p>Your workday, time off, and updates — all in one place.</p></div>
-    <div class="actions"><a class="btn primary" href="<?= h(page_url('my-time-off', ['request' => 1])) ?>"><?= icon('plus') ?> Request leave</a></div>
+    <div class="actions"><a class="btn primary" href="<?= h(page_url('request-leave')) ?>"><?= icon('plus') ?> Request leave</a></div>
 </div>
 <?php self_leave_cards($state, $me); ?>
 <div class="grid cols-main">

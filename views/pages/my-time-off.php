@@ -6,7 +6,7 @@ $people = array_column($state['employees'], null, 'id');
 ?>
 <div class="page-head">
     <div><h1>My time off</h1><p>Plan your breaks and keep track of every request.</p></div>
-    <div class="actions"><?php leave_form([$me => employee_name($people[$me])], false, isset($_GET['request']), 'Request leave'); ?></div>
+    <div class="actions"><a class="btn primary" href="<?= h(page_url('request-leave')) ?>"><?= icon('plus') ?> Request leave</a></div>
 </div>
 <?php self_leave_cards($state, $me); ?>
 <?php self_leave_history_card($state, $me); ?>

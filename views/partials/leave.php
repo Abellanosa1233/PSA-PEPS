@@ -27,7 +27,7 @@ function leave_table(array $state, array $leaves, bool $canDecide = true, bool $
                 function () use ($names, $l) { return link_to('employees', $names[$l['empId']] ?? 'Former employee', ['id' => $l['empId']]); },
                 $l['type'],
                 function () use ($l) {
-                    echo h($l['start'] . ' – ' . $l['end']) . '<span class="sub">' . (int) $l['days'] . ' day(s)</span>';
+                    echo h($l['start'] . ' – ' . $l['end']) . '<span class="sub">' . h(days_label($l['days'])) . '</span>';
                 },
                 function () use ($l) {
                     action_button('leave.decide', 'Approve', ['id' => $l['id'], 'status' => 'approved']);
@@ -39,7 +39,7 @@ function leave_table(array $state, array $leaves, bool $canDecide = true, bool $
     }
     web_table(['Employee', 'Type', 'Dates', 'Days', 'Reason', 'Status', 'Actions'], array_map(function ($l) use ($names, $state, $canDecide) {
         return [
-            $names[$l['empId']] ?? 'Former employee', $l['type'], $l['start'] . ' – ' . $l['end'], $l['days'], $l['reason'], function () use ($l) { return status_badge($l['status']); },
+            $names[$l['empId']] ?? 'Former employee', $l['type'], $l['start'] . ' – ' . $l['end'], days_label($l['days']), function () use ($l) { echo h($l['reason']); if (!empty($l['hasAttachment'])) echo '<span class="sub"><a href="' . h(page_url('leave-file', ['id' => $l['id']])) . '" target="_blank" rel="noopener">View document</a></span>'; }, function () use ($l) { return status_badge($l['status']); },
             function () use ($l, $state, $canDecide) {
                 if ($l['status'] === 'pending' && $canDecide) {
                     action_button('leave.decide', 'Approve', ['id' => $l['id'], 'status' => 'approved']);

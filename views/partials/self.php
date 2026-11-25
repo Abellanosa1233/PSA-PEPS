@@ -59,7 +59,7 @@ function self_leave_requests_card(array $state, int $id, int $limit = 4): void
     echo '<div class="table-wrap"><table class="data"><thead><tr><th>Leave type</th><th>Dates</th><th class="num">Days</th><th>Status</th></tr></thead><tbody>';
     foreach (array_slice($mine, 0, $limit) as $l) {
         [$label, $style] = self_leave_status($l, $today);
-        echo '<tr><td>' . h($l['type']) . '</td><td class="tabular">' . h(self_date_range($l['start'], $l['end'])) . '</td><td class="num">' . (int) $l['days'] . '</td><td><span class="badge ' . $style . '">' . $label . '</span></td></tr>';
+        echo '<tr><td>' . h($l['type']) . '</td><td class="tabular">' . h(self_date_range($l['start'], $l['end'])) . '</td><td class="num">' . h(days_label($l['days'])) . '</td><td><span class="badge ' . $style . '">' . $label . '</span></td></tr>';
     }
     echo '</tbody></table></div>';
     $waiting = array_values(array_filter($mine, function ($l) { return $l['status'] === 'pending'; }));
@@ -286,7 +286,7 @@ function self_leave_history_card(array $state, int $id): void
         [$label, $style] = self_leave_status($l, $today);
         echo '<tr><td>' . h($l['type']) . ($l['reason'] !== '' ? '<span class="sub">' . h($l['reason']) . '</span>' : '') . '</td>'
             . '<td class="tabular">' . h(self_date_range($l['start'], $l['end'])) . '</td>'
-            . '<td>' . (int) $l['days'] . ' day' . ((int) $l['days'] === 1 ? '' : 's') . '</td>'
+            . '<td>' . h(days_label($l['days'])) . ($l['dayLength'] !== 'full' ? '<span class="sub">' . ($l['dayLength'] === 'am' ? 'Morning' : 'Afternoon') . '</span>' : '') . '</td>'
             . '<td class="tabular">' . h((new DateTimeImmutable(substr($l['createdAt'], 0, 10)))->format('M j, Y')) . '</td>'
             . '<td><span class="badge ' . $style . '">' . $label . '</span></td><td class="actions">';
         if ($l['status'] === 'pending') confirm_action('leave.cancel', 'Cancel', 'Withdraw this leave request?', ['id' => $l['id']]);
@@ -326,4 +326,22 @@ function self_before_you_request_card(): void
         . '<li><span>02</span>HR reviews each request. Your team only sees that you’re out once it’s approved.</li>'
         . '<li><span>03</span>Unused annual leave resets on Jan 1.</li>'
         . '</ol><a class="link-btn" href="' . h(page_url('help')) . '">Read the leave policy ' . icon('arrowRight', 14) . '</a></div></section>';
+}
+
+/* An employee's own leave and orders that were approved or declined in the last 14 days (for the bell). */
+function employee_updates(array $state, int $me): array
+{
+    $since = date('Y-m-d H:i:s', strtotime('-14 days'));
+    $kinds = ['travel_order' => 'travel order', 'special_order' => 'special order'];
+    $updates = [];
+    foreach (array_merge($state['leaves'] ?? [], $state['employeeRequests'] ?? []) as $item) {
+        if ($item['empId'] !== $me || !in_array($item['status'], ['approved', 'rejected'], true) || ($item['decidedAt'] ?? '') < $since) continue;
+        $updates[] = [
+            'title' => 'Your ' . ($kinds[$item['type']] ?? strtolower($item['type'])) . ' was ' . ($item['status'] === 'approved' ? 'approved' : 'declined'),
+            'detail' => self_date_range($item['start'], $item['end'] ?: $item['start']) . ' · ' . date('M j', strtotime($item['decidedAt'])),
+            'ok' => $item['status'] === 'approved', 'when' => $item['decidedAt'],
+        ];
+    }
+    usort($updates, function ($a, $b) { return strcmp($b['when'], $a['when']); });
+    return array_slice($updates, 0, 5);
 }
