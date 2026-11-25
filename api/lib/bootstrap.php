@@ -137,6 +137,7 @@ function current_user(): ?array
     ensure_announcements();
     ensure_leave_extras();
     ensure_attendance_corrections();
+    ensure_profile_details();
     $u = q('SELECT u.id, u.username, u.display_name, u.role_title, u.profile_image_updated_at, u.account_role, u.employee_id,
                    u.must_change_password, e.first_name, e.last_name, e.title, e.status AS employee_status
             FROM users u LEFT JOIN employees e ON e.id = u.employee_id WHERE u.id = ?', [$_SESSION['uid']])->fetch();
@@ -229,6 +230,37 @@ function ensure_attendance_corrections(): void
         INDEX idx_correction_status (status), INDEX idx_correction_emp_date (emp_id, work_date),
         CONSTRAINT fk_correction_emp FOREIGN KEY (emp_id) REFERENCES employees(id) ON DELETE CASCADE,
         CONSTRAINT fk_correction_user FOREIGN KEY (decided_by) REFERENCES users(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $checked = true;
+}
+
+/* My profile: personal and emergency details the employee keeps up to date, and documents HR
+   shares (for one employee, or everyone when emp_id is NULL) with acknowledgements. */
+function ensure_profile_details(): void
+{
+    static $checked = false;
+    if ($checked) return;
+    $cols = array_flip(q("SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema = ? AND table_name = 'employees'", [DB_NAME])->fetchAll(PDO::FETCH_COLUMN));
+    $add = [];
+    foreach (['preferred_name' => 'VARCHAR(80) NULL', 'personal_email' => 'VARCHAR(160) NULL', 'home_address' => 'VARCHAR(255) NULL',
+              'emergency_name' => 'VARCHAR(120) NULL', 'emergency_relationship' => 'VARCHAR(60) NULL', 'emergency_phone' => 'VARCHAR(40) NULL'] as $name => $def) {
+        if (!isset($cols[$name])) $add[] = "ADD COLUMN $name $def";
+    }
+    if ($add) q('ALTER TABLE employees ' . implode(', ', $add));
+    // Check first: CREATE TABLE would silently commit an open transaction.
+    $tables = array_flip(q("SELECT table_name FROM information_schema.tables WHERE table_schema = ? AND table_name IN ('employee_documents', 'document_acknowledgements')", [DB_NAME])->fetchAll(PDO::FETCH_COLUMN));
+    if (!isset($tables['employee_documents'])) db()->exec("CREATE TABLE employee_documents (
+        id INT AUTO_INCREMENT PRIMARY KEY, emp_id INT NULL, title VARCHAR(120) NOT NULL, note VARCHAR(160) NOT NULL DEFAULT '',
+        requires_ack TINYINT(1) NOT NULL DEFAULT 0, file MEDIUMBLOB NOT NULL, file_name VARCHAR(160) NOT NULL, file_type VARCHAR(60) NOT NULL,
+        created_by INT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX idx_document_emp (emp_id),
+        CONSTRAINT fk_document_emp FOREIGN KEY (emp_id) REFERENCES employees(id) ON DELETE CASCADE,
+        CONSTRAINT fk_document_user FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    if (!isset($tables['document_acknowledgements'])) db()->exec("CREATE TABLE document_acknowledgements (
+        document_id INT NOT NULL, emp_id INT NOT NULL, acknowledged_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (document_id, emp_id),
+        CONSTRAINT fk_ack_document FOREIGN KEY (document_id) REFERENCES employee_documents(id) ON DELETE CASCADE,
+        CONSTRAINT fk_ack_emp FOREIGN KEY (emp_id) REFERENCES employees(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
     $checked = true;
 }

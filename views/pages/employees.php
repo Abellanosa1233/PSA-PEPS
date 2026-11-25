@@ -21,6 +21,8 @@ function employees_view(array $state): void
         echo '</section>';
         employee_access_card($state, $employee);
         dtr_card_form($id, false);
+        hr_personal_details_card($employee);
+        hr_employee_documents_card($state, $employee);
         card('Leave history and balances');
         leave_balances($state, $id);
         if ($employee['status'] === 'Active') leave_form([$id => employee_name($employee)], true);

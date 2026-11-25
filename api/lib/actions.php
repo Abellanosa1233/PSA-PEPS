@@ -194,18 +194,18 @@ function leave_attachment_for(array $user, int $leaveId): ?array
 }
 
 /* Validates an uploaded supporting document by its contents (not its name): PDF, JPG or PNG, up to 5 MB. */
-function leave_attachment_upload(array $file): ?array
+function leave_attachment_upload(array $file, string $field = 'attachment'): ?array
 {
     $code = $file['error'] ?? UPLOAD_ERR_NO_FILE;
     if ($code === UPLOAD_ERR_NO_FILE) return null;
-    if ($code === UPLOAD_ERR_INI_SIZE || $code === UPLOAD_ERR_FORM_SIZE) fail('That document is too large. Attach a file up to 5 MB.', 422, 'attachment');
-    if ($code !== UPLOAD_ERR_OK || !is_uploaded_file($file['tmp_name'] ?? '')) fail('The document could not be uploaded. Try again.', 422, 'attachment');
-    if (($file['size'] ?? 0) > 5 * 1024 * 1024) fail('That document is too large. Attach a file up to 5 MB.', 422, 'attachment');
+    if ($code === UPLOAD_ERR_INI_SIZE || $code === UPLOAD_ERR_FORM_SIZE) fail('That document is too large. Attach a file up to 5 MB.', 422, $field);
+    if ($code !== UPLOAD_ERR_OK || !is_uploaded_file($file['tmp_name'] ?? '')) fail('The document could not be uploaded. Try again.', 422, $field);
+    if (($file['size'] ?? 0) > 5 * 1024 * 1024) fail('That document is too large. Attach a file up to 5 MB.', 422, $field);
     $bytes = (string) file_get_contents($file['tmp_name']);
     $type = strncmp($bytes, '%PDF', 4) === 0 ? 'application/pdf'
         : (strncmp($bytes, "\xFF\xD8\xFF", 3) === 0 ? 'image/jpeg'
         : (strncmp($bytes, "\x89PNG\r\n\x1A\n", 8) === 0 ? 'image/png' : null));
-    if ($type === null) fail('Attach a PDF, JPG or PNG file (for example a medical certificate).', 422, 'attachment');
+    if ($type === null) fail('Attach a PDF, JPG or PNG file (for example a medical certificate).', 422, $field);
     $name = preg_replace('/[^A-Za-z0-9._ -]/', '_', basename((string) ($file['name'] ?? 'document')));
     return ['bytes' => $bytes, 'type' => $type, 'name' => mb_substr($name !== '' ? $name : 'document', 0, 160)];
 }
@@ -687,3 +687,4 @@ function act_demo_reset(array $in): array
 }
 
 require_once __DIR__ . '/dtr.php';
+require_once __DIR__ . '/profile.php';

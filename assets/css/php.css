@@ -808,3 +808,27 @@ html.sidebar-collapsed .web-app .sidebar .nav .count { display: block; position:
 .self-breakdown dt { color: var(--fg-2); }
 .self-breakdown dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
 .self-breakdown .total { padding-top: 10px; border-top: 1px solid var(--line); font-weight: 700; color: var(--fg); }
+
+/* ---------- My profile ---------- */
+.self-id-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.self-id-top h2 { font-size: 20px; margin: 0 0 4px; }
+.self-id-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 14px 0 0; }
+.self-id-facts dt { color: var(--fg-3); font-size: 12px; }
+.self-id-facts dd { margin: 4px 0 0; font-weight: 500; overflow-wrap: anywhere; }
+.self-facts { border-top: 0; padding-top: 0; margin: 0; }
+.self-rows { display: grid; grid-template-columns: 150px minmax(0, 1fr); margin: 0 0 14px; font-size: 13px; }
+.self-rows dt, .self-rows dd { padding: 10px 0; border-bottom: 1px solid var(--line); margin: 0; }
+.self-rows dt { color: var(--fg-3); }
+.self-rows dd { overflow-wrap: anywhere; }
+.self-stack { display: flex; flex-direction: column; margin: 0 0 14px; }
+.self-stack dt { color: var(--fg-3); font-size: 12px; margin-top: 10px; }
+.self-stack dt:first-child { margin-top: 0; }
+.self-stack dd { margin: 2px 0 0; font-weight: 500; }
+.self-docs { display: flex; flex-direction: column; }
+.self-doc { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--line); }
+.self-doc:first-child { border-top: 0; }
+.self-doc > span:first-child { display: flex; flex-direction: column; min-width: 0; }
+.self-doc small { color: var(--fg-3); font-size: 12px; }
+.self-doc-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.self-protect-q { margin: 12px 0; font-size: 13px; }
+@media (max-width: 700px) { .self-id-facts { grid-template-columns: minmax(0, 1fr); } .self-rows { grid-template-columns: minmax(0, 1fr); } .self-rows dt { border-bottom: 0; padding-bottom: 0; } }

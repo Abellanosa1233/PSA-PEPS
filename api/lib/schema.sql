@@ -39,6 +39,13 @@ CREATE TABLE IF NOT EXISTS employees (
   manager_id INT NULL,
   status VARCHAR(20) NOT NULL DEFAULT 'Active',
   biometric_id VARCHAR(30) NULL,
+  -- Kept up to date by the employee on My profile; visible only to them and HR.
+  preferred_name VARCHAR(80) NULL,
+  personal_email VARCHAR(160) NULL,
+  home_address VARCHAR(255) NULL,
+  emergency_name VARCHAR(120) NULL,
+  emergency_relationship VARCHAR(60) NULL,
+  emergency_phone VARCHAR(40) NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_employees_biometric (biometric_id),
   INDEX idx_emp_dept (department),
@@ -205,4 +212,31 @@ CREATE TABLE IF NOT EXISTS attendance_corrections (
   INDEX idx_correction_emp_date (emp_id, work_date),
   CONSTRAINT fk_correction_emp FOREIGN KEY (emp_id) REFERENCES employees(id) ON DELETE CASCADE,
   CONSTRAINT fk_correction_user FOREIGN KEY (decided_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Documents HR shares on My profile: for one employee, or everyone when emp_id is NULL.
+CREATE TABLE IF NOT EXISTS employee_documents (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  emp_id INT NULL,
+  title VARCHAR(120) NOT NULL,
+  note VARCHAR(160) NOT NULL DEFAULT '',
+  requires_ack TINYINT(1) NOT NULL DEFAULT 0,
+  file MEDIUMBLOB NOT NULL,
+  file_name VARCHAR(160) NOT NULL,
+  file_type VARCHAR(60) NOT NULL,
+  created_by INT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_document_emp (emp_id),
+  CONSTRAINT fk_document_emp FOREIGN KEY (emp_id) REFERENCES employees(id) ON DELETE CASCADE,
+  CONSTRAINT fk_document_user FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- When an employee acknowledged a document (e.g. the handbook).
+CREATE TABLE IF NOT EXISTS document_acknowledgements (
+  document_id INT NOT NULL,
+  emp_id INT NOT NULL,
+  acknowledged_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (document_id, emp_id),
+  CONSTRAINT fk_ack_document FOREIGN KEY (document_id) REFERENCES employee_documents(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ack_emp FOREIGN KEY (emp_id) REFERENCES employees(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

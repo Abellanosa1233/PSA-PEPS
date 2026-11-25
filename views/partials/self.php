@@ -238,24 +238,6 @@ function self_recent_attendance(array $state, int $id, int $days = 14): void
     echo '</section>';
 }
 
-function self_profile_card(array $state, int $id): void
-{
-    $people = array_column($state['employees'], null, 'id');
-    $me = $people[$id] ?? null;
-    if (!$me) return;
-    $manager = $me['managerId'] !== null ? ($people[$me['managerId']] ?? null) : null;
-    $start = new DateTimeImmutable($me['startDate']);
-    card('My profile');
-    echo '<div class="card-body"><dl class="dl self-profile">';
-    foreach ([
-        'Name' => employee_name($me), 'Job title' => $me['title'], 'Department' => $me['department'],
-        'Employment type' => $me['type'], 'Work email' => $me['email'], 'Phone' => $me['phone'] ?: '—',
-        'Location' => $me['location'] ?: '—', 'Start date' => $start->format('F j, Y'),
-        'Reports to' => $manager ? employee_name($manager) : '—', 'Biometric ID' => ($me['biometricId'] ?? '') ?: 'Not set — ask HR',
-    ] as $label => $value) echo '<dt>' . h($label) . '</dt><dd>' . h($value) . '</dd>';
-    echo '</dl><p class="muted">These details come from your HR record. To correct anything, contact your HR administrator. Change your photo or password in <a href="' . h(page_url('preferences')) . '">Settings</a>.</p></div></section>';
-}
-
 /* ---------- My time off ---------- */
 
 /* Every leave request of one employee, filterable by status, with Cancel on pending ones. */

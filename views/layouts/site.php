@@ -261,7 +261,7 @@
                 </div>
             </header>
             <main class="content">
-                <?php if (!in_array($page, ['overview', 'employees', 'attendance', 'time-off', 'reports', 'my-time-off', 'request-leave', 'my-attendance', 'my-payslips'], true) || !$state): ?>
+                <?php if (!in_array($page, ['overview', 'employees', 'attendance', 'time-off', 'reports', 'my-time-off', 'request-leave', 'my-attendance', 'my-payslips', 'my-profile'], true) || !$state): ?>
                     <div class="page-head"><h1><?= h($pages[$page]) ?></h1></div>
                 <?php endif; ?>
                 <?php

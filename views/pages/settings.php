@@ -139,6 +139,7 @@ function settings_view(array $state): void
             ];
         }, $state['announcements'] ?? []));
         echo '</section>';
+        hr_company_documents_card($state);
         card('Demo data');
         confirm_action('demo.reset', 'Reset demo data', 'This replaces existing workspace records with sample data. Employee sign-in accounts are removed; administrator accounts are kept.');
         echo '</section>';

@@ -28,6 +28,7 @@ $pages = [
     'my-time-off' => 'My time off', 'my-attendance' => 'My attendance', 'my-payslips' => 'My payslips', 'my-profile' => 'My profile',
     'request-leave' => 'Request leave',
     'payslip' => 'Payslip', // printable payslip (employees: their own only)
+    'document' => 'Document', // a document HR shared (My profile)
     'leave-file' => 'Leave attachment', // download of a supporting document (HR, or the employee who sent it)
 ];
 $employeeOnlyPages = ['my-time-off', 'my-attendance', 'my-payslips', 'my-profile', 'request-leave'];
@@ -63,7 +64,7 @@ try {
     if ($user && !is_admin($user)) {
         // Employee accounts only see their own pages (and their team, if they supervise anyone).
         $pages['supervisor'] = 'Supervisor workspace';
-        $allowedPages = array_merge(['overview', 'preferences', 'help', 'dtr', 'leave-file', 'payslip'], $employeeOnlyPages);
+        $allowedPages = array_merge(['overview', 'preferences', 'help', 'dtr', 'leave-file', 'payslip', 'document'], $employeeOnlyPages);
         if ($user['hasTeam']) $allowedPages[] = 'supervisor';
         if (!in_array($page, $allowedPages, true)) {
             if (!$isPost) {
@@ -123,6 +124,7 @@ try {
             elseif ($action === 'employee.import') $result = act_employee_import($_FILES['employeeCsv'] ?? []);
             elseif ($action === 'attendance.import') $result = act_attendance_import($_FILES['attendanceCsv'] ?? []);
             elseif ($action === 'attendance.biometrics') $result = act_attendance_biometrics($_FILES['biometricLog'] ?? []);
+            elseif ($action === 'document.upload') $result = act_document_upload($input, $user, leave_attachment_upload($_FILES['document'] ?? [], 'document'));
             elseif ($action === 'leave.create') {
                 $result = act_leave_create($input, $user, leave_attachment_upload($_FILES['attachment'] ?? []));
                 if ($page === 'request-leave') unset($_SESSION['leave_draft']);
@@ -232,20 +234,26 @@ if ($user) {
         http_response_code(500);
     }
 }
-if ($user && $page === 'leave-file') {
-    $file = leave_attachment_for($user, (int) ($_GET['id'] ?? 0));
+if ($user && in_array($page, ['leave-file', 'document'], true)) {
+    // A leave request's supporting document, or a document HR shared on My profile.
+    // Access is checked by leave_attachment_for() / document_for().
+    $id = (int) ($_GET['id'] ?? 0);
+    $row = $page === 'leave-file' ? leave_attachment_for($user, $id) : document_for($user, $id);
+    $file = !$row ? null : ($page === 'leave-file'
+        ? ['bytes' => $row['attachment'], 'name' => $row['attachment_name'], 'type' => $row['attachment_type']]
+        : ['bytes' => $row['file'], 'name' => $row['file_name'], 'type' => $row['file_type']]);
     if (!$file) {
         http_response_code(404);
         header('Content-Type: text/plain; charset=utf-8');
         echo 'This document was not found, or you do not have access to it.';
         exit;
     }
-    header('Content-Type: ' . (in_array($file['attachment_type'], ['application/pdf', 'image/jpeg', 'image/png'], true) ? $file['attachment_type'] : 'application/octet-stream'));
-    header('Content-Disposition: inline; filename="' . str_replace('"', '', $file['attachment_name'] ?: 'document') . '"');
-    header('Content-Length: ' . strlen($file['attachment']));
+    header('Content-Type: ' . (in_array($file['type'], ['application/pdf', 'image/jpeg', 'image/png'], true) ? $file['type'] : 'application/octet-stream'));
+    header('Content-Disposition: inline; filename="' . str_replace(['"', "\r", "\n"], '', $file['name'] ?: 'document') . '"');
+    header('Content-Length: ' . strlen($file['bytes']));
     header('Cache-Control: private, no-store');
     header("Content-Security-Policy: default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox");
-    echo $file['attachment'];
+    echo $file['bytes'];
     exit;
 }
 if ($user && $state && $page === 'payslip') {

@@ -18,6 +18,8 @@ function action_handler(string $action): string
         'account.create' => 'act_account_create', 'account.password' => 'act_account_password', 'account.remove' => 'act_account_remove',
         'announcement.save' => 'act_announcement_save', 'announcement.delete' => 'act_announcement_delete',
         'correction.create' => 'act_correction_create', 'correction.cancel' => 'act_correction_cancel', 'correction.decide' => 'act_correction_decide',
+        'profile.personal.save' => 'act_profile_personal_save', 'profile.emergency.save' => 'act_profile_emergency_save',
+        'document.delete' => 'act_document_delete', 'document.acknowledge' => 'act_document_acknowledge',
     ];
     if (!isset($writeActions[$action])) fail('Unknown action.', 404);
     return $writeActions[$action];
@@ -44,6 +46,9 @@ function authorize_action(string $action, array &$in, array $user): void
         case 'employee.request.cancel':
         case 'correction.create':   // corrections go to HR (correction.decide is HR-only)
         case 'correction.cancel':
+        case 'profile.personal.save':   // employees edit only their own personal and emergency details
+        case 'profile.emergency.save':
+        case 'document.acknowledge':    // document.upload and document.delete are HR-only
             $in['empId'] = $me;
             return;
 

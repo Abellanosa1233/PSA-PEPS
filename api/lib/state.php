@@ -13,6 +13,9 @@ function build_state(array $user): array
             'location' => $e['location'], 'type' => $e['emp_type'], 'startDate' => $e['start_date'], 'endDate' => $e['end_date'],
             'salary' => (float) $e['salary'], 'managerId' => $e['manager_id'] === null ? null : (int) $e['manager_id'], 'status' => $e['status'],
             'biometricId' => $e['biometric_id'] ?? null,
+            // Personal and emergency details: blanked for everyone except the employee and HR (see scope_state_to_employee)
+            'preferredName' => $e['preferred_name'] ?? null, 'personalEmail' => $e['personal_email'] ?? null, 'homeAddress' => $e['home_address'] ?? null,
+            'emergencyName' => $e['emergency_name'] ?? null, 'emergencyRelationship' => $e['emergency_relationship'] ?? null, 'emergencyPhone' => $e['emergency_phone'] ?? null,
         ];
     }, q('SELECT * FROM employees ORDER BY first_name, last_name')->fetchAll());
 
@@ -110,6 +113,7 @@ function build_state(array $user): array
         return ['id' => (int) $c['id'], 'empId' => (int) $c['emp_id'], 'date' => $c['work_date'], 'in' => $hmOrNull($c['time_in']), 'out' => $hmOrNull($c['time_out']),
             'reason' => $c['reason'], 'status' => $c['status'], 'createdAt' => $c['created_at'], 'decidedAt' => $c['decided_at']];
     }, q("SELECT * FROM attendance_corrections WHERE status = 'pending' OR decided_at >= NOW() - INTERVAL 60 DAY ORDER BY created_at DESC, id DESC")->fetchAll());
+    $state['documents'] = documents_state($user); // already limited to what this account may see
     if (!is_admin($user)) return scope_state_to_employee($state, (int) $user['employeeId']);
 
     // HR sees which employees can sign in (usernames only, never passwords).
@@ -147,7 +151,11 @@ function scope_state_to_employee(array $state, int $me): array
     $employees = [];
     foreach ($state['employees'] as $e) {
         if (!isset($visible[$e['id']])) continue;
-        if ($e['id'] !== $me) { $e['salary'] = null; $e['phone'] = ''; }
+        if ($e['id'] !== $me) {
+            $e['salary'] = null;
+            $e['phone'] = '';
+            foreach (['preferredName', 'personalEmail', 'homeAddress', 'emergencyName', 'emergencyRelationship', 'emergencyPhone'] as $private) $e[$private] = null;
+        }
         $employees[] = $e;
     }
     // Approved absences of the people around me, reduced to who / what kind / when.
@@ -200,6 +208,7 @@ function scope_state_to_employee(array $state, int $me): array
         'employeeRequests' => $mine($state['employeeRequests']),
         'teamAbsences' => $teamAbsences,
         'corrections' => array_values(array_filter($state['corrections'] ?? [], function ($c) use ($me) { return $c['empId'] === $me; })),
+        'documents' => $state['documents'] ?? [],
         'attendance' => (object) $attendance,
         'events' => $events,
         'positions' => [],

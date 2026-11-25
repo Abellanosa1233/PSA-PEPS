@@ -83,6 +83,11 @@ function action_success_message(string $action, array $input): string
         'correction.create' => 'Correction sent to HR. You’ll be notified when it’s reviewed.',
         'correction.cancel' => 'Correction request cancelled.',
         'correction.decide' => ($input['status'] ?? '') === 'approved' ? 'Correction approved and attendance updated.' : 'Correction declined.',
+        'profile.personal.save' => 'Personal details saved.',
+        'profile.emergency.save' => 'Emergency contact saved.',
+        'document.upload' => 'Document shared.',
+        'document.delete' => 'Document removed.',
+        'document.acknowledge' => 'Thanks — your acknowledgement is recorded.',
     ];
     return $messages[$action] ?? 'Changes saved.';
 }
@@ -417,3 +422,4 @@ require __DIR__ . '/../../views/partials/workspace.php';
 require __DIR__ . '/../../views/partials/self.php';
 require __DIR__ . '/../../views/partials/self-attendance.php';
 require __DIR__ . '/../../views/partials/self-payslips.php';
+require __DIR__ . '/../../views/partials/self-profile.php';
