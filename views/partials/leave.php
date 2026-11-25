@@ -1,11 +1,12 @@
 <?php
 declare(strict_types=1);
 
-function leave_form(array $employees, bool $allowApproval = false, bool $openNow = false): void
+function leave_form(array $employees, bool $allowApproval = false, bool $openNow = false, string $buttonLabel = 'Request time off'): void
 {
     if (!$employees) return;
     // $openNow: the page was reached through a "Request leave" button, so show the form straight away.
-    echo '<details class="form-disclosure" data-form-dialog="form"' . ($openNow ? ' open data-auto-open' : '') . '><summary class="btn primary">Request time off</summary>';
+    echo '<details class="form-disclosure" data-form-dialog="form"' . ($openNow ? ' open data-auto-open' : '') . '><summary class="btn primary">'
+        . ($buttonLabel === 'Request time off' ? '' : icon('plus') . ' ') . h($buttonLabel) . '</summary>';
     post_form('leave.create');
     choice('empId', 'Employee', $employees);
     choice('type', 'Leave type', options(LEAVE_TYPES));

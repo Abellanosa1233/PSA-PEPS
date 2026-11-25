@@ -255,3 +255,75 @@ function self_profile_card(array $state, int $id): void
     ] as $label => $value) echo '<dt>' . h($label) . '</dt><dd>' . h($value) . '</dd>';
     echo '</dl><p class="muted">These details come from your HR record. To correct anything, contact your HR administrator. Change your photo or password in <a href="' . h(page_url('preferences')) . '">Settings</a>.</p></div></section>';
 }
+
+/* ---------- My time off ---------- */
+
+/* Every leave request of one employee, filterable by status, with Cancel on pending ones. */
+function self_leave_history_card(array $state, int $id): void
+{
+    $today = $state['today'];
+    $filters = ['' => 'All statuses', 'pending' => 'Pending', 'approved' => 'Approved', 'taken' => 'Taken', 'declined' => 'Declined'];
+    $filter = (string) ($_GET['status'] ?? '');
+    if (!isset($filters[$filter])) $filter = '';
+    $mine = array_values(array_filter($state['leaves'], function ($l) use ($id, $today, $filter) {
+        if ($l['empId'] !== $id) return false;
+        return $filter === '' || strtolower(self_leave_status($l, $today)[0]) === $filter;
+    }));
+    usort($mine, function ($a, $b) { return strcmp($b['start'], $a['start']) ?: $b['id'] <=> $a['id']; });
+    $page = paginate($mine, 'leavePage');
+
+    echo '<section class="card"><div class="card-head"><h3>Leave request history</h3>';
+    echo '<form method="get" action="' . h(page_url('my-time-off')) . '" class="toolbar self-filter">'
+        . '<select class="input sm" name="status" aria-label="Filter by status">';
+    foreach ($filters as $value => $label) echo '<option value="' . h($value) . '"' . ($value === $filter ? ' selected' : '') . '>' . h($label) . '</option>';
+    echo '</select><button class="btn sm" type="submit">Filter</button></form></div>';
+    if (!$page['rows']) {
+        echo '<div class="empty"><strong>' . ($filter === '' ? 'No leave requests yet' : 'No ' . strtolower($filters[$filter]) . ' requests') . '</strong><span>Use Request leave to send one to HR.</span></div></section>';
+        return;
+    }
+    echo '<div class="table-wrap"><table class="data"><thead><tr><th>Leave type</th><th>Dates</th><th>Duration</th><th>Submitted</th><th>Status</th><th class="num"><span class="sr-only">Actions</span></th></tr></thead><tbody>';
+    foreach ($page['rows'] as $l) {
+        [$label, $style] = self_leave_status($l, $today);
+        echo '<tr><td>' . h($l['type']) . ($l['reason'] !== '' ? '<span class="sub">' . h($l['reason']) . '</span>' : '') . '</td>'
+            . '<td class="tabular">' . h(self_date_range($l['start'], $l['end'])) . '</td>'
+            . '<td>' . (int) $l['days'] . ' day' . ((int) $l['days'] === 1 ? '' : 's') . '</td>'
+            . '<td class="tabular">' . h((new DateTimeImmutable(substr($l['createdAt'], 0, 10)))->format('M j, Y')) . '</td>'
+            . '<td><span class="badge ' . $style . '">' . $label . '</span></td><td class="actions">';
+        if ($l['status'] === 'pending') confirm_action('leave.cancel', 'Cancel', 'Withdraw this leave request?', ['id' => $l['id']]);
+        echo '</td></tr>';
+    }
+    echo '</tbody></table></div>';
+    pagination($page, 'my-time-off', $filter === '' ? [] : ['status' => $filter], 'requests', 'leavePage');
+    echo '</section>';
+}
+
+/* Entitlement − taken − approved upcoming = remaining, per leave type, for this year. */
+function self_leave_breakdown_card(array $state, int $id): void
+{
+    $today = $state['today'];
+    $year = substr($today, 0, 4);
+    $taken = $upcoming = [];
+    foreach ($state['leaves'] as $l) {
+        if ($l['empId'] !== $id || $l['status'] !== 'approved' || strpos($l['start'], $year) !== 0) continue;
+        if ($l['end'] < $today) $taken[$l['type']] = ($taken[$l['type']] ?? 0) + $l['days'];
+        else $upcoming[$l['type']] = ($upcoming[$l['type']] ?? 0) + $l['days'];
+    }
+    echo '<section class="card"><div class="card-head"><h3>Your leave breakdown</h3><span class="pill">' . h($year) . '</span></div>';
+    echo '<div class="table-wrap"><table class="data"><thead><tr><th>Leave type</th><th class="num">Entitlement</th><th class="num">Taken</th><th class="num">Approved</th><th class="num">Remaining</th></tr></thead><tbody>';
+    foreach (['Annual leave', 'Sick leave', 'Personal leave'] as $type) {
+        $entitlement = (int) ($state['settings']['allowances'][$type] ?? 0);
+        $t = $taken[$type] ?? 0;
+        $a = $upcoming[$type] ?? 0;
+        echo '<tr><td>' . h($type) . '</td><td class="num">' . $entitlement . '</td><td class="num">' . $t . '</td><td class="num">' . $a . '</td><td class="num"><strong>' . max(0, $entitlement - $t - $a) . '</strong></td></tr>';
+    }
+    echo '</tbody></table></div></section>';
+}
+
+function self_before_you_request_card(): void
+{
+    echo '<section class="card"><div class="card-head"><h3>Before you request</h3></div><div class="card-body"><ol class="self-tips">'
+        . '<li><span>01</span>Plan annual leave 5 working days ahead.</li>'
+        . '<li><span>02</span>HR reviews each request. Your team only sees that you’re out once it’s approved.</li>'
+        . '<li><span>03</span>Unused annual leave resets on Jan 1.</li>'
+        . '</ol><a class="link-btn" href="' . h(page_url('help')) . '">Read the leave policy ' . icon('arrowRight', 14) . '</a></div></section>';
+}

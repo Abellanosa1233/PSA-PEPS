@@ -668,3 +668,9 @@ html.sidebar-collapsed .web-app .sidebar .nav .count { display: block; position:
 .self-profile { grid-template-columns: 160px minmax(0, 1fr); margin-bottom: 12px; }
 .check-line { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 @media (max-width: 900px) { .self-leave-cards { grid-template-columns: minmax(0, 1fr); } }
+.self-filter { gap: 6px; }
+.self-filter .input { width: auto; }
+.self-tips { list-style: none; margin: 0 0 14px; padding: 0; display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
+.self-tips li { display: grid; grid-template-columns: 26px 1fr; gap: 6px; }
+.self-tips span { color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
