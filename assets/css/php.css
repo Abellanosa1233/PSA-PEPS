@@ -45,9 +45,20 @@
   isolation: isolate;
   overflow: hidden;
   background:
-    linear-gradient(0deg, rgba(5, 18, 38, .32), transparent 46%),
-    linear-gradient(112deg, rgba(5, 23, 48, .24), rgba(0, 62, 126, .06) 54%, rgba(5, 22, 46, .22)),
+    linear-gradient(180deg, rgba(5, 18, 38, .10), transparent 28%, transparent 68%, rgba(5, 18, 38, .34)),
+    linear-gradient(112deg, rgba(5, 23, 48, .20), rgba(0, 62, 126, .04) 54%, rgba(5, 22, 46, .18)),
     url("../sign-in-building.png") center / cover no-repeat;
+}
+.web-auth-signin::before {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse at 12% 14%, rgba(61, 145, 255, .18), transparent 32%),
+    radial-gradient(ellipse at 88% 90%, rgba(3, 21, 48, .22), transparent 38%),
+    repeating-linear-gradient(115deg, transparent 0 118px, rgba(255, 255, 255, .025) 119px, transparent 120px 238px);
+  content: "";
+  pointer-events: none;
 }
 .web-auth-signin .auth-card-signin {
   --surface: rgba(8, 25, 48, .96);
@@ -59,6 +70,8 @@
   --primary: #2168e2;
   --primary-hover: #3478ed;
   --primary-fg: #ffffff;
+  position: relative;
+  z-index: 1;
   width: min(490px, 100%);
   gap: 18px;
   padding: 26px clamp(28px, 3.5vw, 48px);
