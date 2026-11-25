@@ -95,17 +95,17 @@ function account_action(string $action, array $in): array
         case 'login':
             $username = strtolower(trim((string) ($in['username'] ?? '')));
             $password = (string) ($in['password'] ?? '');
-            if ($username === '') fail('Enter your username.', 422, 'username');
+            if ($username === '') fail('Please enter your username.', 422, 'username');
             if (!preg_match('/^[a-z0-9._-]{3,60}$/', $username)) {
-                fail('Enter a username using 3–60 letters, numbers, dots, dashes or underscores.', 422, 'username');
+                fail('Username must be 3–60 characters and may contain only letters, numbers, periods, hyphens, and underscores.', 422, 'username');
             }
-            if ($password === '') fail('Enter your password.', 422, 'password');
+            if ($password === '') fail('Please enter your password.', 422, 'password');
             ensure_account_columns();
             $u = q('SELECT u.id, u.password_hash, u.account_role, e.status AS employee_status
                     FROM users u LEFT JOIN employees e ON e.id = u.employee_id WHERE u.username = ?', [$username])->fetch();
             if (!$u || !password_verify($password, $u['password_hash'])) {
                 usleep(400000);
-                fail('That username and password do not match.', 401);
+                fail('The username or password is incorrect.', 401);
             }
             if ($u['account_role'] === 'employee' && $u['employee_status'] !== 'Active') {
                 fail('This account is no longer active. Contact your HR administrator.', 403);

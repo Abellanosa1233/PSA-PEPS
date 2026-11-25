@@ -76,8 +76,8 @@
 
                 function validate(input) {
                     var message = input === username
-                        ? (!input.value.trim() ? 'Enter your username.' : (!/^[a-z0-9._-]{3,60}$/i.test(input.value.trim()) ? 'Use 3–60 letters, numbers, dots, dashes or underscores.' : ''))
-                        : (!input.value ? 'Enter your password.' : '');
+                        ? (!input.value.trim() ? 'Please enter your username.' : (!/^[a-z0-9._-]{3,60}$/i.test(input.value.trim()) ? 'Username must be 3–60 characters and may contain only letters, numbers, periods, hyphens, and underscores.' : ''))
+                        : (!input.value ? 'Please enter your password.' : '');
                     var field = input.closest('.field');
                     var error = field.querySelector('.field-error');
                     if (message && !error) {
