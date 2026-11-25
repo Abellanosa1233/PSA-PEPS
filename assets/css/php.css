@@ -44,19 +44,28 @@
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  background:
-    linear-gradient(180deg, rgba(5, 18, 38, .10), transparent 28%, transparent 68%, rgba(5, 18, 38, .34)),
-    linear-gradient(112deg, rgba(5, 23, 48, .20), rgba(0, 62, 126, .04) 54%, rgba(5, 22, 46, .18)),
-    url("../sign-in-building.png") center / cover no-repeat;
+  background: #0a1a31;
 }
 .web-auth-signin::before {
+  position: absolute;
+  inset: -8px;
+  z-index: 0;
+  background:
+    url("../sign-in-building.png") center / cover no-repeat;
+  content: "";
+  pointer-events: none;
+  filter: blur(2px) brightness(.88) saturate(1.05) contrast(1.04);
+  transform: scale(1.01);
+}
+.web-auth-signin::after {
   position: absolute;
   inset: 0;
   z-index: 0;
   background:
-    radial-gradient(ellipse at 12% 14%, rgba(61, 145, 255, .18), transparent 32%),
-    radial-gradient(ellipse at 88% 90%, rgba(3, 21, 48, .22), transparent 38%),
-    repeating-linear-gradient(115deg, transparent 0 118px, rgba(255, 255, 255, .025) 119px, transparent 120px 238px);
+    radial-gradient(ellipse 76rem 48rem at 3% 112%, transparent 66%, rgba(214, 233, 255, .13) 66.15%, transparent 66.4%),
+    radial-gradient(ellipse 60rem 40rem at 106% -8%, transparent 68%, rgba(113, 181, 255, .15) 68.15%, transparent 68.4%),
+    radial-gradient(ellipse at center, transparent 48%, rgba(4, 17, 36, .22) 100%),
+    linear-gradient(180deg, rgba(6, 21, 43, .04), transparent 36%, transparent 72%, rgba(4, 17, 36, .22));
   content: "";
   pointer-events: none;
 }
