@@ -151,10 +151,17 @@ window.HR = window.HR || {};
     },
     field: function (name, label, value, type, attrs) {
       var id = 'f-' + name.replace(/[^a-z0-9]/gi, '-');
+      var passwordToggle = attrs && attrs.passwordToggle && type === 'password';
+      var control = type === 'textarea'
+        ? '<textarea class="input" id="' + id + '" name="' + name + '">' + ui.esc(value || '') + '</textarea>'
+        : '<input class="input" id="' + id + '" name="' + name + '" type="' + (type || 'text') + '" value="' + ui.esc(value == null ? '' : value) + '"' + (attrs && attrs.extra ? ' ' + attrs.extra : '') + '>';
+      if (passwordToggle) {
+        control = '<span class="password-input-wrap">' + control +
+          '<button class="password-toggle" type="button" data-password-toggle aria-controls="' + id + '" aria-label="Show password" aria-pressed="false" title="Show password"><span class="password-eye">' +
+          ic('eye', 18) + '</span><span class="password-eye-off">' + ic('eyeOff', 18) + '</span></button></span>';
+      }
       return '<div class="field' + (attrs && attrs.full ? ' full' : '') + '"><label for="' + id + '">' + ui.esc(label) + '</label>' +
-        (type === 'textarea'
-          ? '<textarea class="input" id="' + id + '" name="' + name + '">' + ui.esc(value || '') + '</textarea>'
-          : '<input class="input" id="' + id + '" name="' + name + '" type="' + (type || 'text') + '" value="' + ui.esc(value == null ? '' : value) + '"' + (attrs && attrs.extra ? ' ' + attrs.extra : '') + '>') +
+        control +
         (attrs && attrs.hint ? '<span class="hint">' + ui.esc(attrs.hint) + '</span>' : '') + '</div>';
     },
     select: function (name, label, optionsHtml, attrs) {

@@ -190,13 +190,27 @@ window.HR = window.HR || {};
 
   /* ---------- Auth screens ---------- */
   function authCard(title, text, body) {
-    root.innerHTML = '<div class="auth"><form class="auth-card" novalidate><div class="brand" style="padding:0"><img class="brand-logo" src="assets/psa-logo.svg" alt="Philippine Statistics Authority seal"><span class="brand-copy"><strong>HRMS</strong><small>Human Resource Management System</small></span></div>' +
-      '<div><h1>' + title + '</h1><p style="margin-top:4px">' + text + '</p></div>' + body + '<div class="form-error" hidden></div></form></div>';
+    var signInScreenClass = title === 'Sign in' ? ' auth-signin-screen' : '';
+    var signInCardClass = title === 'Sign in' ? ' auth-signin-card' : '';
+    root.innerHTML = '<div class="auth' + signInScreenClass + '"><form class="auth-card' + signInCardClass + '" novalidate><div class="brand" style="padding:0"><img class="brand-logo" src="assets/psa-logo.svg" alt="Philippine Statistics Authority seal"><span class="brand-copy"><strong>HRMS</strong><small>Human Resource Management System</small></span></div>' +
+      '<div><h1>' + title + '</h1><p style="margin-top:4px">' + text + '</p></div>' + body + (title === 'Sign in' ? '<p class="auth-security-note">Authorized personnel only · Philippine Statistics Authority</p>' : '') + '<div class="form-error" hidden role="alert"></div></form></div>';
     return root.querySelector('form');
   }
   function wire(form, fn) {
+    var passwordToggle = form.querySelector('[data-password-toggle]');
+    if (passwordToggle) {
+      var password = form.querySelector('#' + passwordToggle.getAttribute('aria-controls'));
+      passwordToggle.addEventListener('click', function () {
+        var visible = password.type === 'password';
+        password.type = visible ? 'text' : 'password';
+        passwordToggle.setAttribute('aria-pressed', String(visible));
+        passwordToggle.setAttribute('aria-label', visible ? 'Hide password' : 'Show password');
+        passwordToggle.title = visible ? 'Hide password' : 'Show password';
+      });
+    }
     form.addEventListener('submit', function (e) {
       e.preventDefault();
+      if (!form.reportValidity()) return;
       var err = form.querySelector('.form-error'), btn = form.querySelector('[type=submit]');
       err.hidden = true; btn.disabled = true;
       fn(ui.formValues(form)).catch(function (x) { err.textContent = x.message; err.hidden = false; btn.disabled = false; });
@@ -230,8 +244,8 @@ window.HR = window.HR || {};
   }
   function signIn() {
     var f = authCard('Sign in', 'Welcome back. Sign in to your people workspace.',
-      ui.field('username', 'Username', '', 'text', { extra: 'autocomplete="username"' }) +
-      ui.field('password', 'Password', '', 'password', { extra: 'autocomplete="current-password"' }) +
+      ui.field('username', 'Username', '', 'text', { extra: 'required minlength="3" maxlength="60" pattern="[A-Za-z0-9._-]+" autocomplete="username"' }) +
+      ui.field('password', 'Password', '', 'password', { extra: 'required autocomplete="current-password"', passwordToggle: true }) +
       '<button class="btn primary" type="submit">Sign in</button>');
     wire(f, function (v) { return HR.api('login', v).then(enter); });
   }

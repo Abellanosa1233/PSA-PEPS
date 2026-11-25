@@ -104,15 +104,31 @@ function action_button(string $action, string $label, array $values = []): void
     end_form($label);
 }
 
-function field(string $name, string $label, $value = '', string $type = 'text', bool $required = true, string $error = ''): void
+function field(string $name, string $label, $value = '', string $type = 'text', bool $required = true, string $error = '', array $attributes = []): void
 {
     $errorId = 'field-error-' . $name;
-    echo '<label class="field"><span>' . h($label) . '</span><input class="input" name="' . h($name)
+    $passwordToggle = $type === 'password' && !empty($attributes['passwordToggle']);
+    $inputId = $passwordToggle ? 'signin-password' : '';
+    echo $passwordToggle
+        ? '<div class="field"><label for="' . h($inputId) . '">' . h($label) . '</label><div class="password-field">'
+        : '<label class="field"><span>' . h($label) . '</span>';
+    echo '<input class="input" ' . ($passwordToggle ? 'id="' . h($inputId) . '" ' : '') . 'name="' . h($name)
         . '" type="' . h($type) . '" value="' . h($value) . '"' . ($required ? ' required' : '')
         . ($type === 'number' ? ' step="any"' : '')
-        . ($error !== '' ? ' aria-invalid="true" aria-describedby="' . h($errorId) . '"' : '') . '>';
+        . ($error !== '' ? ' aria-invalid="true" aria-describedby="' . h($errorId) . '"' : '');
+    foreach ($attributes as $attribute => $attributeValue) {
+        if (in_array($attribute, ['autocomplete', 'minlength', 'maxlength', 'pattern'], true)) {
+            echo ' ' . $attribute . '="' . h($attributeValue) . '"';
+        }
+    }
+    echo '>';
+    if ($passwordToggle) {
+        echo '<button class="password-toggle" type="button" data-password-toggle aria-controls="' . h($inputId)
+            . '" aria-label="Show password" aria-pressed="false" title="Show password"><span class="password-eye">'
+            . icon('eye', 18) . '</span><span class="password-eye-off">' . icon('eyeOff', 18) . '</span></button></div>';
+    }
     if ($error !== '') echo '<span class="field-error" id="' . h($errorId) . '">' . h($error) . '</span>';
-    echo '</label>';
+    echo $passwordToggle ? '</div>' : '</label>';
 }
 
 function choice(string $name, string $label, array $options, $selected = ''): void

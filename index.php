@@ -112,6 +112,7 @@ try {
             $formError = $_SESSION['web_form_error'];
             $error = $formError['message'];
             $errorLevel = $formError['level'] ?? 'failure';
+            $errorField = $formError['field'] ?? null;
             unset($_SESSION['web_form_error']);
         }
     }
@@ -153,7 +154,9 @@ if ($isPost) {
         'level' => $errorLevel,
         'field' => $errorField,
         'employeeModal' => $employeeModal,
-        'values' => $employeeModal ? array_filter(array_intersect_key($_POST, $fields), 'is_string') : [],
+        'values' => $employeeModal
+            ? array_filter(array_intersect_key($_POST, $fields), 'is_string')
+            : (($_POST['_action'] ?? '') === 'login' ? ['username' => is_string($_POST['username'] ?? null) ? $_POST['username'] : ''] : []),
         'shared' => $sharedFields !== null ? [
             'action' => $sharedForm,
             'message' => $error,

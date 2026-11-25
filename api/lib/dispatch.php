@@ -47,8 +47,15 @@ function account_action(string $action, array $in): array
             return build_state(require_user());
 
         case 'login':
-            $u = q('SELECT id, password_hash FROM users WHERE username = ?', [strtolower(trim((string) ($in['username'] ?? '')))])->fetch();
-            if (!$u || !password_verify((string) ($in['password'] ?? ''), $u['password_hash'])) {
+            $username = strtolower(trim((string) ($in['username'] ?? '')));
+            $password = (string) ($in['password'] ?? '');
+            if ($username === '') fail('Enter your username.', 422, 'username');
+            if (!preg_match('/^[a-z0-9._-]{3,60}$/', $username)) {
+                fail('Enter a username using 3–60 letters, numbers, dots, dashes or underscores.', 422, 'username');
+            }
+            if ($password === '') fail('Enter your password.', 422, 'password');
+            $u = q('SELECT id, password_hash FROM users WHERE username = ?', [$username])->fetch();
+            if (!$u || !password_verify($password, $u['password_hash'])) {
                 usleep(400000);
                 fail('That username and password do not match.', 401);
             }

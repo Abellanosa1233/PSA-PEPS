@@ -40,6 +40,72 @@
   padding: var(--space-6);
 }
 
+.web-auth-signin {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 12% 18%, rgba(0, 56, 168, .10), transparent 34rem),
+    radial-gradient(ellipse at 90% 86%, rgba(252, 209, 22, .10), transparent 28rem),
+    var(--bg);
+}
+.web-auth-signin::before,
+.web-auth-signin::after {
+  position: absolute;
+  z-index: -1;
+  width: 280px;
+  height: 280px;
+  border: 1px solid rgba(0, 56, 168, .10);
+  border-radius: 50%;
+  content: "";
+}
+.web-auth-signin::before { top: -150px; right: -80px; }
+.web-auth-signin::after { bottom: -180px; left: -110px; width: 360px; height: 360px; }
+.web-auth-signin .auth-card-signin {
+  width: min(440px, 100%);
+  gap: 18px;
+  padding: clamp(26px, 6vw, 42px);
+  border: 1px solid var(--line);
+  border-top: 4px solid var(--psa-blue);
+  border-radius: 16px;
+  box-shadow: 0 24px 70px rgba(17, 40, 74, .14);
+}
+.web-auth-signin .brand { margin-bottom: 4px; }
+.web-auth-signin .auth-card-signin h1 { font-size: 25px; letter-spacing: -.025em; }
+.web-auth-signin .auth-intro { margin-top: -14px; color: var(--fg-2); font-size: 13px; }
+.web-auth-signin .web-fields { gap: 16px; }
+.web-auth-signin .web-fields .field { flex: 1 1 100%; gap: 7px; }
+.web-auth-signin .web-fields .field > span:first-child,
+.web-auth-signin .web-fields .field > label { color: var(--fg); font-size: 12px; }
+.web-auth-signin .web-fields .input { min-height: 44px; padding-inline: 12px; border-radius: 8px; }
+.web-auth-signin .web-fields .password-field { position: relative; width: 100%; }
+.web-auth-signin .web-fields .password-field .input { padding-right: 44px; }
+.web-auth-signin .password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 7px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg-3);
+  cursor: pointer;
+}
+.web-auth-signin .password-toggle:hover { background: var(--surface-2); color: var(--primary); }
+.web-auth-signin .password-eye-off,
+.web-auth-signin .password-toggle[aria-pressed="true"] .password-eye { display: none; }
+.web-auth-signin .password-toggle[aria-pressed="true"] .password-eye-off { display: inline-flex; }
+.web-auth-signin .web-fields .input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 16%, transparent); }
+.web-auth-signin .web-fields .btn { min-height: 44px; margin-top: 2px; border-radius: 8px; font-size: 13px; font-weight: 600; }
+.web-auth-signin .auth-security-note { padding-top: 14px; border-top: 1px solid var(--line); color: var(--fg-3); font-size: 10.5px; text-align: center; }
+.web-auth-signin .field-error { color: var(--bad); font-size: 11.5px; }
+.web-auth-signin .input[aria-invalid="true"] { border-color: var(--bad); }
+
 .web-card {
   padding: var(--space-5);
   display: grid;

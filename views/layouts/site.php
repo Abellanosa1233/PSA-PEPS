@@ -29,12 +29,13 @@
     }
 </script>
 <?php if (!$user): ?>
-    <main class="auth web-auth">
+    <main class="auth web-auth<?= $screen === 'Sign in' ? ' web-auth-signin' : '' ?>">
         <button class="btn desktop-full-screen desktop-full-screen-auth" type="button" hidden>Full screen</button>
-        <section class="auth-card">
+        <section class="auth-card<?= $screen === 'Sign in' ? ' auth-card-signin' : '' ?>">
             <a class="brand" href="<?= h(page_url('overview')) ?>"><img class="brand-logo" src="assets/psa-logo.svg" alt="Philippine Statistics Authority seal"><span class="brand-copy"><strong>HRMS</strong><small>Human Resource Management System</small></span></a>
             <h1><?= h($screen) ?></h1>
-            <?php web_message($error, ''); ?>
+            <?php if ($screen === 'Sign in'): ?><p class="auth-intro">Welcome back. Sign in to your people workspace.</p><?php endif; ?>
+            <?php web_message($errorField ? '' : $error, ''); ?>
             <?php if ($screen === 'Install HRMS'): ?>
                 <p>Create the database tables before setting up your administrator account.</p>
                 <?php post_form('install'); ?>
@@ -45,11 +46,40 @@
                 <?php post_form($screen === 'Sign in' ? 'login' : 'setup'); ?>
                 <?php if ($screen !== 'Sign in') field('name', 'Full name'); ?>
                 <?php if ($screen !== 'Sign in' && setup_key_required()) field('setupKey', 'Setup key', '', 'password'); ?>
-                <?php field('username', 'Username'); field('password', 'Password', '', 'password'); ?>
+                <?php
+                    if ($screen === 'Sign in') {
+                        field('username', 'Username', $formError['values']['username'] ?? '', 'text', true, $errorField === 'username' ? $error : '', [
+                            'autocomplete' => 'username', 'minlength' => '3', 'maxlength' => '60', 'pattern' => '[A-Za-z0-9._-]+',
+                        ]);
+                        field('password', 'Password', '', 'password', true, $errorField === 'password' ? $error : '', [
+                            'autocomplete' => 'current-password', 'passwordToggle' => true,
+                        ]);
+                    } else {
+                        field('username', 'Username');
+                        field('password', 'Password', '', 'password');
+                    }
+                ?>
+                <?php if ($screen === 'Sign in'): ?><p class="auth-security-note">Authorized personnel only · Philippine Statistics Authority</p><?php endif; ?>
                 <?php end_form($screen); ?>
             <?php endif; ?>
         </section>
     </main>
+    <?php if ($screen === 'Sign in'): ?>
+        <script>
+            (function () {
+                var button = document.querySelector('[data-password-toggle]');
+                var password = document.getElementById('signin-password');
+                if (!button || !password) return;
+                button.addEventListener('click', function () {
+                    var visible = password.type === 'password';
+                    password.type = visible ? 'text' : 'password';
+                    button.setAttribute('aria-pressed', String(visible));
+                    button.setAttribute('aria-label', visible ? 'Hide password' : 'Show password');
+                    button.title = visible ? 'Hide password' : 'Show password';
+                });
+            }());
+        </script>
+    <?php endif; ?>
 <?php else:
     $navIcons = [
         'overview' => 'grid', 'employees' => 'users', 'attendance' => 'clock', 'time-off' => 'calendar',
