@@ -54,6 +54,19 @@ $now = new DateTimeImmutable();
                 <small>Maximum 2 MB and 5,000 records. Past dates are read-only. The import is all-or-nothing.</small>
             </div>
         </details>
+        <details class="attendance-import">
+            <summary class="btn primary"><?= icon('clock') ?> Import biometrics</summary>
+            <div class="attendance-import-panel">
+                <strong>Import the biometric device log</strong>
+                <p>Upload the attendance log exported from the biometric device: the <em>attlog</em> .dat/.txt file, or the CSV/text export from its software. Each line needs the device user number and the date and time of the punch.</p>
+                <p>People are matched by the <strong>Biometric ID</strong> on their employee record. Punches already imported are skipped, so you can import overlapping files safely.</p>
+                <?php post_form('attendance.biometrics', [], false, 'multipart/form-data'); ?>
+                <div class="field"><label for="biometricLog">Device log file</label><input class="input" id="biometricLog" name="biometricLog" type="file" accept=".dat,.txt,.csv,.log,text/plain,text/csv" required></div>
+                <?php end_form('Import punches'); ?>
+                <small>Up to 10 MB. Times show on each employee’s Daily Time Record.</small>
+            </div>
+        </details>
+        <a class="btn" href="<?= h(page_url('dtr', ['emp' => 'all', 'month' => substr($date, 0, 7), 'half' => (int) substr($date, 8, 2) <= 15 ? 'first' : 'second'])) ?>"><?= icon('file') ?> Print DTRs</a>
         <?php if (!$future && !$past) action_button('attendance.fill', 'Mark unrecorded as in office', ['date' => $date]); ?>
     </div>
 </div>
@@ -76,6 +89,7 @@ $now = new DateTimeImmutable();
         window.setInterval(updateClock, 1000);
     }());
 </script>
+<?php hr_corrections_card($state); ?>
 <div class="toolbar">
     <?php foreach ($labels as $key => $label): ?><span class="pill"><?= h($label) ?> <strong><?= $counts[$key] ?></strong></span><?php endforeach; ?>
     <span class="muted web-push"><?= h($day->format('l, M j')) ?></span>

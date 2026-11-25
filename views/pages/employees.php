@@ -24,8 +24,11 @@ function employees_view(array $state): void
         } else {
             action_button('employee.status', 'Reactivate', ['id' => $id, 'status' => 'Active']);
         }
-        confirm_action('employee.delete', 'Delete employee', 'This also deletes the employee’s attendance and leave records.', ['id' => $id]);
+        confirm_action('employee.delete', 'Delete employee', 'This also deletes the employee’s attendance and leave records, and their sign-in access.', ['id' => $id]);
         echo '</section>';
+        dtr_card_form($id, false);
+        hr_personal_details_card($employee);
+        hr_employee_documents_card($state, $employee);
         card('Leave balance', 'employee-profile-balances');
         leave_balances($state, $id);
         echo '</section></div>';
@@ -112,6 +115,7 @@ function employees_view(array $state): void
     }, $state['employees']));
     $filters = array_intersect_key($_GET, array_flip(['q', 'department', 'status', 'type', 'todayStatus']));
     $pagination = paginate($list, 'p', 10);
+    $accounts = (array) ($state['accounts'] ?? []);
     $attendanceOptions = ['present' => 'Present today', 'office' => 'In office', 'remote' => 'Remote', 'away' => 'Away', 'leave' => 'On leave', 'none' => 'No record', 'offboarded' => 'Offboarded'];
     $active = count(array_filter($state['employees'], function ($e) { return $e['status'] === 'Active'; }));
     ?>
@@ -173,7 +177,7 @@ function employees_view(array $state): void
                             <td><?= h($person['type']) ?></td>
                             <td class="tabular"><?= h((new DateTimeImmutable($person['startDate']))->format('M j, Y')) ?></td>
                             <td><?php status_badge($todayStatuses[$person['id']] ?? 'none'); ?></td>
-                            <td class="actions"><a class="sq" href="<?= h(page_url('employees', ['edit' => $person['id']] + array_intersect_key($_GET, ['p' => true]) + $filters)) ?>" data-edit-employee="<?= html_json($person) ?>" aria-label="<?= h("Edit $name") ?>" title="<?= h("Edit $name") ?>"><?= icon('edit', 14) ?></a></td>
+                            <td class="actions"><a class="sq" href="<?= h(page_url('employees', ['edit' => $person['id']] + array_intersect_key($_GET, ['p' => true]) + $filters)) ?>" data-edit-employee="<?= html_json($person + ['loginUsername' => $accounts[$person['id']]['username'] ?? '']) ?>" aria-label="<?= h("Edit $name") ?>" title="<?= h("Edit $name") ?>"><?= icon('edit', 14) ?></a></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>

@@ -9,12 +9,15 @@
     const cancelButton = dialog.querySelector('[data-cancel-employee-changes]');
     const confirmButton = dialog.querySelector('[data-confirm-employee-changes]');
     const original = JSON.parse(saveButton.dataset.originalEmployee);
-    const fields = ['firstName', 'lastName', 'email', 'phone', 'title', 'department', 'type', 'location', 'startDate', 'salary', 'managerId'];
+    const fields = ['firstName', 'lastName', 'email', 'phone', 'title', 'department', 'type', 'location', 'startDate', 'salary', 'managerId', 'biometricId', 'loginUsername', 'loginPassword'];
     let confirmed = false;
 
+    const removeAccess = form.elements.namedItem('removeAccess');
+
     function fieldChanges() {
-      return fields.reduce((changes, name) => {
+      const changes = fields.reduce((changes, name) => {
         const control = form.elements.namedItem(name);
+        if (!control) return changes;
         const current = control.value.trim();
         const previous = original[name] == null ? '' : String(original[name]);
         const same = name === 'salary' && current !== ''
@@ -27,6 +30,10 @@
         }
         return changes;
       }, []);
+      if (removeAccess?.checked) {
+        changes.push({ label: 'Sign-in access', control: removeAccess, previous: 'Has a login', current: 'Removed' });
+      }
+      return changes;
     }
 
     function syncButtons() {
@@ -36,6 +43,8 @@
     }
 
     function displayValue(control, value) {
+      // Never show a password; just say whether a new one is being set.
+      if (control.type === 'password') return value ? 'New temporary password set' : '—';
       if (control instanceof HTMLSelectElement) {
         const option = Array.from(control.options).find((item) => item.value === value);
         if (option) return option.textContent.trim();

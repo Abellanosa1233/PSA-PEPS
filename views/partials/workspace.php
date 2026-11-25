@@ -1,36 +1,117 @@
 <?php
 declare(strict_types=1);
 
+/* A plain GET form that opens the printable DTR (views/pages/dtr.php) for one person. */
+function dtr_card_form(int $employeeId, bool $ownRecord): void
+{
+    $half = (int) date('j') <= 15 ? 'first' : 'second';
+    card('Daily Time Record (DTR)');
+    echo '<p class="muted">' . ($ownRecord
+        ? 'Your time in and out from the biometric device, laid out like the printed time card. Open a period, check it, then print and sign.'
+        : 'Time in and out from the biometric device, laid out like the printed time card.') . '</p>';
+    echo '<form method="get" action="' . h(page_url('dtr')) . '" class="toolbar dtr-open">';
+    if (!$ownRecord) echo '<input type="hidden" name="emp" value="' . $employeeId . '">';
+    echo '<label class="field"><span>Month</span><input class="input" type="month" name="month" value="' . h(date('Y-m')) . '" required></label>';
+    echo '<label class="field"><span>Period</span><select class="input" name="half">';
+    foreach (['first' => '1st–15th', 'second' => '16th–end of month', 'month' => 'Whole month'] as $value => $label) {
+        echo '<option value="' . $value . '"' . ($value === $half ? ' selected' : '') . '>' . $label . '</option>';
+    }
+    echo '</select></label><button class="btn primary" type="submit">' . icon('file', 15) . ' View DTR</button></form></section>';
+}
+
+/* "Out of office" wording for a teammate's approved absence. Deliberately vague: the type
+   of leave, its reason and an order's purpose or destination stay private. */
+function absence_label(string $kind): string
+{
+    return ['leave' => 'On leave', 'travel_order' => 'On travel order', 'special_order' => 'On special order'][$kind] ?? 'Out of office';
+}
+
+function absence_badge(string $kind): void
+{
+    echo '<span class="badge ' . ($kind === 'leave' ? 'warn' : '') . '">' . h(absence_label($kind)) . '</span>';
+}
+
+function absence_dates(array $a, string $today): string
+{
+    $from = new DateTimeImmutable($a['start']);
+    $to = new DateTimeImmutable($a['end']);
+    $range = $a['start'] === $a['end'] ? $from->format('M j')
+        : ($from->format('Y-m') === $to->format('Y-m') ? $from->format('M j') . '–' . $to->format('j') : $from->format('M j') . ' – ' . $to->format('M j'));
+    if ($a['start'] <= $today && $a['end'] >= $today) $range .= ' · out today' . ($a['end'] > $today ? ', back ' . $to->modify('+1 day')->format('M j') : '');
+    return $range;
+}
+
+/* Teammates' approved leave and orders (current and upcoming), so the team can plan around them. */
+function team_absence_card(array $state): void
+{
+    if (!isset($state['teamAbsences'])) return; // only employee accounts receive this
+    $people = array_column($state['employees'], null, 'id');
+    card('Team out of office');
+    echo '<p class="muted">Approved leave and Special/Travel Orders of your teammates, today and coming up. Details of the leave stay with HR.</p>';
+    web_table(['Teammate', 'Status', 'Dates'], array_map(function ($a) use ($people, $state) {
+        $person = $people[$a['empId']] ?? null;
+        return [
+            function () use ($person) {
+                echo '<strong>' . h($person ? employee_name($person) : 'Teammate') . '</strong>';
+                if ($person) echo '<span class="sub">' . h($person['title']) . '</span>';
+            },
+            function () use ($a) { absence_badge($a['kind']); },
+            absence_dates($a, $state['today']),
+        ];
+    }, $state['teamAbsences']));
+    echo '</section>';
+}
+
 function workspace_view(array $state, bool $supervisor): void
 {
     $employees = array_column($state['employees'], null, 'id');
     $active = array_filter($employees, function ($e) { return $e['status'] === 'Active'; });
     $key = $supervisor ? 'supervisorId' : 'selfEmpId';
-    $profileId = (int) ($state['settings'][$key] ?? 0);
+    $selfAccount = !is_admin($state['user']);
+    $profileId = $selfAccount ? (int) $state['user']['employeeId'] : (int) ($state['settings'][$key] ?? 0);
     $selectable = $active;
     if ($supervisor) {
         $managerIds = array_column($active, 'managerId');
         $selectable = array_filter($active, function ($e) use ($managerIds) { return in_array($e['id'], $managerIds, true); });
     }
-    if ($supervisor) {
-        echo '<section class="card web-card supervisor-selector"><div class="supervisor-selector-copy"><h2>Select supervisor</h2><p>Choose a profile to review their team and requests.</p></div>';
+    if ($selfAccount) {
+        // Employee accounts always see their own workspace; there is nothing to choose.
+        $me = $employees[$profileId] ?? null;
+        if ($me) {
+            echo '<p class="muted workspace-intro">' . h($supervisor
+                ? 'Your direct reports today, and the requests waiting for your decision.'
+                : employee_name($me) . ' · ' . $me['title'] . ' · ' . $me['department']) . '</p>';
+        }
     } else {
-        echo '<section class="card web-card employee-selector"><div class="employee-selector-copy"><h2>Select employee</h2><p>View attendance, leave, requests, and payslips for a profile.</p></div>';
+        if ($supervisor) {
+            echo '<section class="card web-card supervisor-selector"><div class="supervisor-selector-copy"><h2>Select supervisor</h2><p>Choose a profile to review their team and requests.</p></div>';
+        } else {
+            echo '<section class="card web-card employee-selector"><div class="employee-selector-copy"><h2>Select employee</h2><p>View attendance, leave, requests, and payslips for a profile.</p></div>';
+        }
+        post_form('workspace.view');
+        choice($key, 'Profile', ['' => 'Select a profile'] + employee_options($selectable), $profileId);
+        end_form('Open workspace');
+        echo '</section>';
     }
-    post_form('workspace.view');
-    choice($key, 'Profile', ['' => 'Select a profile'] + employee_options($selectable), $profileId);
-    end_form('Open workspace');
-    echo '</section>';
     if (!isset($selectable[$profileId])) return;
     if ($supervisor) {
         $team = array_filter($active, function ($e) use ($profileId) { return $e['managerId'] === $profileId; });
         $rows = [];
         $attendanceCounts = ['office' => 0, 'remote' => 0, 'leave' => 0];
+        // Approved absences today (employee accounts get these instead of the leave records themselves).
+        $outToday = [];
+        foreach ($state['teamAbsences'] ?? [] as $a) {
+            if ($a['start'] <= $state['today'] && $a['end'] >= $state['today']) $outToday[$a['empId']] = $a['kind'];
+        }
         foreach (attendance_records($state, $state['today']) as [$employee, $record, $onLeave]) {
             if (!isset($team[$employee['id']])) continue;
-            $status = $onLeave ? 'leave' : $record['status'];
+            $kind = $outToday[$employee['id']] ?? null;
+            $status = ($onLeave || ($kind !== null && !$record['in'])) ? 'leave' : $record['status'];
             if (isset($attendanceCounts[$status])) $attendanceCounts[$status]++;
-            $rows[] = [employee_name($employee), function () use ($onLeave, $record) { return status_badge($onLeave ? 'leave' : $record['status']); }, $record['in'], $record['out']];
+            $rows[] = [employee_name($employee), function () use ($onLeave, $record, $kind) {
+                if ($kind !== null && !$record['in']) absence_badge($kind);
+                else status_badge($onLeave ? 'leave' : $record['status']);
+            }, $record['in'], $record['out']];
         }
         $pendingRequests = array_values(array_filter($state['leaves'], function ($l) use ($team) { return isset($team[$l['empId']]) && $l['status'] === 'pending'; }));
         echo '<div class="supervisor-metrics" aria-label="Team attendance summary">';
@@ -49,28 +130,17 @@ function workspace_view(array $state, bool $supervisor): void
         web_table(['Employee', 'Status', 'Clock in', 'Clock out'], $teamPage['rows']);
         pagination($teamPage, 'supervisor', array_intersect_key($_GET, ['leavePage' => true]), 'employees');
         echo '</section>';
-        $requests = paginate($pendingRequests, 'leavePage');
         echo '<div class="supervisor-request-grid">';
-        card('Pending team requests', 'supervisor-requests-card');
-        echo '<p class="supervisor-section-note">Review leave requests from your direct reports.</p>';
-        if ($requests['rows']) {
-            echo '<div class="workspace-request-list">';
-            foreach ($requests['rows'] as $request) {
-                $name = isset($employees[$request['empId']]) ? employee_name($employees[$request['empId']]) : 'Former employee';
-                echo '<article class="workspace-request-item"><div class="workspace-request-top"><div><strong>' . h($name) . '</strong><span>' . h($request['type']) . '</span></div>';
-                status_badge($request['status']);
-                echo '</div><div class="workspace-request-meta"><div><span>Dates</span><strong>' . h($request['start'] . ' – ' . $request['end']) . '</strong></div><div><span>Duration</span><strong>' . h((int) $request['days']) . ' days</strong></div></div>';
-                echo '<div class="workspace-request-reason"><span>Reason</span><p>' . h($request['reason'] !== '' ? $request['reason'] : 'No reason provided') . '</p></div>';
-                echo '<div class="workspace-request-actions">';
-                action_button('leave.decide', 'Approve', ['id' => $request['id'], 'status' => 'approved']);
-                action_button('leave.decide', 'Decline', ['id' => $request['id'], 'status' => 'rejected']);
-                echo '</div></article>';
-            }
-            echo '</div>';
+        if ($selfAccount) {
+            // Leave is private between the employee and HR; supervisors never see their team's leave.
+            card('Team leave', 'supervisor-requests-card');
+            echo '<p class="supervisor-section-note">Leave requests go straight to HR and aren’t shown here, to keep your team’s plans private.</p>';
         } else {
-            echo '<div class="workspace-empty"><strong>No pending team requests</strong><span>New requests will appear here for review.</span></div>';
+            card('Pending team leave (HR view)', 'supervisor-requests-card');
+            $requests = paginate($pendingRequests, 'leavePage');
+            leave_table($state, $requests['rows']);
+            pagination($requests, 'supervisor', array_intersect_key($_GET, ['p' => true]), 'requests', 'leavePage');
         }
-        pagination($requests, 'supervisor', array_intersect_key($_GET, ['p' => true]), 'requests', 'leavePage');
         echo '</section>';
         $teamRequests = array_values(array_filter($state['employeeRequests'], function ($request) use ($team) { return isset($team[$request['empId']]); }));
         $teamRequestPage = paginate($teamRequests, 'requestPage');
@@ -105,129 +175,12 @@ function workspace_view(array $state, bool $supervisor): void
         echo '</section></div>';
         return;
     }
-    $record = ((array) ($state['attendance']->{$state['today']} ?? []))[$profileId] ?? [];
-    $myLeaves = array_values(array_filter($state['leaves'], function ($leave) use ($profileId) { return $leave['empId'] === $profileId; }));
-    $pendingLeaveCount = 0;
-    $annualUsed = 0;
-    $annualPending = 0;
-    $year = substr($state['today'], 0, 4);
-    foreach ($myLeaves as $leave) {
-        if ($leave['status'] === 'pending') $pendingLeaveCount++;
-        if ($leave['type'] !== 'Annual leave' || substr($leave['start'], 0, 4) !== $year) continue;
-        if ($leave['status'] === 'approved') $annualUsed += $leave['days'];
-        if ($leave['status'] === 'pending') $annualPending += $leave['days'];
-    }
-    $annualRemaining = ($state['settings']['allowances']['Annual leave'] ?? 0) - $annualUsed - $annualPending;
-    $myRequests = array_values(array_filter($state['employeeRequests'], function ($request) use ($profileId) { return $request['empId'] === $profileId; }));
-    $rows = [];
-    foreach (array_reverse($state['payRuns']) as $run) {
-        foreach ($run['lines'] ?? [] as $line) {
-            if ($line['empId'] === $profileId) {
-                $rows[] = [$run['period'], money($line['gross'], $state), money($line['tax'], $state), money($line['benefits'], $state), money($line['net'], $state)];
-            }
-        }
-    }
-    $attendanceSummary = empty($record['in']) ? 'Not clocked in' : (empty($record['out']) ? 'Clocked in' : 'Shift complete');
-    $attendanceDetail = empty($record['in']) ? 'Attendance has not been recorded' : 'Today, ' . (empty($record['out']) ? $record['in'] : $record['out']);
-    $latestPay = $rows ? $rows[0][4] : 'No payslip yet';
-    $latestPeriod = $rows ? $rows[0][0] : 'No payroll run available';
-    echo '<div class="employee-metrics" aria-label="Employee summary">';
-    foreach ([
-        ['Attendance today', $attendanceSummary, $attendanceDetail],
-        ['Annual leave', $annualRemaining . ' days', 'Remaining after requests'],
-        ['Pending leave', $pendingLeaveCount, 'Requests awaiting review'],
-        ['Latest net pay', $latestPay, $latestPeriod],
-    ] as [$label, $value, $detail]) {
-        echo '<article class="employee-metric"><span>' . h($label) . '</span><strong>' . h($value) . '</strong><small>' . h($detail) . '</small></article>';
-    }
-    echo '</div>';
-    $slips = paginate($rows, 'slipsPage');
-    echo '<div class="employee-overview-grid">';
-    card('Attendance today', 'employee-attendance-card');
-    if (empty($record['in'])) {
-        echo '<div class="employee-attendance-state"><span class="badge plain">Not clocked in</span><p>Choose how you are working today to record your attendance.</p></div>';
-        echo '<div class="employee-clock-actions">';
-        action_button('attendance.clock', 'Clock in at office', ['empId' => $profileId, 'mode' => 'in', 'status' => 'office']);
-        action_button('attendance.clock', 'Clock in remotely', ['empId' => $profileId, 'mode' => 'in', 'status' => 'remote']);
-        echo '</div>';
-    } else {
-        echo '<div class="employee-attendance-state">';
-        status_badge($record['status']);
-        echo '<p>Clocked in at ' . h($record['in']) . (empty($record['out']) ? '' : ' · clocked out at ' . h($record['out'])) . '</p></div>';
-        if (empty($record['out'])) action_button('attendance.clock', 'Clock out', ['empId' => $profileId, 'mode' => 'out']);
-    }
-    echo '</section>';
-    card('Payslips', 'employee-payslips-card');
-    if ($slips['rows']) {
-        echo '<div class="employee-payslip-list">';
-        foreach ($slips['rows'] as $slip) {
-            echo '<article class="employee-payslip-item"><div class="employee-payslip-head"><div><span>Pay period</span><strong>' . h($slip[0]) . '</strong></div><div class="employee-payslip-net"><span>Net pay</span><strong>' . h($slip[4]) . '</strong></div></div><div class="employee-payslip-details">';
-            foreach ([['Gross', $slip[1]], ['Tax', $slip[2]], ['Benefits', $slip[3]]] as [$label, $amount]) {
-                echo '<div><span>' . h($label) . '</span><strong>' . h($amount) . '</strong></div>';
-            }
-            echo '</div></article>';
-        }
-        echo '</div>';
-        pagination($slips, 'self-service', array_intersect_key($_GET, ['leavePage' => true]), 'payslips', 'slipsPage');
-    } else {
-        echo '<div class="workspace-empty"><strong>No payslips yet</strong><span>Published payslips will appear here.</span></div>';
-    }
-    echo '</section></div>';
-    card('Time off', 'employee-timeoff-card');
-    echo '<div class="employee-timeoff-overview"><div class="employee-balance-panel"><div class="employee-subsection-heading"><h3>Leave balances</h3><span>Available days by leave type</span></div>';
-    leave_balances($state, $profileId);
-    echo '</div><div class="employee-timeoff-action"><div><h3>Request time off</h3><p>Choose dates and a leave type to send a request for review.</p></div>';
-    leave_form([$profileId => employee_name($employees[$profileId])]);
-    echo '</div></div>';
-    $requests = paginate($myLeaves, 'leavePage');
-    echo '<div class="employee-request-history"><div class="employee-subsection-heading"><h3>My leave requests</h3><span>' . count($myLeaves) . ' total</span></div>';
-    if ($requests['rows']) {
-        leave_table($state, $requests['rows'], false, false, true);
-        pagination($requests, 'self-service', array_intersect_key($_GET, ['slipsPage' => true]), 'requests', 'leavePage');
-    } else {
-        echo '<div class="workspace-empty"><strong>No leave requests yet</strong><span>Your submitted requests will appear here.</span></div>';
-    }
-    echo '</div></section>';
-    card('Special and travel orders', 'employee-orders-card');
-    echo '<div class="employee-order-intro"><div><p>Submit requests for review by your supervisor or HR administrator.</p><span>' . count($myRequests) . ' requests submitted</span></div><div class="employee-order-actions">';
-    echo '<details class="form-disclosure" data-form-dialog="form"><summary class="btn primary">Request Special Order</summary>';
-    post_form('employee.request.create', ['empId' => $profileId, 'type' => 'special_order']);
-    field('purpose', 'Order subject');
-    field('start', 'Effective date', today(), 'date');
-    field('details', 'Details', '', 'text', false);
-    end_form('Submit Special Order');
-    echo '</details><details class="form-disclosure" data-form-dialog="form"><summary class="btn">Request Travel Order</summary>';
-    post_form('employee.request.create', ['empId' => $profileId, 'type' => 'travel_order']);
-    field('purpose', 'Travel purpose');
-    field('destination', 'Destination');
-    field('start', 'Departure date', today(), 'date');
-    field('end', 'Return date', today(), 'date');
-    field('details', 'Details', '', 'text', false);
-    end_form('Submit Travel Order');
-    echo '</details></div></div>';
-    echo '<div class="employee-request-history"><div class="employee-subsection-heading"><h3>My special and travel orders</h3><span>' . count($myRequests) . ' total</span></div>';
-    if ($myRequests) {
-        echo '<div class="workspace-request-list">';
-        foreach ($myRequests as $request) {
-            $type = $request['type'] === 'travel_order' ? 'Travel Order' : 'Special Order';
-            echo '<article class="workspace-request-item"><div class="workspace-request-top"><div><strong>' . h($type) . '</strong><span>' . h($request['purpose']) . '</span></div>';
-            status_badge($request['status']);
-            echo '</div><div class="workspace-request-meta"><div><span>Dates</span><strong>' . h($request['start'] . ($request['end'] ? ' – ' . $request['end'] : '')) . '</strong></div>';
-            if ($request['destination'] !== '') echo '<div><span>Destination</span><strong>' . h($request['destination']) . '</strong></div>';
-            echo '</div>';
-            if ($request['details'] !== '') echo '<div class="workspace-request-reason"><span>Details</span><p>' . h($request['details']) . '</p></div>';
-            if ($request['decisionRole']) echo '<div class="workspace-request-reason"><span>Reviewed by</span><p>' . h(($request['decisionRole'] === 'hr_admin' ? 'HR administrator' : 'Supervisor') . ($request['decidedBy'] ? ' · ' . $request['decidedBy'] : '')) . '</p></div>';
-            if ($request['status'] === 'pending') {
-                echo '<div class="workspace-request-actions">';
-                confirm_action('employee.request.cancel', 'Cancel', 'Cancel this request?', ['id' => $request['id'], 'empId' => $profileId]);
-                echo '</div>';
-            }
-            echo '</article>';
-        }
-        echo '</div>';
-    } else {
-        echo '<div class="workspace-empty"><strong>No special or travel orders yet</strong><span>Your submitted requests will appear here.</span></div>';
-    }
-    echo '</div></section>';
+    // HR's view of one employee's workspace: the same sections the employee sees on their own pages.
+    dtr_card_form($profileId, $selfAccount);
+    if ($selfAccount) team_absence_card($state);
+    self_clock_card($state, $profileId);
+    self_time_off_section($state, $profileId, 'self-service');
+    self_orders_section($state, $profileId);
+    self_payslips_section($state, $profileId, 'self-service');
 }
 

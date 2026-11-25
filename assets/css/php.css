@@ -1289,6 +1289,16 @@ html.sidebar-collapsed .web-app .sidebar .nav .count { display: block; position:
 .report-print-table,
 .report-print-footer { display: none; }
 
+/* ---------- Employee accounts ---------- */
+.temp-password-banner {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 14px; border-radius: var(--radius-sm);
+  background: var(--warn-bg); color: var(--warn); font-weight: 500;
+}
+.temp-password-banner span { flex: 1 1 220px; min-width: 0; }
+.temp-password-note { color: var(--warn); font-weight: 500; margin-bottom: 10px; }
+.workspace-intro { margin-top: -6px; }
+.account-details { margin: 6px 0 12px; }
 @media (max-width: 900px) {
   .report-controls .web-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .report-controls .web-fields > .btn { grid-column: 1 / -1; }
@@ -1315,6 +1325,76 @@ html.sidebar-collapsed .web-app .sidebar .nav .count { display: block; position:
   .report-line-label { font-size: 10px; }
 }
 
+/* ---------- Request leave ---------- */
+.request-leave .card-body > form { display: flex; flex-direction: column; gap: 14px; }
+.request-leave textarea.input { min-height: 96px; resize: vertical; }
+.request-days { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface-2); font-size: 12.5px; }
+.request-days strong { font-size: 13.5px; }
+.request-days span { color: var(--fg-3); }
+.request-days.warn { background: var(--warn-bg); color: var(--warn); }
+.request-foot { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding-top: 14px; border-top: 1px solid var(--line); }
+.request-foot .spacer { flex: 1; }
+.request-side { display: flex; flex-direction: column; gap: 16px; }
+.request-side .card-body { display: flex; flex-direction: column; gap: 8px; }
+.request-to { font-size: 17px; margin: 0; }
+.request-next { margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--fg-2); }
+.request-note { font-size: 12px; color: var(--fg-3); }
+.request-note strong { color: var(--fg); }
+.request-warn { font-size: 12.5px; color: var(--warn); background: var(--warn-bg); padding: 8px 10px; border-radius: var(--radius-sm); }
+.request-tip { background: var(--surface-2); }
+
+/* ---------- My attendance ---------- */
+.self-week { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.self-day { display: flex; flex-direction: column; gap: 4px; padding: 12px; border-radius: var(--radius-sm); background: var(--surface-2); min-height: 108px; }
+.self-day span { font-size: 11px; font-weight: 600; letter-spacing: .06em; color: var(--fg-3); }
+.self-day strong { font-size: 22px; font-variant-numeric: tabular-nums; }
+.self-day small { margin-top: auto; font-size: 11.5px; color: var(--fg-2); }
+.self-day.today { background: var(--primary); }
+.self-day.today span, .self-day.today strong, .self-day.today small { color: var(--primary-fg); }
+.self-corrections { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+.self-correction { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
+.self-correction > span:first-child { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.self-correction small { color: var(--fg-3); font-size: 11.5px; }
+@media (max-width: 700px) { .self-week { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+/* ---------- My payslips ---------- */
+.self-pay-cards .kpi-value { font-size: 26px; }
+.data tr.is-selected td { background: var(--surface-2); }
+.data tr.is-selected td:first-child a { font-weight: 600; }
+.self-breakdown { display: grid; grid-template-columns: 1fr auto; gap: 10px 16px; margin: 0; font-size: 13px; }
+.self-breakdown dt { color: var(--fg-2); }
+.self-breakdown dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.self-breakdown .total { padding-top: 10px; border-top: 1px solid var(--line); font-weight: 700; color: var(--fg); }
+
+/* ---------- My profile ---------- */
+.self-id-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.self-id-top h2 { font-size: 20px; margin: 0 0 4px; }
+.self-id-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 14px 0 0; }
+.self-id-facts dt { color: var(--fg-3); font-size: 12px; }
+.self-id-facts dd { margin: 4px 0 0; font-weight: 500; overflow-wrap: anywhere; }
+.self-facts { border-top: 0; padding-top: 0; margin: 0; }
+.self-rows { display: grid; grid-template-columns: 150px minmax(0, 1fr); margin: 0 0 14px; font-size: 13px; }
+.self-rows dt, .self-rows dd { padding: 10px 0; border-bottom: 1px solid var(--line); margin: 0; }
+.self-rows dt { color: var(--fg-3); }
+.self-rows dd { overflow-wrap: anywhere; }
+.self-stack { display: flex; flex-direction: column; margin: 0 0 14px; }
+.self-stack dt { color: var(--fg-3); font-size: 12px; margin-top: 10px; }
+.self-stack dt:first-child { margin-top: 0; }
+.self-stack dd { margin: 2px 0 0; font-weight: 500; }
+.self-docs { display: flex; flex-direction: column; }
+.self-doc { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--line); }
+.self-doc:first-child { border-top: 0; }
+.self-doc > span:first-child { display: flex; flex-direction: column; min-width: 0; }
+.self-doc small { color: var(--fg-3); font-size: 12px; }
+.self-doc-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.self-protect-q { margin: 12px 0; font-size: 13px; }
+@media (max-width: 700px) { .self-id-facts { grid-template-columns: minmax(0, 1fr); } .self-rows { grid-template-columns: minmax(0, 1fr); } .self-rows dt { border-bottom: 0; padding-bottom: 0; } }
+
+/* Sign-in access fields in the Add/Edit employee form */
+.employee-login { margin: 4px 0 0; padding: 14px 0 0; border: 0; border-top: 1px solid var(--line); min-width: 0; }
+.employee-login legend { padding: 0 0 4px; font-size: 13px; font-weight: 600; color: var(--fg); }
+.employee-login legend .muted { font-weight: 400; }
+.employee-login-help, .employee-login .hint { margin: 0; font-size: 12.5px; }
 @page { size: A4 landscape; margin: 13mm 12mm; }
 @media print {
   html, body { min-height: 0 !important; background: #fff !important; color: #111 !important; }

@@ -132,14 +132,168 @@ function current_user(): ?array
     if (empty($_SESSION['uid']) || !installed()) return null;
     ensure_profile_image_columns();
     ensure_employee_requests_table();
-    $u = q('SELECT id, username, display_name, role_title, profile_image_updated_at FROM users WHERE id = ?', [$_SESSION['uid']])->fetch();
+    ensure_account_columns();
+    ensure_biometrics();
+    ensure_announcements();
+    ensure_leave_extras();
+    ensure_attendance_corrections();
+    ensure_profile_details();
+    $u = q('SELECT u.id, u.username, u.display_name, u.role_title, u.profile_image_updated_at, u.account_role, u.employee_id,
+                   u.must_change_password, e.first_name, e.last_name, e.title, e.status AS employee_status
+            FROM users u LEFT JOIN employees e ON e.id = u.employee_id WHERE u.id = ?', [$_SESSION['uid']])->fetch();
     if (!$u) return null;
+    $isEmployee = $u['account_role'] === 'employee';
+    // Employee logins stop working as soon as the employee is offboarded or deleted.
+    if ($isEmployee && (!$u['employee_id'] || $u['employee_status'] !== 'Active')) return null;
+    $employeeId = $isEmployee ? (int) $u['employee_id'] : null;
     return [
-        'id' => (int) $u['id'], 'username' => $u['username'], 'name' => $u['display_name'], 'role' => $u['role_title'],
+        'id' => (int) $u['id'], 'username' => $u['username'],
+        // Employees always see their name and title as HR keeps them in the employee record.
+        'name' => $isEmployee ? $u['first_name'] . ' ' . $u['last_name'] : $u['display_name'],
+        'role' => $isEmployee ? $u['title'] : $u['role_title'],
+        'accountRole' => $isEmployee ? 'employee' : 'admin',
+        'employeeId' => $employeeId,
+        'hasTeam' => $isEmployee && (int) q("SELECT COUNT(*) FROM employees WHERE manager_id = ? AND status = 'Active'", [$employeeId])->fetchColumn() > 0,
+        'mustChangePassword' => (bool) $u['must_change_password'],
         'avatarUrl' => $u['profile_image_updated_at']
             ? 'api/index.php?action=profile.image&v=' . rawurlencode((string) strtotime($u['profile_image_updated_at']))
             : null,
     ];
+}
+
+/* Biometric support for databases created before it existed: each employee's ID on the
+   biometric device, and every raw time punch (from the device import or web clock-in). */
+function ensure_biometrics(): void
+{
+    static $checked = false;
+    if ($checked) return;
+    $has = q("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = ? AND table_name = 'employees' AND column_name = 'biometric_id'", [DB_NAME])->fetchColumn();
+    if (!$has) q('ALTER TABLE employees ADD COLUMN biometric_id VARCHAR(30) NULL, ADD UNIQUE KEY uq_employees_biometric (biometric_id)');
+    // Check first: in MySQL any CREATE TABLE, even "IF NOT EXISTS" on an existing table,
+    // silently commits an open transaction.
+    $exists = q("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = ? AND table_name = 'attendance_punches'", [DB_NAME])->fetchColumn();
+    if (!$exists) db()->exec("CREATE TABLE attendance_punches (
+        id INT AUTO_INCREMENT PRIMARY KEY, emp_id INT NOT NULL, punched_at DATETIME NOT NULL,
+        source VARCHAR(20) NOT NULL DEFAULT 'biometric', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_punch (emp_id, punched_at), INDEX idx_punch_time (punched_at),
+        CONSTRAINT fk_punch_emp FOREIGN KEY (emp_id) REFERENCES employees(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $checked = true;
+}
+
+/* Company updates that HR posts for everyone (shown on the employee Overview). */
+function ensure_announcements(): void
+{
+    static $checked = false;
+    if ($checked) return;
+    // Check first: CREATE TABLE would silently commit an open transaction.
+    $exists = q("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = ? AND table_name = 'announcements'", [DB_NAME])->fetchColumn();
+    if (!$exists) db()->exec("CREATE TABLE announcements (
+        id INT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(120) NOT NULL, body VARCHAR(500) NOT NULL DEFAULT '',
+        created_by INT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT fk_announcement_user FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    // Calendar events are HR-only unless HR ticks "Show on employees' schedule".
+    $col = q("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = ? AND table_name = 'events' AND column_name = 'for_employees'", [DB_NAME])->fetchColumn();
+    if (!$col) q('ALTER TABLE events ADD COLUMN for_employees TINYINT(1) NOT NULL DEFAULT 0');
+    $checked = true;
+}
+
+/* Half-day leave and supporting documents on leave requests (older databases stored
+   whole days only). Every change is checked first, because DDL commits open transactions. */
+function ensure_leave_extras(): void
+{
+    static $checked = false;
+    if ($checked) return;
+    $cols = [];
+    foreach (q("SELECT COLUMN_NAME, DATA_TYPE FROM information_schema.columns WHERE table_schema = ? AND table_name = 'leave_requests'", [DB_NAME])->fetchAll() as $c) {
+        $cols[$c['COLUMN_NAME']] = strtolower($c['DATA_TYPE']);
+    }
+    if (($cols['days'] ?? 'decimal') !== 'decimal') q('ALTER TABLE leave_requests MODIFY days DECIMAL(5,1) NOT NULL');
+    if (!isset($cols['day_length'])) q("ALTER TABLE leave_requests ADD COLUMN day_length VARCHAR(10) NOT NULL DEFAULT 'full'");
+    if (!isset($cols['attachment'])) q('ALTER TABLE leave_requests ADD COLUMN attachment MEDIUMBLOB NULL, ADD COLUMN attachment_name VARCHAR(160) NULL, ADD COLUMN attachment_type VARCHAR(60) NULL');
+    $checked = true;
+}
+
+/* Employees ask HR to fix a missing or wrong time; an approved correction replaces that day's times. */
+function ensure_attendance_corrections(): void
+{
+    static $checked = false;
+    if ($checked) return;
+    // Check first: CREATE TABLE would silently commit an open transaction.
+    $exists = q("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = ? AND table_name = 'attendance_corrections'", [DB_NAME])->fetchColumn();
+    if (!$exists) db()->exec("CREATE TABLE attendance_corrections (
+        id INT AUTO_INCREMENT PRIMARY KEY, emp_id INT NOT NULL, work_date DATE NOT NULL,
+        time_in TIME NULL, time_out TIME NULL, reason VARCHAR(255) NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'pending', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        decided_at DATETIME NULL, decided_by INT NULL,
+        INDEX idx_correction_status (status), INDEX idx_correction_emp_date (emp_id, work_date),
+        CONSTRAINT fk_correction_emp FOREIGN KEY (emp_id) REFERENCES employees(id) ON DELETE CASCADE,
+        CONSTRAINT fk_correction_user FOREIGN KEY (decided_by) REFERENCES users(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $checked = true;
+}
+
+/* My profile: personal and emergency details the employee keeps up to date, and documents HR
+   shares (for one employee, or everyone when emp_id is NULL) with acknowledgements. */
+function ensure_profile_details(): void
+{
+    static $checked = false;
+    if ($checked) return;
+    $cols = array_flip(q("SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema = ? AND table_name = 'employees'", [DB_NAME])->fetchAll(PDO::FETCH_COLUMN));
+    $add = [];
+    foreach (['preferred_name' => 'VARCHAR(80) NULL', 'personal_email' => 'VARCHAR(160) NULL', 'home_address' => 'VARCHAR(255) NULL',
+              'emergency_name' => 'VARCHAR(120) NULL', 'emergency_relationship' => 'VARCHAR(60) NULL', 'emergency_phone' => 'VARCHAR(40) NULL'] as $name => $def) {
+        if (!isset($cols[$name])) $add[] = "ADD COLUMN $name $def";
+    }
+    if ($add) q('ALTER TABLE employees ' . implode(', ', $add));
+    // Check first: CREATE TABLE would silently commit an open transaction.
+    $tables = array_flip(q("SELECT table_name FROM information_schema.tables WHERE table_schema = ? AND table_name IN ('employee_documents', 'document_acknowledgements')", [DB_NAME])->fetchAll(PDO::FETCH_COLUMN));
+    if (!isset($tables['employee_documents'])) db()->exec("CREATE TABLE employee_documents (
+        id INT AUTO_INCREMENT PRIMARY KEY, emp_id INT NULL, title VARCHAR(120) NOT NULL, note VARCHAR(160) NOT NULL DEFAULT '',
+        requires_ack TINYINT(1) NOT NULL DEFAULT 0, file MEDIUMBLOB NOT NULL, file_name VARCHAR(160) NOT NULL, file_type VARCHAR(60) NOT NULL,
+        created_by INT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX idx_document_emp (emp_id),
+        CONSTRAINT fk_document_emp FOREIGN KEY (emp_id) REFERENCES employees(id) ON DELETE CASCADE,
+        CONSTRAINT fk_document_user FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    if (!isset($tables['document_acknowledgements'])) db()->exec("CREATE TABLE document_acknowledgements (
+        document_id INT NOT NULL, emp_id INT NOT NULL, acknowledged_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (document_id, emp_id),
+        CONSTRAINT fk_ack_document FOREIGN KEY (document_id) REFERENCES employee_documents(id) ON DELETE CASCADE,
+        CONSTRAINT fk_ack_emp FOREIGN KEY (emp_id) REFERENCES employees(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $checked = true;
+}
+
+/* "½ day", "1 day", "2.5 days" */
+function days_label($days): string
+{
+    $d = (float) $days;
+    if ($d == 0.5) return '½ day';
+    $n = $d == floor($d) ? (string) (int) $d : rtrim(rtrim(number_format($d, 1), '0'), '.');
+    return $n . ($d == 1 ? ' day' : ' days');
+}
+
+function is_admin(array $user): bool
+{
+    return ($user['accountRole'] ?? 'admin') === 'admin';
+}
+
+/* Adds employee-account columns to databases created before employee logins existed. */
+function ensure_account_columns(): void
+{
+    static $checked = false;
+    if ($checked) return;
+    $columns = array_flip(q('SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema = ? AND table_name = ?', [DB_NAME, 'users'])->fetchAll(PDO::FETCH_COLUMN));
+    if (!isset($columns['account_role'])) q("ALTER TABLE users ADD COLUMN account_role VARCHAR(20) NOT NULL DEFAULT 'admin'");
+    if (!isset($columns['must_change_password'])) q('ALTER TABLE users ADD COLUMN must_change_password TINYINT(1) NOT NULL DEFAULT 0');
+    if (!isset($columns['employee_id'])) q('ALTER TABLE users ADD COLUMN employee_id INT NULL, ADD UNIQUE KEY uq_users_employee (employee_id)');
+    $hasFk = (int) q("SELECT COUNT(*) FROM information_schema.table_constraints WHERE table_schema = ? AND table_name = 'users' AND constraint_name = 'fk_users_employee'", [DB_NAME])->fetchColumn();
+    if (!$hasFk) {
+        q("DELETE FROM users WHERE account_role = 'employee' AND (employee_id IS NULL OR employee_id NOT IN (SELECT id FROM employees))");
+        q('ALTER TABLE users ADD CONSTRAINT fk_users_employee FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE');
+    }
+    $checked = true;
 }
 
 function ensure_profile_image_columns(): void
@@ -195,6 +349,8 @@ function default_settings(): array
         'benefits' => 2000,
         'selfEmpId' => null,
         'supervisorId' => null,
+        'workStart' => '08:00', // office hours, shown as each employee's schedule
+        'workEnd' => '17:00',
     ];
 }
 

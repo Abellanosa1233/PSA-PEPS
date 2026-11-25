@@ -1,12 +1,13 @@
 <?php
 declare(strict_types=1);
 
-function leave_form(array $employees, bool $allowApproval = false): void
+function leave_form(array $employees, bool $allowApproval = false, bool $openNow = false, string $buttonLabel = 'Request time off'): void
 {
     if (!$employees) return;
+    // $openNow: the page was reached through a "Request leave" button, so show the form straight away.
     ?>
-    <button class="btn primary" type="button" data-open-leave-request aria-haspopup="dialog" aria-controls="leave-request-dialog">Request time off</button>
-    <dialog class="modal wide leave-request-dialog" id="leave-request-dialog" aria-labelledby="leave-request-title">
+    <button class="btn primary" type="button" data-open-leave-request aria-haspopup="dialog" aria-controls="leave-request-dialog"><?= $buttonLabel === 'Request time off' ? '' : icon('plus') . ' ' ?><?= h($buttonLabel) ?></button>
+    <dialog class="modal wide leave-request-dialog" id="leave-request-dialog" aria-labelledby="leave-request-title"<?= $openNow ? ' data-auto-open' : '' ?>>
         <form method="post" class="leave-request-form">
             <?php hidden_inputs(['_action' => 'leave.create', '_token' => $_SESSION['web_csrf'], '_shared_form' => 'leave.create']); ?>
             <div class="modal-head">
@@ -67,7 +68,7 @@ function leave_table(array $state, array $leaves, bool $canDecide = true, bool $
                 function () use ($names, $l) { return link_to('employees', $names[$l['empId']] ?? 'Former employee', ['id' => $l['empId']]); },
                 $l['type'],
                 function () use ($l) {
-                    echo h($l['start'] . ' – ' . $l['end']) . '<span class="sub">' . (int) $l['days'] . ' day(s)</span>';
+                    echo h($l['start'] . ' – ' . $l['end']) . '<span class="sub">' . h(days_label($l['days'])) . '</span>';
                 },
                 function () use ($l) {
                     action_button('leave.decide', 'Approve', ['id' => $l['id'], 'status' => 'approved']);
@@ -79,13 +80,17 @@ function leave_table(array $state, array $leaves, bool $canDecide = true, bool $
     }
     web_table(['Employee', 'Type', 'Dates', 'Days', 'Reason', 'Status', 'Actions'], array_map(function ($l) use ($names, $state, $canDecide) {
         return [
-            $names[$l['empId']] ?? 'Former employee', $l['type'], $l['start'] . ' – ' . $l['end'], $l['days'], $l['reason'], function () use ($l) { return status_badge($l['status']); },
+            $names[$l['empId']] ?? 'Former employee', $l['type'], $l['start'] . ' – ' . $l['end'], days_label($l['days']), function () use ($l) { echo h($l['reason']); if (!empty($l['hasAttachment'])) echo '<span class="sub"><a href="' . h(page_url('leave-file', ['id' => $l['id']])) . '" target="_blank" rel="noopener">View document</a></span>'; }, function () use ($l) { return status_badge($l['status']); },
             function () use ($l, $state, $canDecide) {
                 if ($l['status'] === 'pending' && $canDecide) {
                     action_button('leave.decide', 'Approve', ['id' => $l['id'], 'status' => 'approved']);
                     action_button('leave.decide', 'Decline', ['id' => $l['id'], 'status' => 'rejected']);
                 }
-                if ($l['status'] === 'pending' || ($l['status'] === 'approved' && $l['end'] >= $state['today'])) {
+                // Employees may withdraw only their own pending requests; HR can also cancel upcoming approved leave.
+                $canCancel = is_admin($state['user'])
+                    ? ($l['status'] === 'pending' || ($l['status'] === 'approved' && $l['end'] >= $state['today']))
+                    : ($l['status'] === 'pending' && $l['empId'] === $state['user']['employeeId']);
+                if ($canCancel) {
                     confirm_action('leave.cancel', 'Cancel request', 'Remove this leave request?', ['id' => $l['id']]);
                 }
             },

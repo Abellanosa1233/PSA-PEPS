@@ -14,6 +14,8 @@
   dialog.addEventListener('click', (event) => {
     if (event.target === dialog) dialog.close();
   });
+  // Reached through a "Request leave" button: open the form straight away.
+  if (dialog.hasAttribute('data-auto-open') && !dialog.open) dialog.showModal();
 
   const feedbackElement = document.getElementById('shared-form-feedback');
   if (!feedbackElement) return;
