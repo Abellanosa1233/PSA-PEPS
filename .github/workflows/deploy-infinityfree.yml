@@ -1,0 +1,51 @@
+name: Deploy to InfinityFree
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: infinityfree-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check hosting credentials
+        env:
+          FTP_USERNAME: ${{ secrets.INFINITYFREE_FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.INFINITYFREE_FTP_PASSWORD }}
+        run: |
+          if [[ -z "$FTP_USERNAME" || -z "$FTP_PASSWORD" ]]; then
+            echo "::error::Set INFINITYFREE_FTP_USERNAME and INFINITYFREE_FTP_PASSWORD in GitHub Actions secrets."
+            exit 1
+          fi
+
+      - name: Check out the repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Package the web application
+        run: |
+          mkdir deploy
+          git archive HEAD -- .htaccess index.php views assets api ':(exclude)api/config.php' | tar -xf - -C deploy
+
+      - name: Upload changes over FTPS
+        uses: SamKirkland/FTP-Deploy-Action@110f9186c050f71550953127052e77650219c287 # v4.4.0
+        with:
+          server: ftpupload.net
+          username: ${{ secrets.INFINITYFREE_FTP_USERNAME }}
+          password: ${{ secrets.INFINITYFREE_FTP_PASSWORD }}
+          protocol: ftps
+          security: strict
+          local-dir: ./deploy/
+          server-dir: ${{ vars.INFINITYFREE_FTP_DIRECTORY || '/htdocs/' }}
+          state-name: .psa-peps-deploy-state.json
