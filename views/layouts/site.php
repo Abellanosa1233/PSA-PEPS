@@ -316,6 +316,21 @@
         var toggle = document.getElementById('web-sidebar-toggle');
         var menu = document.getElementById('web-menu-btn');
         var scrim = document.getElementById('web-nav-scrim');
+        var signOutDialog = document.getElementById('sign-out-dialog');
+        var openSignOut = document.getElementById('open-sign-out');
+        var cancelSignOut = document.getElementById('cancel-sign-out');
+        if (openSignOut && signOutDialog && typeof signOutDialog.showModal === 'function' && !signOutDialog.open) {
+            openSignOut.addEventListener('click', function (event) {
+                if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+                event.preventDefault();
+                signOutDialog.showModal();
+            });
+            cancelSignOut.addEventListener('click', function (event) {
+                if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+                event.preventDefault();
+                signOutDialog.close();
+            });
+        }
         function updateToggle() {
             if (!toggle) return;
             var collapsed = document.documentElement.classList.contains('sidebar-collapsed');

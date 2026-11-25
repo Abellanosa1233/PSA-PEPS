@@ -19,6 +19,7 @@
 
     const link = event.target.closest('a[href]');
     if (!link || link.hasAttribute('download') || (link.target && link.target !== '_self')) return;
+    if (link.matches('#open-sign-out, #cancel-sign-out')) return;
 
     const destination = new URL(link.href);
     if (destination.origin !== window.location.origin || destination.searchParams.has('export')) return;
@@ -32,6 +33,13 @@
 
     const form = event.target;
     const action = form.elements.namedItem('_action')?.value;
+    if (action === 'logout') {
+      const dialog = form.closest('#sign-out-dialog');
+      if (dialog?.open && typeof dialog.close === 'function') dialog.close();
+      showLoader();
+      return;
+    }
+
     if (action === 'login' ||
         (action === 'employee.save' && form.closest('.employee-profile-details-card'))) {
       showLoader();
