@@ -38,7 +38,9 @@ CREATE TABLE IF NOT EXISTS employees (
   salary DECIMAL(12,2) NOT NULL DEFAULT 0,
   manager_id INT NULL,
   status VARCHAR(20) NOT NULL DEFAULT 'Active',
+  biometric_id VARCHAR(30) NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_employees_biometric (biometric_id),
   INDEX idx_emp_dept (department),
   CONSTRAINT fk_emp_manager FOREIGN KEY (manager_id) REFERENCES employees(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -89,6 +91,19 @@ CREATE TABLE IF NOT EXISTS attendance (
   time_out TIME NULL,
   PRIMARY KEY (work_date, emp_id),
   CONSTRAINT fk_att_emp FOREIGN KEY (emp_id) REFERENCES employees(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Every raw time punch: imported from the biometric device or recorded by web clock-in.
+-- The Daily Time Record (DTR) is built from these.
+CREATE TABLE IF NOT EXISTS attendance_punches (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  emp_id INT NOT NULL,
+  punched_at DATETIME NOT NULL,
+  source VARCHAR(20) NOT NULL DEFAULT 'biometric',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_punch (emp_id, punched_at),
+  INDEX idx_punch_time (punched_at),
+  CONSTRAINT fk_punch_emp FOREIGN KEY (emp_id) REFERENCES employees(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS events (

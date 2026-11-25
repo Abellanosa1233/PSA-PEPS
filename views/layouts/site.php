@@ -204,11 +204,10 @@
                 <div class="top-actions">
                     <button class="btn desktop-full-screen" type="button" hidden>Full screen</button>
                     <form method="post" id="web-theme-form">
-                        <?php hidden_inputs(['_action' => 'theme', '_token' => $_SESSION['web_csrf'], 'theme' => $theme === 'dark' ? 'light' : 'dark']); ?>
-                        <button type="submit" class="icon-btn" aria-label="<?= $theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode' ?>" title="<?= $theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode' ?>">
-                            <span class="theme-sun"><?= icon('sun', 17) ?></span>
-                            <span class="theme-moon"><?= icon('moon', 17) ?></span>
-                        </button>
+                        <?php hidden_inputs(['_action' => 'theme', '_token' => $_SESSION['web_csrf']]); ?>
+                        <?php /* Two plain buttons; CSS shows the right one, including for "System" theme on a dark device. */ ?>
+                        <button type="submit" name="theme" value="light" class="icon-btn theme-to-light" aria-label="Switch to light mode" title="Switch to light mode"><?= icon('sun', 17) ?></button>
+                        <button type="submit" name="theme" value="dark" class="icon-btn theme-to-dark" aria-label="Switch to dark mode" title="Switch to dark mode"><?= icon('moon', 17) ?></button>
                     </form>
                     <details class="popover-wrap web-notifications-wrap">
                         <summary class="icon-btn web-bell" id="notification-bell" aria-label="Notifications<?= $pendingCount ? ', ' . $pendingCount . ' pending' : '' ?>" aria-haspopup="true" aria-expanded="false">
@@ -234,7 +233,7 @@
                         </div>
                     </details>
                     <details class="popover-wrap web-user">
-                        <summary class="user-btn"><span class="avatar"><?php if (!empty($user['avatarUrl'])): ?><img src="<?= h($user['avatarUrl']) ?>" alt=""><?php else: ?><?= h(initials($user['name'])) ?><?php endif; ?></span><span class="who-text"><strong><?= h($user['name']) ?></strong><span><?= h($user['role']) ?></span></span><?= icon('chevDown', 14) ?></summary>
+                        <summary class="user-btn"><span class="avatar"><?php if (!empty($user['avatarUrl'])): ?><img src="<?= h($user['avatarUrl']) ?>" alt=""><?php else: ?><?= h(initials($user['name'])) ?><?php endif; ?></span><span class="who-text"><strong><?= h($user['name']) ?></strong><span><?= h($isAdmin ? 'Administrator · ' . $user['role'] : 'Employee access') ?></span></span><?= icon('chevDown', 14) ?></summary>
                         <div class="popover menu">
                             <a href="<?= h(page_url('preferences')) ?>"><?= icon('settings') ?> Settings</a>
                             <a href="<?= h(page_url('self-service')) ?>"><?= icon('user') ?> <?= h($pages['self-service']) ?></a><hr>
@@ -285,47 +284,12 @@
             });
         }());
     </script>
-    <script src="<?= h(versioned_asset('assets/js/sign-out-dialog.js')) ?>" defer></script>
     <script src="<?= h(versioned_asset('assets/js/form-dialog.js')) ?>" defer></script>
 <?php endif; ?>
 <?php if ($error !== '' || $notice !== '') require __DIR__ . '/../partials/notifications.php'; ?>
 <?php if ($user): ?>
 <script>
     (function () {
-        var themeForm = document.getElementById('web-theme-form');
-        var themeButton = themeForm.querySelector('button');
-        var themeInput = themeForm.elements.theme;
-        var root = document.documentElement;
-        var systemTheme = window.matchMedia('(prefers-color-scheme: dark)');
-        function updateThemeButton() {
-            var dark = root.dataset.theme === 'dark' || (root.dataset.theme === 'system' && systemTheme.matches);
-            themeInput.value = dark ? 'light' : 'dark';
-            themeButton.title = dark ? 'Switch to light mode' : 'Switch to dark mode';
-            themeButton.setAttribute('aria-label', themeButton.title);
-        }
-        updateThemeButton();
-        systemTheme.addEventListener('change', updateThemeButton);
-        themeForm.addEventListener('submit', async function (event) {
-            event.preventDefault();
-            if (themeButton.disabled) return;
-            var nextTheme = themeInput.value;
-            themeButton.disabled = true;
-            try {
-                var response = await fetch(themeForm.action, {
-                    method: 'POST',
-                    body: new FormData(themeForm),
-                    headers: { 'X-Horizon-View': 'theme-toggle' },
-                    redirect: 'error'
-                });
-                if (response.status !== 204) throw new Error('Theme could not be saved.');
-                root.dataset.theme = nextTheme;
-                updateThemeButton();
-            } catch (_) {
-                themeForm.submit();
-            } finally {
-                themeButton.disabled = false;
-            }
-        });
         var app = document.querySelector('.web-app');
         var toggle = document.getElementById('web-sidebar-toggle');
         var menu = document.getElementById('web-menu-btn');

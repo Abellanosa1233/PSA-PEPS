@@ -114,11 +114,12 @@
 }
 
 .web-card h2 { margin: 0; font-size: 16px; }
-#web-theme-form .theme-sun, :root[data-theme="dark"] #web-theme-form .theme-moon { display: none; }
-:root[data-theme="dark"] #web-theme-form .theme-sun { display: inline-flex; }
+#web-theme-form { display: flex; }
+#web-theme-form .theme-to-light, :root[data-theme="dark"] #web-theme-form .theme-to-dark { display: none; }
+:root[data-theme="dark"] #web-theme-form .theme-to-light { display: grid; }
 @media (prefers-color-scheme: dark) {
-  :root[data-theme="system"] #web-theme-form .theme-moon { display: none; }
-  :root[data-theme="system"] #web-theme-form .theme-sun { display: inline-flex; }
+  :root[data-theme="system"] #web-theme-form .theme-to-dark { display: none; }
+  :root[data-theme="system"] #web-theme-form .theme-to-light { display: grid; }
 }
 .attendance-clock {
   display: inline-flex;
@@ -347,7 +348,10 @@
   background: transparent;
   width: min(360px, calc(100vw - 40px));
   overflow: visible;
+  z-index: 90;
+  pointer-events: none;
 }
+#action-notifications .web-toast { pointer-events: auto; }
 .web-toast {
   --toast-accent: var(--ok);
   --toast-tint: var(--ok-bg);
@@ -361,10 +365,13 @@
   color: var(--fg);
   border: 1px solid var(--line);
   border-radius: 12px;
-  animation: web-toast-in .18s ease-out both;
+  /* Pure CSS: slide in, stay readable, then fade away (errors stay longer). Hover pauses it. */
+  --toast-life: 4s;
+  animation: web-toast-in .18s ease-out both, web-toast-out .35s ease-in var(--toast-life) forwards;
 }
-.web-toast.failure { --toast-accent: var(--warn); --toast-tint: var(--warn-bg); }
-.web-toast.error { --toast-accent: var(--bad); --toast-tint: var(--bad-bg); }
+.web-toast:hover, .web-toast:hover::after { animation-play-state: paused; }
+.web-toast.failure { --toast-accent: var(--warn); --toast-tint: var(--warn-bg); --toast-life: 8s; }
+.web-toast.error { --toast-accent: var(--bad); --toast-tint: var(--bad-bg); --toast-life: 8s; }
 .web-toast > .ic {
   flex: none;
   box-sizing: content-box;
@@ -378,19 +385,22 @@
 .web-toast-dismiss { background: transparent; border: 0; color: var(--fg-3); cursor: pointer; margin-left: auto; padding: 4px; border-radius: 6px; }
 .web-toast-dismiss:hover { background: var(--surface-2); color: var(--fg); }
 .web-toast-dismiss[hidden] { display: none; }
-.web-toast:has(.web-toast-dismiss:not([hidden]))::after {
+.web-toast::after {
   content: "";
   position: absolute;
   inset: auto 0 0;
   height: 3px;
   background: var(--toast-accent);
   transform-origin: left;
-  animation: web-toast-countdown 3s linear forwards;
+  animation: web-toast-countdown var(--toast-life) linear forwards;
 }
 @keyframes web-toast-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes web-toast-out { to { opacity: 0; visibility: hidden; } }
 @keyframes web-toast-countdown { to { transform: scaleX(0); } }
 @media (prefers-reduced-motion: reduce) {
-  .web-toast, .web-toast:has(.web-toast-dismiss:not([hidden]))::after { animation: none; }
+  /* No sliding or shrinking bar; the message still fades out after it has been shown. */
+  .web-toast { animation: web-toast-out .01s linear var(--toast-life) forwards; }
+  .web-toast::after { animation: none; }
 }
 .employee-dialog { position: fixed; inset: 0; margin: auto; padding: 0; color: var(--fg); }
 .employee-dialog:not([open]) { display: none; }
@@ -623,3 +633,7 @@ html.sidebar-collapsed .web-app .sidebar .nav .count { display: block; position:
 .access-card { display: flex; flex-direction: column; gap: 10px; }
 .access-card .toolbar { margin-top: 4px; }
 .account-details { margin: 6px 0 12px; }
+
+/* ---------- Daily Time Record ---------- */
+.dtr-open { align-items: end; gap: 10px; margin-top: 10px; }
+.dtr-open .field { min-width: 150px; }

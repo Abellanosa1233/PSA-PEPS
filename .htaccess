@@ -1,5 +1,5 @@
 DirectoryIndex disabled
-DirectoryIndex index.php index.html
+DirectoryIndex index.php
 
 RewriteEngine On
-RewriteRule ^(?:overview|employees|attendance|time-off|payroll|recruitment|reports|supervisor|self-service|settings|help)$ index.php [END]
+RewriteRule ^(?:overview|employees|attendance|time-off|payroll|recruitment|reports|supervisor|self-service|settings|help|dtr)$ index.php [END]

@@ -33,6 +33,7 @@ function employee_fields(array $state, array $employee, ?int $employeeId = null,
     $managers = employee_options(array_filter($state['employees'], function ($e) use ($employeeId) { return $e['id'] !== $employeeId && $e['status'] === 'Active'; }
     ));
     choice('managerId', 'Manager', ['' => 'None'] + $managers, $employee['managerId'] ?? '');
+    field('biometricId', 'Biometric ID', $employee['biometricId'] ?? '', 'text', false, $errors['biometricId'] ?? '', ['maxlength' => '30', 'pattern' => '[A-Za-z0-9_-]+']);
 }
 
 function add_employee_button(string $page, array $query = []): void
@@ -50,7 +51,7 @@ function add_employee_modal(array $state, string $page, array $formError): void
     $query = array_intersect_key($_GET, array_flip(['q', 'department', 'status', 'type', 'todayStatus', 'p', 'date', 'week']));
     $values = $failed ? $formError['values'] : ($editing ?? []);
     $errorField = $formError['field'] ?? '';
-    $errors = $failed && in_array($errorField, ['firstName', 'lastName', 'email', 'phone', 'title', 'location', 'startDate', 'salary'], true)
+    $errors = $failed && in_array($errorField, ['firstName', 'lastName', 'email', 'phone', 'title', 'location', 'startDate', 'salary', 'biometricId'], true)
         ? [$errorField => $formError['message']] : [];
     ?>
     <dialog id="add-employee" class="modal wide employee-dialog" aria-labelledby="add-employee-title"<?= $open ? ' open data-reopen' : '' ?>>

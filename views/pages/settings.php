@@ -12,8 +12,9 @@ function settings_view(array $state): void
     <h2>Your details</h2>
     <dl class="dl account-details">
         <dt>Name</dt><dd><?= h($state['user']['name']) ?></dd>
-        <dt>Position</dt><dd><?= h($state['user']['role']) ?></dd>
+        <dt>Job title</dt><dd><?= h($state['user']['role']) ?></dd>
         <dt>Username</dt><dd><?= h($state['user']['username']) ?></dd>
+        <dt>System access</dt><dd>Employee — your own records only<?= !empty($state['user']['hasTeam']) ? ', plus your direct reports’ requests' : '' ?></dd>
     </dl>
     <p class="muted">Your name, position and department come from your HR record. Ask your HR administrator to correct them.</p>
     </section>

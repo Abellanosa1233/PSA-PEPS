@@ -133,6 +133,7 @@ function current_user(): ?array
     ensure_profile_image_columns();
     ensure_employee_requests_table();
     ensure_account_columns();
+    ensure_biometrics();
     $u = q('SELECT u.id, u.username, u.display_name, u.role_title, u.profile_image_updated_at, u.account_role, u.employee_id,
                    u.must_change_password, e.first_name, e.last_name, e.title, e.status AS employee_status
             FROM users u LEFT JOIN employees e ON e.id = u.employee_id WHERE u.id = ?', [$_SESSION['uid']])->fetch();
@@ -154,6 +155,26 @@ function current_user(): ?array
             ? 'api/index.php?action=profile.image&v=' . rawurlencode((string) strtotime($u['profile_image_updated_at']))
             : null,
     ];
+}
+
+/* Biometric support for databases created before it existed: each employee's ID on the
+   biometric device, and every raw time punch (from the device import or web clock-in). */
+function ensure_biometrics(): void
+{
+    static $checked = false;
+    if ($checked) return;
+    $has = q("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = ? AND table_name = 'employees' AND column_name = 'biometric_id'", [DB_NAME])->fetchColumn();
+    if (!$has) q('ALTER TABLE employees ADD COLUMN biometric_id VARCHAR(30) NULL, ADD UNIQUE KEY uq_employees_biometric (biometric_id)');
+    // Check first: in MySQL any CREATE TABLE, even "IF NOT EXISTS" on an existing table,
+    // silently commits an open transaction.
+    $exists = q("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = ? AND table_name = 'attendance_punches'", [DB_NAME])->fetchColumn();
+    if (!$exists) db()->exec("CREATE TABLE attendance_punches (
+        id INT AUTO_INCREMENT PRIMARY KEY, emp_id INT NOT NULL, punched_at DATETIME NOT NULL,
+        source VARCHAR(20) NOT NULL DEFAULT 'biometric', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_punch (emp_id, punched_at), INDEX idx_punch_time (punched_at),
+        CONSTRAINT fk_punch_emp FOREIGN KEY (emp_id) REFERENCES employees(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $checked = true;
 }
 
 function is_admin(array $user): bool

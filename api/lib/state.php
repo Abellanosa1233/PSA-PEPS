@@ -12,6 +12,7 @@ function build_state(array $user): array
             'email' => $e['email'], 'phone' => $e['phone'], 'title' => $e['title'], 'department' => $e['department'],
             'location' => $e['location'], 'type' => $e['emp_type'], 'startDate' => $e['start_date'], 'endDate' => $e['end_date'],
             'salary' => (float) $e['salary'], 'managerId' => $e['manager_id'] === null ? null : (int) $e['manager_id'], 'status' => $e['status'],
+            'biometricId' => $e['biometric_id'] ?? null,
         ];
     }, q('SELECT * FROM employees ORDER BY first_name, last_name')->fetchAll());
 

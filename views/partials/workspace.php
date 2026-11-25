@@ -1,6 +1,24 @@
 <?php
 declare(strict_types=1);
 
+/* A plain GET form that opens the printable DTR (views/pages/dtr.php) for one person. */
+function dtr_card_form(int $employeeId, bool $ownRecord): void
+{
+    $half = (int) date('j') <= 15 ? 'first' : 'second';
+    card('Daily Time Record (DTR)');
+    echo '<p class="muted">' . ($ownRecord
+        ? 'Your time in and out from the biometric device, laid out like the printed time card. Open a period, check it, then print and sign.'
+        : 'Time in and out from the biometric device, laid out like the printed time card.') . '</p>';
+    echo '<form method="get" action="' . h(page_url('dtr')) . '" class="toolbar dtr-open">';
+    if (!$ownRecord) echo '<input type="hidden" name="emp" value="' . $employeeId . '">';
+    echo '<label class="field"><span>Month</span><input class="input" type="month" name="month" value="' . h(date('Y-m')) . '" required></label>';
+    echo '<label class="field"><span>Period</span><select class="input" name="half">';
+    foreach (['first' => '1st–15th', 'second' => '16th–end of month', 'month' => 'Whole month'] as $value => $label) {
+        echo '<option value="' . $value . '"' . ($value === $half ? ' selected' : '') . '>' . $label . '</option>';
+    }
+    echo '</select></label><button class="btn primary" type="submit">' . icon('file', 15) . ' View DTR</button></form></section>';
+}
+
 function workspace_view(array $state, bool $supervisor): void
 {
     $employees = array_column($state['employees'], null, 'id');
@@ -74,6 +92,7 @@ function workspace_view(array $state, bool $supervisor): void
         return;
     }
     $record = ((array) ($state['attendance']->{$state['today']} ?? []))[$profileId] ?? [];
+    dtr_card_form($profileId, $selfAccount);
     card('Attendance today');
     if (empty($record['in'])) {
         action_button('attendance.clock', 'Clock in at office', ['empId' => $profileId, 'mode' => 'in', 'status' => 'office']);

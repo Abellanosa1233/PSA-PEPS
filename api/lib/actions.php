@@ -28,6 +28,15 @@ function act_employee_save(array $in): array
         'salary' => $salary,
         'manager_id' => int_in($in, 'managerId', false),
     ];
+    if (array_key_exists('biometricId', $in)) {
+        ensure_biometrics();
+        $bio = str_in($in, 'biometricId', 30, false, 'Biometric ID');
+        if ($bio !== '' && !preg_match('/^[A-Za-z0-9_-]+$/', $bio)) fail('Biometric ID uses letters, numbers, dashes or underscores — the user number shown on the biometric device.', 422, 'biometricId');
+        $f['biometric_id'] = $bio === '' ? null : normalize_biometric_id($bio);
+        if ($f['biometric_id'] !== null && q('SELECT id FROM employees WHERE biometric_id = ? AND id <> ?', [$f['biometric_id'], $id ?? 0])->fetchColumn()) {
+            fail('Another employee already has that biometric ID.', 422, 'biometricId');
+        }
+    }
     if (!filter_var($f['email'], FILTER_VALIDATE_EMAIL)) fail('Enter a valid email address, like name@company.com.', 422, 'email');
     if ($salary === false || $salary < 0.01 || $salary > 10000000) fail('Annual salary must be between 0.01 and 10,000,000.', 422, 'salary');
     $dupe = q('SELECT id FROM employees WHERE email = ? AND id <> ?', [$f['email'], $id ?? 0])->fetchColumn();
@@ -357,6 +366,9 @@ function act_attendance_clock(array $in): array
         if ($now <= substr($rec['time_in'], 0, 5)) fail('Clock-out must be later than clock-in.');
         q('UPDATE attendance SET time_out = ? WHERE work_date = ? AND emp_id = ?', [$now, $day, $emp['id']]);
     }
+    // Web clock-ins also count as punches, so they appear on the DTR next to biometric ones.
+    ensure_biometrics();
+    q("INSERT IGNORE INTO attendance_punches (emp_id, punched_at, source) VALUES (?, ?, 'web')", [$emp['id'], $day . ' ' . $now . ':00']);
     return [];
 }
 
@@ -606,3 +618,5 @@ function act_demo_reset(array $in): array
     seed_demo();
     return [];
 }
+
+require_once __DIR__ . '/dtr.php';

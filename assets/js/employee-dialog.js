@@ -6,7 +6,7 @@ if (employeeDialog && typeof employeeDialog.showModal === 'function') {
   const saveButton = form.querySelector('button[type="submit"]');
   const cancelButton = form.querySelector('[data-employee-cancel]');
   const closeButton = form.querySelector('[data-employee-unchanged]');
-  const editableFields = ['firstName', 'lastName', 'email', 'phone', 'title', 'department', 'type', 'location', 'startDate', 'salary', 'managerId'];
+  const editableFields = ['firstName', 'lastName', 'email', 'phone', 'title', 'department', 'type', 'location', 'startDate', 'salary', 'managerId', 'biometricId'];
   const lengthLimits = { firstName: 80, lastName: 80, email: 160, phone: 40, title: 120, location: 80 };
   const locationPicker = typeof employeeLocationPicker === 'function' ? employeeLocationPicker(form, syncEmployeeButtons) : null;
   const validatedFields = Array.from(form.querySelectorAll('.field:not([hidden]) input'));

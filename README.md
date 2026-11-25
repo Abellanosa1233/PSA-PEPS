@@ -27,7 +27,7 @@ Requires PHP 7.2 or newer with PDO MySQL and mbstring, plus a MySQL-compatible d
 
 The installer uses the tracked schema at `api/lib/schema.sql`. The tracked `horizon_hrms.sql` is a database dump for restoring an existing snapshot. For a fresh installation, start with an empty database and let HRMS create the tables. Each machine uses its own database credentials. Keep local passwords out of Git commits.
 
-The PHP interface renders pages and processes forms on the server, including sign-in and CSV exports. Apache serves it by default when directory overrides are enabled. Open `index.html` explicitly for the previous interface.
+The PHP interface renders pages and processes forms on the server, including sign-in and CSV exports. Apache serves it by default when directory overrides are enabled.
 
 To change a screen, edit its matching PHP template in `views/pages/` and refresh the browser. The sidebar, header, and sign-in markup are in `views/layouts/site.php`. Shared forms are in `views/partials/`. Styles are in `assets/css/app.css` and `assets/css/php.css`.
 
@@ -48,6 +48,21 @@ Philippine defaults: pesos (₱), Asia/Manila time, phone numbers saved as `+63 
 | Employee workspace | Self-service: clock in/out, request time off, Special/Travel Orders, view payslips |
 | Settings | Company, currency, tax, benefits, leave allowances, profile photo, account password, theme, demo reset |
 
+## Biometrics and the Daily Time Record (DTR)
+
+Time in and out comes from the office biometric device:
+
+1. On each employee's record, set **Biometric ID** to their user number on the device.
+2. Export the attendance log from the device or its software (the `attlog` .dat/.txt file, or a CSV/text export). Each line needs the user number and the date and time of the punch; `YYYY-MM-DD HH:MM[:SS]` and `MM/DD/YYYY h:mm AM/PM` are both read.
+3. **Attendance → Import biometrics** and upload the file. Punches already imported are skipped, so overlapping exports are safe. Unknown user numbers are listed so HR can add them to the right employee and import again.
+
+The **DTR** (`/dtr`) lays the punches out like the printed time card: Morning IN/OUT, Afternoon IN/OUT, Overtime IN/OUT and Daily Total, for days 1–15, 16–end, or the whole month (front and back of the card side by side), with the certification line and signatures. Punches are placed in order: the first morning punch is Morning IN, the lunch punches are Morning OUT and Afternoon IN, the next is Afternoon OUT, and any later ones are Overtime. Scans within 2 minutes count once; an in/out-only day has the lunch hour deducted. Hours are filled in; Rate, Amount and Deductions are left for payroll, as on the paper card.
+
+* Employees: **My workspace → Daily Time Record → View DTR** (their own only), then **Print**.
+* HR: an employee's profile, or **Attendance → Print DTRs** for everyone (one sheet per pair of cards).
+
+Web clock-ins also count as punches. Days without punches fall back to the attendance record's clock-in/out.
+
 ## Accounts and access
 
 There are two kinds of sign-in:
@@ -65,13 +80,12 @@ The rules are enforced on the server (`authorize_action()` in `api/lib/dispatch.
 ```
 HRMS/
   index.php             server-rendered app and form controller
-  index.html            previous JavaScript interface
   views/pages/          one PHP template per screen
   views/layouts/        shared site layout
   views/partials/       reusable forms and icons
   assets/css/app.css    design tokens and styles (light + dark)
-  assets/js/            store (API client), UI helpers, pages/*
-  api/index.php         JSON API for the previous interface
+  assets/js/            small enhancements only (location picker, live search, dialogs); every page works as plain PHP forms
+  api/index.php         profile photos (and a JSON API)
   api/config.php        database connection (git-ignored; copy from config.example.php)
   api/lib/              schema.sql, seed, state builder, actions (not web-accessible)
 ```

@@ -18,9 +18,10 @@ function seed_demo(): void
     $pdo = db();
     // Employee logins belong to employee records that are about to be replaced; admin logins are kept.
     ensure_account_columns();
+    ensure_biometrics();
     $pdo->exec("DELETE FROM users WHERE account_role = 'employee'");
     $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
-    foreach (['payslips', 'pay_bonuses', 'pay_runs', 'candidates', 'positions', 'events', 'attendance', 'employee_requests', 'leave_requests', 'employees', 'settings'] as $t) {
+    foreach (['payslips', 'pay_bonuses', 'pay_runs', 'candidates', 'positions', 'events', 'attendance_punches', 'attendance', 'employee_requests', 'leave_requests', 'employees', 'settings'] as $t) {
         $pdo->exec("TRUNCATE TABLE $t");
     }
     $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
@@ -63,6 +64,7 @@ function seed_demo(): void
         $insEmp->execute([$f, $l, strtolower("$f.$l") . '@horizon.studio', $mobile,
             $title, $dept, $pick($cities), $type, $start, $salary, 'Active']);
         $id = (int) $pdo->lastInsertId();
+        q('UPDATE employees SET biometric_id = ? WHERE id = ?', [(string) (1000 + $id), $id]); // sample device user number
         $emps[$id] = ['id' => $id, 'dept' => $dept, 'start' => $start, 'name' => "$f $l"];
         return $id;
     };
@@ -112,6 +114,7 @@ function seed_demo(): void
 
     /* Attendance for the past 7 weeks */
     $insAtt = $pdo->prepare('INSERT INTO attendance (work_date,emp_id,status,time_in,time_out) VALUES (?,?,?,?,?)');
+    $insPunch = $pdo->prepare("INSERT IGNORE INTO attendance_punches (emp_id, punched_at, source) VALUES (?, ?, 'biometric')");
     $pdo->beginTransaction();
     for ($back = 49; $back >= 0; $back--) {
         $day = $T->modify("-$back days");
@@ -126,6 +129,13 @@ function seed_demo(): void
             $o = $in + 480 + mt_rand(0, 70);
             $out = $back === 0 ? null : sprintf('%02d:%02d', intdiv($o, 60), $o % 60);
             $insAtt->execute([$di, $e['id'], $st, sprintf('%02d:%02d', intdiv($in, 60), $in % 60), $out]);
+            // Office days also get biometric punches: arrival, lunch out and back, departure.
+            if ($st === 'office') {
+                $punch = function (int $m) use ($insPunch, $di, $e) { $insPunch->execute([$e['id'], sprintf('%s %02d:%02d:%02d', $di, intdiv($m, 60), $m % 60, mt_rand(0, 59))]); };
+                $punch($in);
+                if ($back > 0 || (int) date('G') >= 13) { $punch(12 * 60 + mt_rand(0, 6)); $punch(12 * 60 + 48 + mt_rand(0, 11)); }
+                if ($out !== null) $punch($o);
+            }
         }
     }
     $pdo->commit();

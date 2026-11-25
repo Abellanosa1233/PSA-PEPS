@@ -20,6 +20,7 @@ function employees_view(array $state): void
         confirm_action('employee.delete', 'Delete employee', 'This also deletes the employee’s attendance and leave records, and their sign-in access.', ['id' => $id]);
         echo '</section>';
         employee_access_card($state, $employee);
+        dtr_card_form($id, false);
         card('Leave history and balances');
         leave_balances($state, $id);
         if ($employee['status'] === 'Active') leave_form([$id => employee_name($employee)], true);

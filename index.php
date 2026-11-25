@@ -23,6 +23,7 @@ $pages = [
     'time-off' => 'Time off', 'payroll' => 'Payroll', 'recruitment' => 'Recruitment',
     'reports' => 'Reports', 'supervisor' => 'Supervisor workspace',
     'self-service' => 'Employee workspace', 'preferences' => 'Settings', 'help' => 'Help & resources',
+    'dtr' => 'Daily Time Record',
 ];
 $path = rawurldecode(explode('?', $_SERVER['REQUEST_URI'] ?? '', 2)[0]);
 $route = basename($path);
@@ -57,7 +58,7 @@ try {
         // Employee accounts only see their own workspace (and their team, if they supervise anyone).
         $pages['self-service'] = 'My workspace';
         $pages['supervisor'] = 'My team';
-        $allowedPages = ['self-service', 'preferences', 'help'];
+        $allowedPages = ['self-service', 'preferences', 'help', 'dtr'];
         if ($user['hasTeam']) $allowedPages[] = 'supervisor';
         if (!in_array($page, $allowedPages, true)) {
             if (!$isPost) {
@@ -95,14 +96,16 @@ try {
             elseif ($action === 'profile.photo.remove') $result = act_profile_photo_remove($user);
             elseif ($action === 'employee.import') $result = act_employee_import($_FILES['employeeCsv'] ?? []);
             elseif ($action === 'attendance.import') $result = act_attendance_import($_FILES['attendanceCsv'] ?? []);
+            elseif ($action === 'attendance.biometrics') $result = act_attendance_biometrics($_FILES['biometricLog'] ?? []);
             else {
                 $handler = action_handler($action);
                 $result = $handler($input, $user);
             }
         }
-        if ($action !== 'logout' && ($result['changed'] ?? true) !== false) {
+        if (!in_array($action, ['logout', 'theme'], true) && ($result['changed'] ?? true) !== false) {
             if ($action === 'employee.import') $_SESSION['web_notice'] = $result['imported'] . ' employee' . ($result['imported'] === 1 ? '' : 's') . ' imported successfully.';
             elseif ($action === 'attendance.import') $_SESSION['web_notice'] = $result['imported'] . ' attendance record' . ($result['imported'] === 1 ? '' : 's') . ' imported successfully.';
+            elseif ($action === 'attendance.biometrics') $_SESSION['web_notice'] = biometric_import_message($result);
             else $_SESSION['web_notice'] = action_success_message($action, $_POST);
         }
         unset($query['candidate']);
@@ -153,7 +156,7 @@ if ($isPost) {
     $employeeModal = $page === 'employees'
         && ($_POST['_action'] ?? '') === 'employee.save'
         && ($_POST['_employee_modal'] ?? '') === '1';
-    $fields = array_flip(['id', 'firstName', 'lastName', 'email', 'phone', 'title', 'department', 'type', 'location', 'startDate', 'salary', 'managerId']);
+    $fields = array_flip(['id', 'firstName', 'lastName', 'email', 'phone', 'title', 'department', 'type', 'location', 'startDate', 'salary', 'managerId', 'biometricId']);
     $sharedForm = $_POST['_shared_form'] ?? '';
     $sharedFormFields = [
         'leave.create' => ['empId', 'type', 'start', 'end', 'reason', 'approveNow'],
@@ -199,5 +202,10 @@ if ($user) {
         $errorLevel = 'error';
         http_response_code(500);
     }
+}
+if ($user && $state && $page === 'dtr') {
+    // The DTR is a standalone printable page, without the app's sidebar and header.
+    require __DIR__ . '/views/pages/dtr.php';
+    exit;
 }
 require __DIR__ . '/views/layouts/site.php';
