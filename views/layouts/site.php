@@ -69,8 +69,51 @@
             (function () {
                 var button = document.querySelector('[data-password-toggle]');
                 var password = document.getElementById('signin-password');
-                if (!button || !password) return;
-                button.addEventListener('click', function () {
+                var form = document.querySelector('.web-auth-signin form');
+                var username = form && form.elements.namedItem('username');
+                if (!form || !username || !password) return;
+                form.noValidate = true;
+
+                function validate(input) {
+                    var message = input === username
+                        ? (!input.value.trim() ? 'Enter your username.' : (!/^[a-z0-9._-]{3,60}$/i.test(input.value.trim()) ? 'Use 3–60 letters, numbers, dots, dashes or underscores.' : ''))
+                        : (!input.value ? 'Enter your password.' : '');
+                    var field = input.closest('.field');
+                    var error = field.querySelector('.field-error');
+                    if (message && !error) {
+                        error = document.createElement('span');
+                        error.className = 'field-error';
+                        error.id = 'field-error-' + input.name;
+                        field.appendChild(error);
+                    }
+                    if (error) {
+                        error.textContent = message;
+                        error.hidden = !message;
+                    }
+                    if (message) {
+                        input.setAttribute('aria-invalid', 'true');
+                        input.setAttribute('aria-describedby', error.id);
+                    } else {
+                        input.removeAttribute('aria-invalid');
+                        input.removeAttribute('aria-describedby');
+                    }
+                    return !message;
+                }
+
+                form.addEventListener('submit', function (event) {
+                    var usernameValid = validate(username);
+                    var passwordValid = validate(password);
+                    if (!usernameValid || !passwordValid) {
+                        event.preventDefault();
+                        (usernameValid ? password : username).focus();
+                    }
+                });
+                form.addEventListener('input', function (event) {
+                    if (event.target === username || event.target === password) {
+                        if (event.target.hasAttribute('aria-invalid')) validate(event.target);
+                    }
+                });
+                if (button) button.addEventListener('click', function () {
                     var visible = password.type === 'password';
                     password.type = visible ? 'text' : 'password';
                     button.setAttribute('aria-pressed', String(visible));
