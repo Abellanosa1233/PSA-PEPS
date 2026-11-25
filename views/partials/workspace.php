@@ -58,11 +58,16 @@ function workspace_view(array $state, bool $supervisor): void
         web_table(['Employee', 'Status', 'Clock in', 'Clock out'], $teamPage['rows']);
         pagination($teamPage, 'supervisor', array_intersect_key($_GET, ['leavePage' => true]), 'employees');
         echo '</section>';
-        card('Pending team requests');
-        $requests = paginate(array_filter($state['leaves'], function ($l) use ($team) { return isset($team[$l['empId']]) && $l['status'] === 'pending'; }), 'leavePage');
-        leave_table($state, $requests['rows']);
-        pagination($requests, 'supervisor', array_intersect_key($_GET, ['p' => true]), 'requests', 'leavePage');
-        echo '</section>';
+        if ($selfAccount) {
+            // Leave is private between the employee and HR; supervisors never see their team's leave.
+            echo '<p class="muted workspace-intro">Leave requests go straight to HR and aren’t shown here, to keep your team’s plans private.</p>';
+        } else {
+            card('Pending team leave (HR view)');
+            $requests = paginate(array_filter($state['leaves'], function ($l) use ($team) { return isset($team[$l['empId']]) && $l['status'] === 'pending'; }), 'leavePage');
+            leave_table($state, $requests['rows']);
+            pagination($requests, 'supervisor', array_intersect_key($_GET, ['p' => true]), 'requests', 'leavePage');
+            echo '</section>';
+        }
         $teamRequests = array_values(array_filter($state['employeeRequests'], function ($request) use ($team) { return isset($team[$request['empId']]); }));
         $teamRequestPage = paginate($teamRequests, 'requestPage');
         card('Special and travel order requests');

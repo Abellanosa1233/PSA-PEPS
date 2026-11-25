@@ -23,8 +23,10 @@ function action_handler(string $action): string
 
 /* The single gate for every write an employee account makes. HR administrators may do
    anything; employees may only act on their own records, plus approve or decline their
-   direct reports' requests. Inputs that name an employee are overwritten with the
-   signed-in employee, so a tampered form can't act for someone else. */
+   direct reports' Special and Travel Orders. Leave is HR-only: supervisors can't decide
+   (or even see) their team's leave, so nobody learns of a colleague's planned time off.
+   Inputs that name an employee are overwritten with the signed-in employee, so a
+   tampered form can't act for someone else. */
 function authorize_action(string $action, array &$in, array $user): void
 {
     if (is_admin($user)) return;
@@ -53,9 +55,7 @@ function authorize_action(string $action, array &$in, array $user): void
             return;
 
         case 'leave.decide':
-            $owner = q('SELECT e.manager_id FROM leave_requests l JOIN employees e ON e.id = l.emp_id WHERE l.id = ?', [(int) ($in['id'] ?? 0)])->fetch();
-            if (!$owner || (int) $owner['manager_id'] !== $me) fail('Only the employee’s direct supervisor or HR can decide this request.', 403);
-            return;
+            fail('Leave requests are approved by HR only.', 403);
 
         case 'employee.request.decide':
             $in['reviewerId'] = $me; // act_employee_request_decide checks the reviewer is the direct supervisor

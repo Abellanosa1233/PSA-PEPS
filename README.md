@@ -70,7 +70,9 @@ There are two kinds of sign-in:
 * **HR administrator** — the account created at setup. Sees and manages everything.
 * **Employee** — created by HR from an employee's profile (**Employees → open a person → Sign-in access → Give sign-in access**) with a username and a temporary password. The employee is asked to change it after signing in. Employees see only:
   * **My workspace** — clock in/out, their leave balance and requests, Special/Travel Orders, their own payslips.
-  * **My team** — only if they supervise someone (someone's "Reports to" is them): their direct reports' attendance today, and approve/decline their leave and Special/Travel Order requests.
+  * **My team** — only if they supervise someone (someone's "Reports to" is them): their direct reports' attendance today, and approve/decline their Special/Travel Order requests.
+
+**Leave is HR-only.** Only HR administrators see and approve leave requests. Supervisors don't see their team's leave at all (not even pending requests), so nobody learns of a colleague's planned time off before HR does.
   * **Settings** (profile photo and password only) and **Help**.
 
 The rules are enforced on the server (`authorize_action()` in `api/lib/dispatch.php` and `scope_state_to_employee()` in `api/lib/state.php`), not only hidden in the menus: employee accounts never receive other people's salaries, payslips, recruitment data or payroll settings, and any form an employee submits is forced onto their own record. Offboarding or deleting an employee stops their sign-in immediately. **Reset demo data** removes employee accounts and keeps administrator accounts.

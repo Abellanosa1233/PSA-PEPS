@@ -108,8 +108,9 @@ function build_state(array $user): array
 }
 
 /* What an employee account may see: their own records and, if they supervise people,
-   their direct reports' attendance and requests. No salaries except their own, no other
-   payslips, no recruitment, schedule or payroll settings. */
+   their direct reports' attendance and Special/Travel Orders. Never anyone else's leave
+   (planned time off is private between the employee and HR), salaries except their own,
+   other payslips, recruitment, schedule or payroll settings. */
 function scope_state_to_employee(array $state, int $me): array
 {
     $byId = array_column($state['employees'], null, 'id');
@@ -150,7 +151,7 @@ function scope_state_to_employee(array $state, int $me): array
         'today' => $state['today'],
         'settings' => $settings + ['selfEmpId' => $me, 'supervisorId' => $me],
         'employees' => $employees,
-        'leaves' => $mine($state['leaves']),
+        'leaves' => array_values(array_filter($state['leaves'], function ($l) use ($me) { return $l['empId'] === $me; })),
         'employeeRequests' => $mine($state['employeeRequests']),
         'attendance' => (object) $attendance,
         'events' => [],
