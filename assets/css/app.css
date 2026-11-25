@@ -383,7 +383,22 @@ table.data tfoot td { font-weight: 600; border-top: 1px solid var(--line-strong)
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  background: #e8edf2 url("../sign-in-background.svg") center / cover no-repeat;
+  background:
+    linear-gradient(rgba(242, 245, 248, .38), rgba(242, 245, 248, .38)),
+    url("../sign-in-building.jpg") center 28% / cover no-repeat;
+}
+.auth-signin-screen::before,
+.auth-signin-screen::after {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  content: "";
+  clip-path: polygon(0 25%, 10% 29%, 20% 33%, 30% 37%, 40% 40%, 50% 42%, 60% 40%, 70% 37%, 80% 33%, 90% 29%, 100% 25%, 100% 100%, 0 100%);
+}
+.auth-signin-screen::before { background: linear-gradient(180deg, #ffe17a, #b27b12); }
+.auth-signin-screen::after {
+  background: linear-gradient(120deg, #0b50b7, #002b7f);
+  clip-path: polygon(0 27%, 10% 31%, 20% 35%, 30% 39%, 40% 42%, 50% 44%, 60% 42%, 70% 39%, 80% 35%, 90% 31%, 100% 27%, 100% 100%, 0 100%);
 }
 .auth-card.auth-signin-card { width: min(440px, 100%); gap: 18px; padding: clamp(26px, 6vw, 42px); border-radius: 16px; box-shadow: 0 24px 70px rgba(17, 40, 74, .14); }
 .auth-card.auth-signin-card h1 { font-size: 25px; letter-spacing: -.025em; }

@@ -44,7 +44,23 @@
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  background: #e8edf2 url("../sign-in-background.svg") center / cover no-repeat;
+  /* Public-domain photo from Wikimedia Commons, credited to Judgefloro. */
+  background:
+    linear-gradient(rgba(242, 245, 248, .38), rgba(242, 245, 248, .38)),
+    url("../sign-in-building.jpg") center 28% / cover no-repeat;
+}
+.web-auth-signin::before,
+.web-auth-signin::after {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  content: "";
+  clip-path: polygon(0 25%, 10% 29%, 20% 33%, 30% 37%, 40% 40%, 50% 42%, 60% 40%, 70% 37%, 80% 33%, 90% 29%, 100% 25%, 100% 100%, 0 100%);
+}
+.web-auth-signin::before { background: linear-gradient(180deg, #ffe17a, #b27b12); }
+.web-auth-signin::after {
+  background: linear-gradient(120deg, #0b50b7, #002b7f);
+  clip-path: polygon(0 27%, 10% 31%, 20% 35%, 30% 39%, 40% 42%, 50% 44%, 60% 42%, 70% 39%, 80% 35%, 90% 31%, 100% 27%, 100% 100%, 0 100%);
 }
 .web-auth-signin .auth-card-signin {
   width: min(440px, 100%);
