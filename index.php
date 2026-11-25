@@ -23,15 +23,7 @@ $pages = [
     'time-off' => 'Time off', 'payroll' => 'Payroll', 'recruitment' => 'Recruitment',
     'reports' => 'Reports', 'supervisor' => 'Supervisor workspace',
     'self-service' => 'Employee workspace', 'preferences' => 'Settings', 'help' => 'Help & resources',
-    'dtr' => 'Daily Time Record',
-    // Employee-account pages
-    'my-time-off' => 'My time off', 'my-attendance' => 'My attendance', 'my-payslips' => 'My payslips', 'my-profile' => 'My profile',
-    'request-leave' => 'Request leave',
-    'payslip' => 'Payslip', // printable payslip (employees: their own only)
-    'document' => 'Document', // a document HR shared (My profile)
-    'leave-file' => 'Leave attachment', // download of a supporting document (HR, or the employee who sent it)
 ];
-$employeeOnlyPages = ['my-time-off', 'my-attendance', 'my-payslips', 'my-profile', 'request-leave'];
 $path = rawurldecode(explode('?', $_SERVER['REQUEST_URI'] ?? '', 2)[0]);
 $route = basename($path);
 $entry = $path === '' || substr($path, -1) === '/' || $route === 'index.php';
@@ -55,35 +47,12 @@ $formError = [];
 $isPost = $method === 'POST';
 $query = array_intersect_key($_GET, array_flip(['id', 'date', 'q', 'department', 'status', 'month', 'type', 'todayStatus', 'week', 'p', 'candidate', 'candidates', 'rolesPage', 'leavePage', 'slipsPage', 'requestPage', 'orderRequestPage']));
 $screen = 'Sign in';
-$theme = 'system';
+$theme = 'light';
 try {
     start_session();
     if (!isset($_SESSION['web_csrf'])) $_SESSION['web_csrf'] = bin2hex(random_bytes(32));
-    $theme = $_SESSION['web_theme'] ?? 'system';
+    $theme = $_SESSION['web_theme'] ?? 'light';
     $user = current_user();
-    if ($user && !is_admin($user)) {
-        // Employee accounts only see their own pages (and their team, if they supervise anyone).
-        $pages['supervisor'] = 'Supervisor workspace';
-        $allowedPages = array_merge(['overview', 'preferences', 'help', 'dtr', 'leave-file', 'payslip', 'document'], $employeeOnlyPages);
-        if ($user['hasTeam']) $allowedPages[] = 'supervisor';
-        if (!in_array($page, $allowedPages, true)) {
-            if (!$isPost) {
-                header('Location: ' . page_url('overview'), true, 302);
-                exit;
-            }
-            $page = 'overview';
-        }
-    } elseif ($user && in_array($page, $employeeOnlyPages, true) && !$isPost) {
-        // HR administrators use the Employee workspace view instead of these pages.
-        header('Location: ' . page_url('self-service'), true, 302);
-        exit;
-    }
-    if ($user && $page === 'request-leave' && isset($_GET['clear']) && !$isPost) {
-        // Cancel on Request leave: forget the half-filled form.
-        unset($_SESSION['leave_draft']);
-        header('Location: ' . page_url('my-time-off'), true, 302);
-        exit;
-    }
     $screen = !installed() ? 'Install HRMS' : (has_users() ? 'Sign in' : 'Create administrator');
     if ($isPost) {
         unset($_SESSION['web_form_error'], $_SESSION['web_notice']);
@@ -97,13 +66,6 @@ try {
                 start_session();
                 session_regenerate_id(true);
             }
-        } elseif ($action === 'leave.preview') {
-            // "Check days & balance": keep what was typed (in the session, not the address bar,
-            // since the reason is personal) and show the page again with the numbers worked out.
-            require_user();
-            $_SESSION['leave_draft'] = array_map('strval', array_intersect_key(array_filter($_POST, 'is_string'), array_flip(['type', 'start', 'end', 'dayLength', 'reason'])));
-            header('Location: ' . page_url('request-leave'), true, 303);
-            exit;
         } elseif ($action === 'theme') {
             require_user();
             $_SESSION['web_theme'] = one_of((string) ($_POST['theme'] ?? ''), ['system', 'light', 'dark'], 'Theme');
@@ -113,30 +75,19 @@ try {
             }
         } else {
             $user = require_user();
-            $input = $_POST;
-            if ($action === 'leave.create' && $page === 'request-leave') {
-                // Keep what was typed so a failed submission (e.g. a missing reason) doesn't clear the form.
-                $_SESSION['leave_draft'] = array_map('strval', array_intersect_key(array_filter($_POST, 'is_string'), array_flip(['type', 'start', 'end', 'dayLength', 'reason'])));
-            }
-            authorize_action($action, $input, $user);
             if ($action === 'profile.photo') $result = act_profile_photo($_FILES['profileImage'] ?? [], $user);
             elseif ($action === 'profile.photo.remove') $result = act_profile_photo_remove($user);
             elseif ($action === 'employee.import') $result = act_employee_import($_FILES['employeeCsv'] ?? []);
             elseif ($action === 'attendance.import') $result = act_attendance_import($_FILES['attendanceCsv'] ?? []);
-            elseif ($action === 'attendance.biometrics') $result = act_attendance_biometrics($_FILES['biometricLog'] ?? []);
-            elseif ($action === 'document.upload') $result = act_document_upload($input, $user, leave_attachment_upload($_FILES['document'] ?? [], 'document'));
-            elseif ($action === 'leave.create') {
-                $result = act_leave_create($input, $user, leave_attachment_upload($_FILES['attachment'] ?? []));
-                if ($page === 'request-leave') unset($_SESSION['leave_draft']);
-            } else {
+            else {
                 $handler = action_handler($action);
-                $result = $handler($input, $user);
+                $result = $handler($_POST, $user);
             }
         }
-        if (!in_array($action, ['logout', 'theme'], true) && ($result['changed'] ?? true) !== false) {
-            if ($action === 'employee.import') $_SESSION['web_notice'] = $result['imported'] . ' employee' . ($result['imported'] === 1 ? '' : 's') . ' imported successfully.';
+        if (($result['changed'] ?? true) !== false) {
+            if ($action === 'logout') unset($_SESSION['web_notice']);
+            elseif ($action === 'employee.import') $_SESSION['web_notice'] = $result['imported'] . ' employee' . ($result['imported'] === 1 ? '' : 's') . ' imported successfully.';
             elseif ($action === 'attendance.import') $_SESSION['web_notice'] = $result['imported'] . ' attendance record' . ($result['imported'] === 1 ? '' : 's') . ' imported successfully.';
-            elseif ($action === 'attendance.biometrics') $_SESSION['web_notice'] = biometric_import_message($result);
             else $_SESSION['web_notice'] = action_success_message($action, $_POST);
         }
         unset($query['candidate']);
@@ -147,7 +98,8 @@ try {
         } elseif ($action === 'event.save' && $page === 'overview') {
             $query['date'] = $_POST['date'];
         }
-        $destination = $action === 'employee.save' ? 'employees' : ($action === 'leave.create' && $page === 'request-leave' ? 'my-time-off' : $page);
+        $destination = $action === 'login' ? 'overview' : ($action === 'employee.save' ? 'employees' : $page);
+        if ($action === 'login') $query = [];
         if ($action === 'employee.save' && ($_POST['_employee_modal'] ?? '') === '1') {
             $destination = $page;
             unset($query['id']);
@@ -162,7 +114,6 @@ try {
             $formError = $_SESSION['web_form_error'];
             $error = $formError['message'];
             $errorLevel = $formError['level'] ?? 'failure';
-            $errorField = $formError['field'] ?? null;
             unset($_SESSION['web_form_error']);
         }
     }
@@ -187,11 +138,11 @@ if ($isPost) {
     $employeeModal = $page === 'employees'
         && ($_POST['_action'] ?? '') === 'employee.save'
         && ($_POST['_employee_modal'] ?? '') === '1';
-    $fields = array_flip(['id', 'firstName', 'lastName', 'email', 'phone', 'title', 'department', 'type', 'location', 'startDate', 'salary', 'managerId', 'biometricId', 'loginUsername']); // never the password
+    $fields = array_flip(['id', 'firstName', 'lastName', 'email', 'phone', 'title', 'department', 'type', 'location', 'startDate', 'salary', 'managerId']);
     $sharedForm = $_POST['_shared_form'] ?? '';
     $sharedFormFields = [
         'leave.create' => ['empId', 'type', 'start', 'end', 'reason', 'approveNow'],
-        'event.save' => ['date', 'title', 'detail', 'start', 'end', 'forEmployees'],
+        'event.save' => ['date', 'title', 'detail', 'start', 'end'],
         'position.save' => ['id', 'title', 'department', 'type', 'location'],
         'candidate.save' => ['positionId', 'name', 'email', 'source'],
         'profile.save' => ['name', 'role'],
@@ -222,48 +173,14 @@ if ($user) {
     try {
         if (db()->inTransaction()) db()->rollBack();
         $state = build_state($user);
-        if (is_admin($user)) {
-            if ($page === 'employees' && isset($_GET['template'])) employee_import_template();
-            if ($page === 'attendance' && isset($_GET['template'])) attendance_import_template();
-            if (isset($_GET['export'])) export_page($page, $state);
-        }
+        if ($page === 'employees' && isset($_GET['template'])) employee_import_template();
+        if ($page === 'attendance' && isset($_GET['template'])) attendance_import_template();
+        if (isset($_GET['export'])) export_page($page, $state);
     } catch (Throwable $e) {
         error_log((string) $e);
         $error = 'The workspace data could not be loaded.';
         $errorLevel = 'error';
         http_response_code(500);
     }
-}
-if ($user && in_array($page, ['leave-file', 'document'], true)) {
-    // A leave request's supporting document, or a document HR shared on My profile.
-    // Access is checked by leave_attachment_for() / document_for().
-    $id = (int) ($_GET['id'] ?? 0);
-    $row = $page === 'leave-file' ? leave_attachment_for($user, $id) : document_for($user, $id);
-    $file = !$row ? null : ($page === 'leave-file'
-        ? ['bytes' => $row['attachment'], 'name' => $row['attachment_name'], 'type' => $row['attachment_type']]
-        : ['bytes' => $row['file'], 'name' => $row['file_name'], 'type' => $row['file_type']]);
-    if (!$file) {
-        http_response_code(404);
-        header('Content-Type: text/plain; charset=utf-8');
-        echo 'This document was not found, or you do not have access to it.';
-        exit;
-    }
-    header('Content-Type: ' . (in_array($file['type'], ['application/pdf', 'image/jpeg', 'image/png'], true) ? $file['type'] : 'application/octet-stream'));
-    header('Content-Disposition: inline; filename="' . str_replace(['"', "\r", "\n"], '', $file['name'] ?: 'document') . '"');
-    header('Content-Length: ' . strlen($file['bytes']));
-    header('Cache-Control: private, no-store');
-    header("Content-Security-Policy: default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox");
-    echo $file['bytes'];
-    exit;
-}
-if ($user && $state && $page === 'payslip') {
-    // Standalone printable payslip, like the DTR.
-    require __DIR__ . '/views/pages/payslip.php';
-    exit;
-}
-if ($user && $state && $page === 'dtr') {
-    // The DTR is a standalone printable page, without the app's sidebar and header.
-    require __DIR__ . '/views/pages/dtr.php';
-    exit;
 }
 require __DIR__ . '/views/layouts/site.php';

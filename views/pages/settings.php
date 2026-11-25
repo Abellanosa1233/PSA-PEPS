@@ -4,21 +4,8 @@ declare(strict_types=1);
 function settings_view(array $state): void
 {
     $settings = $state['settings'];
-    $isAdmin = is_admin($state['user']);
     ?>
     <div class="settings-layout">
-    <?php if (!$isAdmin): ?>
-    <section class="card web-card settings-organization">
-    <h2>Your details</h2>
-    <dl class="dl account-details">
-        <dt>Name</dt><dd><?= h($state['user']['name']) ?></dd>
-        <dt>Job title</dt><dd><?= h($state['user']['role']) ?></dd>
-        <dt>Username</dt><dd><?= h($state['user']['username']) ?></dd>
-        <dt>System access</dt><dd>Employee — your own records only<?= !empty($state['user']['hasTeam']) ? ', plus your direct reports’ requests' : '' ?></dd>
-    </dl>
-    <p class="muted">Your name, position and department come from your HR record. Ask your HR administrator to correct them.</p>
-    </section>
-    <?php else: ?>
     <section class="card web-card settings-organization">
     <h2>Organization</h2>
     <?php
@@ -45,26 +32,15 @@ function settings_view(array $state): void
     </fieldset>
     <fieldset class="settings-fields settings-leave">
         <legend>Leave allowances (days)</legend>
-        <div class="settings-fields-grid">
+        <div class="settings-fields-grid settings-leave-grid">
             <?php foreach (LEAVE_TYPES as $type) field('allowances[' . $type . ']', $type, $settings['allowances'][$type] ?? 0, 'number'); ?>
-        </div>
-    </fieldset>
-    <fieldset class="settings-fields">
-        <legend>Office hours</legend>
-        <div class="settings-fields-grid">
-            <?php
-            field('workStart', 'Starts', $settings['workStart'] ?? '08:00', 'time');
-            field('workEnd', 'Ends', $settings['workEnd'] ?? '17:00', 'time');
-            ?>
         </div>
     </fieldset>
     <div class="settings-actions"><button type="submit" class="btn primary">Save organization</button></div>
     </form>
     </section>
-    <?php endif; ?>
-    <?php
-    card('Profile photo');
-    ?>
+    <div class="settings-secondary-grid">
+    <?php card('Profile photo', 'settings-profile-photo'); ?>
     <div class="profile-photo-settings">
         <div class="profile-photo-preview">
             <span class="avatar lg"><?php if (!empty($state['user']['avatarUrl'])): ?><img src="<?= h($state['user']['avatarUrl']) ?>" alt="Current profile photo"><?php else: ?><?= h(initials($state['user']['name'])) ?><?php endif; ?></span>
@@ -80,15 +56,12 @@ function settings_view(array $state): void
         <?php endif; ?>
     </div>
     </section>
-    <div class="settings-account">
+        <div class="settings-secondary-stack">
     <?php
-    card('Account & security');
+    card('Account & security', 'settings-account-card');
     ?>
-    <?php if (!empty($state['user']['mustChangePassword'])): ?>
-        <p class="temp-password-note">You’re using a temporary password from HR. Choose a new one that only you know.</p>
-    <?php endif; ?>
-    <div class="toolbar">
-        <?php if ($isAdmin): ?>
+    <p class="settings-card-description">Manage your display name, role, and password.</p>
+    <div class="toolbar settings-account-actions">
         <details data-form-dialog="form">
             <summary class="btn">Edit profile</summary>
             <?php
@@ -98,8 +71,7 @@ function settings_view(array $state): void
             end_form('Save profile');
             ?>
         </details>
-        <?php endif; ?>
-        <details data-form-dialog="form"<?= !empty($state['user']['mustChangePassword']) ? ' open' : '' ?>>
+        <details data-form-dialog="form">
             <summary class="btn">Change password</summary>
             <?php post_form('password.change'); ?>
             <?php foreach ([
@@ -122,28 +94,11 @@ function settings_view(array $state): void
     </div>
     </section>
     <?php
-    if ($isAdmin) {
-        card('Company updates');
-        echo '<p class="muted">Short notices shown to every employee on their Overview, newest first. The next pay date is added automatically while a pay run is in progress.</p>';
-        echo '<details class="form-disclosure" data-form-dialog="form"><summary class="btn primary">Post an update</summary>';
-        post_form('announcement.save');
-        field('title', 'Headline', '', 'text', true, '', ['maxlength' => '120']);
-        field('body', 'Message', '', 'text', false, '', ['maxlength' => '500']);
-        end_form('Post update');
-        echo '</details>';
-        web_table(['Update', 'Posted', 'Actions'], array_map(function ($a) {
-            return [
-                function () use ($a) { echo '<strong>' . h($a['title']) . '</strong>' . ($a['body'] !== '' ? '<span class="sub">' . h($a['body']) . '</span>' : ''); },
-                (new DateTimeImmutable($a['createdAt']))->format('M j, Y'),
-                function () use ($a) { confirm_action('announcement.delete', 'Remove', 'Remove this update for everyone?', ['id' => $a['id']]); },
-            ];
-        }, $state['announcements'] ?? []));
-        echo '</section>';
-        hr_company_documents_card($state);
-        card('Demo data');
-        confirm_action('demo.reset', 'Reset demo data', 'This replaces existing workspace records with sample data. Employee sign-in accounts are removed; administrator accounts are kept.');
-        echo '</section>';
-    }
+    card('Demo data', 'settings-danger-zone');
+    echo '<p class="settings-card-description">Replace workspace records with sample data for demonstrations.</p>';
+    confirm_action('demo.reset', 'Reset demo data', 'This replaces existing workspace records with sample data.');
+    echo '</section>';
+    echo '</div>';
     echo '</div></div>';
 }
 

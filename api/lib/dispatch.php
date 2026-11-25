@@ -15,63 +15,9 @@ function action_handler(string $action): string
         'payroll.bonus' => 'act_payroll_bonus', 'payroll.pay' => 'act_payroll_pay', 'payroll.create' => 'act_payroll_create',
         'settings.save' => 'act_settings_save', 'workspace.view' => 'act_workspace_view', 'profile.save' => 'act_profile_save',
         'password.change' => 'act_password_change', 'demo.reset' => 'act_demo_reset',
-        'account.create' => 'act_account_create', 'account.password' => 'act_account_password', 'account.remove' => 'act_account_remove',
-        'announcement.save' => 'act_announcement_save', 'announcement.delete' => 'act_announcement_delete',
-        'correction.create' => 'act_correction_create', 'correction.cancel' => 'act_correction_cancel', 'correction.decide' => 'act_correction_decide',
-        'profile.personal.save' => 'act_profile_personal_save', 'profile.emergency.save' => 'act_profile_emergency_save',
-        'document.delete' => 'act_document_delete', 'document.acknowledge' => 'act_document_acknowledge',
     ];
     if (!isset($writeActions[$action])) fail('Unknown action.', 404);
     return $writeActions[$action];
-}
-
-/* The single gate for every write an employee account makes. HR administrators may do
-   anything; employees may only act on their own records, plus approve or decline their
-   direct reports' Special and Travel Orders. Leave is HR-only: supervisors can't decide
-   (or even see) their team's leave, so nobody learns of a colleague's planned time off.
-   Inputs that name an employee are overwritten with the signed-in employee, so a
-   tampered form can't act for someone else. */
-function authorize_action(string $action, array &$in, array $user): void
-{
-    if (is_admin($user)) return;
-    $me = (int) $user['employeeId'];
-    switch ($action) {
-        case 'password.change':
-        case 'profile.photo':
-        case 'profile.photo.remove':
-            return;
-
-        case 'attendance.clock':
-        case 'employee.request.create':
-        case 'employee.request.cancel':
-        case 'correction.create':   // corrections go to HR (correction.decide is HR-only)
-        case 'correction.cancel':
-        case 'profile.personal.save':   // employees edit only their own personal and emergency details
-        case 'profile.emergency.save':
-        case 'document.acknowledge':    // document.upload and document.delete are HR-only
-            $in['empId'] = $me;
-            return;
-
-        case 'leave.create':
-            $in['empId'] = $me;
-            unset($in['approveNow']);
-            if (trim((string) ($in['reason'] ?? '')) === '') fail('Add a reason so HR can review your request.', 422, 'reason');
-            return;
-
-        case 'leave.cancel':
-            $leave = q('SELECT emp_id, status FROM leave_requests WHERE id = ?', [(int) ($in['id'] ?? 0)])->fetch();
-            if (!$leave || (int) $leave['emp_id'] !== $me) fail('You can only cancel your own requests.', 403);
-            if ($leave['status'] !== 'pending') fail('Approved time off can only be cancelled by HR. Contact your HR administrator.', 403);
-            return;
-
-        case 'leave.decide':
-            fail('Leave requests are approved by HR only.', 403);
-
-        case 'employee.request.decide':
-            $in['reviewerId'] = $me; // act_employee_request_decide checks the reviewer is the direct supervisor
-            return;
-    }
-    fail('Your account doesn’t have access to that. Ask your HR administrator.', 403);
 }
 
 function account_action(string $action, array $in): array
@@ -108,15 +54,10 @@ function account_action(string $action, array $in): array
                 fail('Username must be 3–60 characters and may contain only letters, numbers, periods, hyphens, and underscores.', 422, 'username');
             }
             if ($password === '') fail('Please enter your password.', 422, 'password');
-            ensure_account_columns();
-            $u = q('SELECT u.id, u.password_hash, u.account_role, e.status AS employee_status
-                    FROM users u LEFT JOIN employees e ON e.id = u.employee_id WHERE u.username = ?', [$username])->fetch();
+            $u = q('SELECT id, password_hash FROM users WHERE username = ?', [$username])->fetch();
             if (!$u || !password_verify($password, $u['password_hash'])) {
                 usleep(400000);
                 fail('The username or password is incorrect.', 401);
-            }
-            if ($u['account_role'] === 'employee' && $u['employee_status'] !== 'Active') {
-                fail('This account is no longer active. Contact your HR administrator.', 403);
             }
             start_session();
             session_regenerate_id(true);

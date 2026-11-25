@@ -28,15 +28,6 @@ function act_employee_save(array $in): array
         'salary' => $salary,
         'manager_id' => int_in($in, 'managerId', false),
     ];
-    if (array_key_exists('biometricId', $in)) {
-        ensure_biometrics();
-        $bio = str_in($in, 'biometricId', 30, false, 'Biometric ID');
-        if ($bio !== '' && !preg_match('/^[A-Za-z0-9_-]+$/', $bio)) fail('Biometric ID uses letters, numbers, dashes or underscores — the user number shown on the biometric device.', 422, 'biometricId');
-        $f['biometric_id'] = $bio === '' ? null : normalize_biometric_id($bio);
-        if ($f['biometric_id'] !== null && q('SELECT id FROM employees WHERE biometric_id = ? AND id <> ?', [$f['biometric_id'], $id ?? 0])->fetchColumn()) {
-            fail('Another employee already has that biometric ID.', 422, 'biometricId');
-        }
-    }
     if (!filter_var($f['email'], FILTER_VALIDATE_EMAIL)) fail('Enter a valid email address, like name@company.com.', 422, 'email');
     if ($salary === false || $salary < 0.01 || $salary > 10000000) fail('Annual salary must be between 0.01 and 10,000,000.', 422, 'salary');
     $dupe = q('SELECT id FROM employees WHERE email = ? AND id <> ?', [$f['email'], $id ?? 0])->fetchColumn();
@@ -45,27 +36,11 @@ function act_employee_save(array $in): array
         if ($id !== null && $f['manager_id'] === $id) fail('An employee cannot be their own manager.');
         employee_exists($f['manager_id']);
     }
-    // The employee and their sign-in change together: if the login part fails, nothing is saved.
-    $ownTx = !db()->inTransaction();
-    if ($ownTx) db()->beginTransaction();
-    try {
-        [$id, $changed] = employee_save_rows($id, $f, $in);
-        if (employee_login_changes($id, $in)) $changed = true;
-        if ($ownTx) db()->commit();
-    } catch (Throwable $e) {
-        if ($ownTx && db()->inTransaction()) db()->rollBack();
-        throw $e;
-    }
-    return ['id' => $id, 'changed' => $changed];
-}
-
-function employee_save_rows(?int $id, array $f, array $in): array
-{
     if ($id) {
         employee_exists($id);
         $sets = implode(', ', array_map(function ($k) { return "$k = ?"; }, array_keys($f)));
         $updated = q("UPDATE employees SET $sets WHERE id = ?", array_merge(array_values($f), [$id]));
-        $changed = $updated->rowCount() > 0;
+        return ['id' => $id, 'changed' => $updated->rowCount() > 0];
     } else {
         $cols = implode(', ', array_keys($f));
         $marks = implode(', ', array_fill(0, count($f), '?'));
@@ -73,53 +48,8 @@ function employee_save_rows(?int $id, array $f, array $in): array
         $id = (int) db()->lastInsertId();
         $candId = int_in($in, 'fromCandidate', false);
         if ($candId) q('UPDATE candidates SET employee_id = ? WHERE id = ?', [$id, $candId]);
-        $changed = true;
     }
-    return [$id, $changed];
-}
-
-/* The "Sign-in access" part of the Add/Edit employee form (HR only):
-   loginUsername + loginPassword give a login (or rename / reset one), removeAccess deletes it.
-   Returns true when anything about the login changed. */
-function employee_login_changes(int $empId, array $in): bool
-{
-    if (!array_key_exists('loginUsername', $in) && !array_key_exists('loginPassword', $in) && empty($in['removeAccess'])) return false;
-    ensure_account_columns();
-    $account = q("SELECT id, username FROM users WHERE employee_id = ? AND account_role = 'employee'", [$empId])->fetch();
-    $username = strtolower(trim((string) ($in['loginUsername'] ?? '')));
-    $password = (string) ($in['loginPassword'] ?? '');
-    // Field names in errors match the form, so the message shows under the right box.
-    $relabel = function (callable $step) {
-        try { $step(); } catch (ApiError $e) {
-            $field = ['username' => 'loginUsername', 'password' => 'loginPassword'][$e->field ?? ''] ?? $e->field;
-            fail($e->getMessage(), $e->status, $field);
-        }
-    };
-    if (!empty($in['removeAccess'])) {
-        if (!$account) return false;
-        act_account_remove(['empId' => $empId]);
-        return true;
-    }
-    if (!$account) {
-        if ($username === '' && $password === '') return false; // no login wanted
-        if ($username === '') fail('Add a username to give sign-in access, or clear the temporary password.', 422, 'loginUsername');
-        if ($password === '') fail('Set a temporary password for the new login (at least 8 characters).', 422, 'loginPassword');
-        $relabel(function () use ($empId, $username, $password) { act_account_create(['empId' => $empId, 'username' => $username, 'password' => $password]); });
-        return true;
-    }
-    $changed = false;
-    if ($username === '') fail('Usernames can’t be blank. To stop this person signing in, tick “Remove sign-in access”.', 422, 'loginUsername');
-    if ($username !== $account['username']) {
-        if (!preg_match('/^[a-z0-9._-]{3,60}$/', $username)) fail('Usernames use 3–60 letters, numbers, dots, dashes or underscores.', 422, 'loginUsername');
-        if (q('SELECT id FROM users WHERE username = ? AND id <> ?', [$username, $account['id']])->fetch()) fail('That username is already taken. Choose another.', 422, 'loginUsername');
-        q('UPDATE users SET username = ? WHERE id = ?', [$username, $account['id']]);
-        $changed = true;
-    }
-    if ($password !== '') {
-        $relabel(function () use ($empId, $password) { act_account_password(['empId' => $empId, 'password' => $password]); });
-        $changed = true;
-    }
-    return $changed;
+    return ['id' => $id];
 }
 
 function act_employee_import(array $file): array
@@ -206,69 +136,27 @@ function act_employee_delete(array $in): array
 }
 
 /* ---------- Time off ---------- */
-/* Working days a request will use: weekdays in the range, or ½ for a half day. */
-function leave_request_days(string $start, string $end, string $dayLength): float
+function act_leave_create(array $in): array
 {
-    $days = workdays($start, $end);
-    if ($dayLength === 'full') return (float) $days;
-    if ($start !== $end) fail('A half day must start and end on the same date.', 422, 'dayLength');
-    if ($days === 0) fail('That date is a weekend. Pick a weekday.', 422, 'start');
-    return 0.5;
-}
-
-/* $attachment comes only from leave_attachment_upload() (a real uploaded file), never from form fields. */
-function act_leave_create(array $in, array $user = [], ?array $attachment = null): array
-{
-    ensure_leave_extras();
     $emp = employee_exists(int_in($in, 'empId'));
     if ($emp['status'] !== 'Active') fail('Time off can only be requested for active employees.');
     $type = one_of((string) ($in['type'] ?? ''), LEAVE_TYPES, 'Leave type');
     $start = date_in($in, 'start', true, 'First day');
     $end = date_in($in, 'end', true, 'Last day');
     if ($end < $start) fail('The last day must be on or after the first day.', 422, 'end');
-    $dayLength = one_of((string) ($in['dayLength'] ?? 'full'), ['full', 'am', 'pm'], 'Day length');
-    $days = leave_request_days($start, $end, $dayLength);
-    if ($days == 0) fail('Those dates fall on a weekend. Pick at least one weekday.');
+    $days = workdays($start, $end);
+    if ($days === 0) fail('Those dates fall on a weekend. Pick at least one weekday.');
     $overlap = q("SELECT COUNT(*) FROM leave_requests WHERE emp_id = ? AND status IN ('pending','approved') AND start_date <= ? AND end_date >= ?", [$emp['id'], $end, $start])->fetchColumn();
     if ($overlap) fail('These dates overlap another request for ' . $emp['first_name'] . '.');
     $s = settings();
-    $allow = (float) ($s['allowances'][$type] ?? 0);
+    $allow = (int) ($s['allowances'][$type] ?? 0);
     $year = substr($start, 0, 4);
-    $taken = (float) q("SELECT COALESCE(SUM(days),0) FROM leave_requests WHERE emp_id = ? AND leave_type = ? AND status IN ('pending','approved') AND YEAR(start_date) = ?", [$emp['id'], $type, $year])->fetchColumn();
-    if ($taken + $days > $allow) fail($emp['first_name'] . ' has ' . days_label(max(0, $allow - $taken)) . " of $type left this year (counting pending requests); this request needs " . days_label($days) . '.');
+    $taken = (int) q("SELECT COALESCE(SUM(days),0) FROM leave_requests WHERE emp_id = ? AND leave_type = ? AND status IN ('pending','approved') AND YEAR(start_date) = ?", [$emp['id'], $type, $year])->fetchColumn();
+    if ($taken + $days > $allow) fail($emp['first_name'] . ' has ' . max(0, $allow - $taken) . " day(s) of $type left this year; this request needs $days.");
     $status = !empty($in['approveNow']) ? 'approved' : 'pending';
-    q('INSERT INTO leave_requests (emp_id,leave_type,start_date,end_date,days,status,reason,created_at,decided_at,day_length,attachment,attachment_name,attachment_type) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
-        [$emp['id'], $type, $start, $end, $days, $status, str_in($in, 'reason', 255, false), today(), $status === 'approved' ? date('Y-m-d H:i:s') : null,
-         $dayLength, $attachment['bytes'] ?? null, $attachment['name'] ?? null, $attachment['type'] ?? null]);
+    q('INSERT INTO leave_requests (emp_id,leave_type,start_date,end_date,days,status,reason,created_at,decided_at) VALUES (?,?,?,?,?,?,?,?,?)',
+        [$emp['id'], $type, $start, $end, $days, $status, str_in($in, 'reason', 255, false), today(), $status === 'approved' ? date('Y-m-d H:i:s') : null]);
     return ['id' => (int) db()->lastInsertId()];
-}
-
-/* A leave request's supporting document, if this user may open it: HR, or the employee who
-   sent it. Nobody else, including supervisors. Returns null when not found or not allowed. */
-function leave_attachment_for(array $user, int $leaveId): ?array
-{
-    ensure_leave_extras();
-    $file = q('SELECT emp_id, attachment, attachment_name, attachment_type FROM leave_requests WHERE id = ? AND attachment IS NOT NULL', [$leaveId])->fetch();
-    if (!$file) return null;
-    if (!is_admin($user) && (int) $file['emp_id'] !== (int) ($user['employeeId'] ?? 0)) return null;
-    return $file;
-}
-
-/* Validates an uploaded supporting document by its contents (not its name): PDF, JPG or PNG, up to 5 MB. */
-function leave_attachment_upload(array $file, string $field = 'attachment'): ?array
-{
-    $code = $file['error'] ?? UPLOAD_ERR_NO_FILE;
-    if ($code === UPLOAD_ERR_NO_FILE) return null;
-    if ($code === UPLOAD_ERR_INI_SIZE || $code === UPLOAD_ERR_FORM_SIZE) fail('That document is too large. Attach a file up to 5 MB.', 422, $field);
-    if ($code !== UPLOAD_ERR_OK || !is_uploaded_file($file['tmp_name'] ?? '')) fail('The document could not be uploaded. Try again.', 422, $field);
-    if (($file['size'] ?? 0) > 5 * 1024 * 1024) fail('That document is too large. Attach a file up to 5 MB.', 422, $field);
-    $bytes = (string) file_get_contents($file['tmp_name']);
-    $type = strncmp($bytes, '%PDF', 4) === 0 ? 'application/pdf'
-        : (strncmp($bytes, "\xFF\xD8\xFF", 3) === 0 ? 'image/jpeg'
-        : (strncmp($bytes, "\x89PNG\r\n\x1A\n", 8) === 0 ? 'image/png' : null));
-    if ($type === null) fail('Attach a PDF, JPG or PNG file (for example a medical certificate).', 422, $field);
-    $name = preg_replace('/[^A-Za-z0-9._ -]/', '_', basename((string) ($file['name'] ?? 'document')));
-    return ['bytes' => $bytes, 'type' => $type, 'name' => mb_substr($name !== '' ? $name : 'document', 0, 160)];
 }
 
 function act_leave_decide(array $in): array
@@ -469,9 +357,6 @@ function act_attendance_clock(array $in): array
         if ($now <= substr($rec['time_in'], 0, 5)) fail('Clock-out must be later than clock-in.');
         q('UPDATE attendance SET time_out = ? WHERE work_date = ? AND emp_id = ?', [$now, $day, $emp['id']]);
     }
-    // Web clock-ins also count as punches, so they appear on the DTR next to biometric ones.
-    ensure_biometrics();
-    q("INSERT IGNORE INTO attendance_punches (emp_id, punched_at, source) VALUES (?, ?, 'web')", [$emp['id'], $day . ' ' . $now . ':00']);
     return [];
 }
 
@@ -482,10 +367,9 @@ function act_event_save(array $in): array
     $start = time_in($in, 'start') ?? fail('Start time is required.', 422, 'start');
     $end = time_in($in, 'end') ?? fail('End time is required.', 422, 'end');
     if ($end <= $start) fail('The event must end after it starts.', 422, 'end');
-    ensure_announcements(); // adds events.for_employees on older databases
-    $vals = [date_in($in, 'date'), $start, $end, str_in($in, 'title', 160, true, 'Title'), str_in($in, 'detail', 255, false), empty($in['forEmployees']) ? 0 : 1];
-    if ($id) q('UPDATE events SET event_date=?, start_time=?, end_time=?, title=?, detail=?, for_employees=? WHERE id = ?', array_merge($vals, [$id]));
-    else q('INSERT INTO events (event_date,start_time,end_time,title,detail,for_employees) VALUES (?,?,?,?,?,?)', $vals);
+    $vals = [date_in($in, 'date'), $start, $end, str_in($in, 'title', 160, true, 'Title'), str_in($in, 'detail', 255, false)];
+    if ($id) q('UPDATE events SET event_date=?, start_time=?, end_time=?, title=?, detail=? WHERE id = ?', array_merge($vals, [$id]));
+    else q('INSERT INTO events (event_date,start_time,end_time,title,detail) VALUES (?,?,?,?,?)', $vals);
     return [];
 }
 
@@ -598,30 +482,6 @@ function act_settings_save(array $in): array
         $allow[$t] = $v;
     }
     set_setting('allowances', $allow);
-    if (array_key_exists('workStart', $in) || array_key_exists('workEnd', $in)) {
-        $start = time_in($in, 'workStart') ?? fail('Enter when office hours start.', 422, 'workStart');
-        $end = time_in($in, 'workEnd') ?? fail('Enter when office hours end.', 422, 'workEnd');
-        if ($end <= $start) fail('Office hours must end after they start.', 422, 'workEnd');
-        set_setting('workStart', $start);
-        set_setting('workEnd', $end);
-    }
-    return [];
-}
-
-/* ---------- Company updates (HR only; see authorize_action) ---------- */
-function act_announcement_save(array $in, array $user): array
-{
-    ensure_announcements();
-    q('INSERT INTO announcements (title, body, created_by) VALUES (?, ?, ?)', [
-        str_in($in, 'title', 120, true, 'Headline'), str_in($in, 'body', 500, false, 'Message'), $user['id'] ?: null,
-    ]);
-    return ['id' => (int) db()->lastInsertId()];
-}
-
-function act_announcement_delete(array $in): array
-{
-    ensure_announcements();
-    q('DELETE FROM announcements WHERE id = ?', [int_in($in, 'id')]);
     return [];
 }
 
@@ -678,52 +538,9 @@ function act_profile_photo_remove(array $user): array
 function act_password_change(array $in, array $user): array
 {
     [$oldHash, $newHash] = account_password_hashes($in, $user['id'], true);
-    $updated = q('UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ? AND password_hash = ?', [$newHash, $user['id'], $oldHash]);
+    $updated = q('UPDATE users SET password_hash = ? WHERE id = ? AND password_hash = ?', [$newHash, $user['id'], $oldHash]);
     if (!$updated->rowCount()) fail('Your password changed. Enter your current password and try again.', 422, 'currentPassword');
     return [];
-}
-
-/* ---------- Employee sign-in accounts (HR administrators only; see authorize_action) ---------- */
-function temporary_password_in(array $in): string
-{
-    $password = (string) ($in['password'] ?? '');
-    if (strlen($password) < 8) fail('Use a temporary password with at least 8 characters.', 422, 'password');
-    if (strlen($password) > 72 || strpos($password, "\0") !== false) fail('Use a password of up to 72 bytes without null characters.', 422, 'password');
-    return $password;
-}
-
-function act_account_create(array $in): array
-{
-    ensure_account_columns();
-    $employee = employee_exists(int_in($in, 'empId'));
-    if ($employee['status'] !== 'Active') fail('Only active employees can be given sign-in access.');
-    if (q("SELECT id FROM users WHERE employee_id = ?", [$employee['id']])->fetch()) fail('This employee already has sign-in access.');
-    $username = strtolower(str_in($in, 'username', 60, true, 'Username'));
-    if (!preg_match('/^[a-z0-9._-]{3,60}$/', $username)) fail('Usernames use 3–60 letters, numbers, dots, dashes or underscores.', 422, 'username');
-    if (q('SELECT id FROM users WHERE username = ?', [$username])->fetch()) fail('That username is already taken. Choose another.', 422, 'username');
-    q("INSERT INTO users (username, display_name, role_title, password_hash, account_role, employee_id, must_change_password) VALUES (?,?,?,?,'employee',?,1)", [
-        $username, $employee['first_name'] . ' ' . $employee['last_name'], $employee['title'],
-        password_hash(temporary_password_in($in), PASSWORD_DEFAULT), $employee['id'],
-    ]);
-    return ['id' => (int) $employee['id']];
-}
-
-function act_account_password(array $in): array
-{
-    ensure_account_columns();
-    $employeeId = int_in($in, 'empId');
-    $updated = q("UPDATE users SET password_hash = ?, must_change_password = 1 WHERE employee_id = ? AND account_role = 'employee'",
-        [password_hash(temporary_password_in($in), PASSWORD_DEFAULT), $employeeId]);
-    if (!$updated->rowCount()) fail('This employee does not have sign-in access.', 404);
-    return ['id' => $employeeId];
-}
-
-function act_account_remove(array $in): array
-{
-    ensure_account_columns();
-    $employeeId = int_in($in, 'empId');
-    q("DELETE FROM users WHERE employee_id = ? AND account_role = 'employee'", [$employeeId]);
-    return ['id' => $employeeId];
 }
 
 function account_password_hashes(array $in, int $userId, bool $requireConfirmation = false): array
@@ -746,6 +563,3 @@ function act_demo_reset(array $in): array
     seed_demo();
     return [];
 }
-
-require_once __DIR__ . '/dtr.php';
-require_once __DIR__ . '/profile.php';

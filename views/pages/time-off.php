@@ -77,7 +77,7 @@ echo '</section>';
     </section>
     <div class="web-stack">
         <?php foreach (['Out this week' => $out, 'Coming up' => $upcoming] as $heading => $list): ?>
-            <section class="card">
+            <section class="card<?= $heading === 'Out this week' ? ' timeoff-out-card' : '' ?>">
                 <div class="card-head"><h3><?= h($heading) ?></h3></div>
                 <div class="card-body web-people">
                     <?php if (!$list): ?><p class="muted">No approved leave.</p><?php endif; ?>
@@ -92,8 +92,8 @@ echo '</section>';
         <?php endforeach; ?>
         <section class="card">
             <div class="card-head"><div><h3>Leave policy</h3><p>Days per person per year</p></div><a class="link-btn" href="<?= h(page_url('preferences')) ?>">Edit</a></div>
-            <dl class="card-body dl">
-                <?php foreach ($state['settings']['allowances'] as $label => $days): ?><dt><?= h($label) ?></dt><dd><?= h($days) ?></dd><?php endforeach; ?>
+            <dl class="card-body dl leave-policy-list">
+                <?php foreach ($state['settings']['allowances'] as $label => $days): ?><dt><?= h($label) ?></dt><dd><span class="leave-policy-days"><?= h($days) ?> days</span></dd><?php endforeach; ?>
             </dl>
         </section>
     </div>

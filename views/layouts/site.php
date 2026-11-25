@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= h($user ? $pages[$page] : $screen) ?> · HRMS</title>
+    <link rel="icon" type="image/svg+xml" href="<?= h(versioned_asset('assets/psa-logo.svg')) ?>">
     <link rel="stylesheet" href="<?= h(versioned_asset('assets/css/app.css')) ?>">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap">
     <link rel="stylesheet" href="<?= h(versioned_asset('assets/css/php.css')) ?>">
@@ -22,10 +23,11 @@
     </div>
 </div>
 <script>
-    if (performance.getEntriesByType('navigation')[0]?.type === 'reload') {
-        const loader = document.getElementById('page-loader');
-        loader.hidden = false;
-        window.addEventListener('pageshow', () => { loader.hidden = true; }, { once: true });
+    var navigationEntries = performance.getEntriesByType && performance.getEntriesByType('navigation');
+    if (navigationEntries && navigationEntries[0] && navigationEntries[0].type === 'reload') {
+        var pageLoader = document.getElementById('page-loader');
+        pageLoader.hidden = false;
+        window.addEventListener('pageshow', function () { pageLoader.hidden = true; }, { once: true });
     }
 </script>
 <?php if (!$user): ?>
@@ -34,7 +36,6 @@
         <section class="auth-card<?= $screen === 'Sign in' ? ' auth-card-signin' : '' ?>">
             <a class="brand" href="<?= h(page_url('overview')) ?>"><img class="brand-logo" src="assets/psa-logo.svg" alt="Philippine Statistics Authority seal"><span class="brand-copy"><strong>HRMS</strong><small>Human Resource Management System</small></span></a>
             <h1><?= h($screen) ?></h1>
-            <?php if ($screen === 'Sign in'): ?><p class="auth-intro">Welcome back. Sign in to your people workspace.</p><?php endif; ?>
             <?php web_message($errorField ? '' : $error, ''); ?>
             <?php if ($screen === 'Install HRMS'): ?>
                 <p>Create the database tables before setting up your administrator account.</p>
@@ -46,20 +47,14 @@
                 <?php post_form($screen === 'Sign in' ? 'login' : 'setup'); ?>
                 <?php if ($screen !== 'Sign in') field('name', 'Full name'); ?>
                 <?php if ($screen !== 'Sign in' && setup_key_required()) field('setupKey', 'Setup key', '', 'password'); ?>
-                <?php
-                    if ($screen === 'Sign in') {
-                        field('username', 'Username', $formError['values']['username'] ?? '', 'text', true, $errorField === 'username' ? $error : '', [
-                            'autocomplete' => 'username', 'minlength' => '3', 'maxlength' => '60', 'pattern' => '[A-Za-z0-9._-]+',
-                        ]);
-                        field('password', 'Password', '', 'password', true, $errorField === 'password' ? $error : '', [
-                            'autocomplete' => 'current-password', 'passwordToggle' => true,
-                        ]);
-                    } else {
-                        field('username', 'Username');
-                        field('password', 'Password', '', 'password');
-                    }
-                ?>
-                <?php if ($screen === 'Sign in'): ?><p class="auth-security-note">Authorized personnel only · Philippine Statistics Authority</p><?php endif; ?>
+                <?php if ($screen === 'Sign in'): ?>
+                    <?php
+                        field('username', 'Username', $formError['values']['username'] ?? '', 'text', true, $errorField === 'username' ? $error : '');
+                        field('password', 'Password', '', 'password', true, $errorField === 'password' ? $error : '', ['passwordToggle' => true]);
+                    ?>
+                <?php else: ?>
+                    <?php field('username', 'Username'); field('password', 'Password', '', 'password'); ?>
+                <?php endif; ?>
                 <?php end_form($screen); ?>
             <?php endif; ?>
         </section>
@@ -67,17 +62,25 @@
     <?php if ($screen === 'Sign in'): ?>
         <script>
             (function () {
-                var button = document.querySelector('[data-password-toggle]');
-                var password = document.getElementById('signin-password');
                 var form = document.querySelector('.web-auth-signin form');
                 var username = form && form.elements.namedItem('username');
+                var password = form && form.elements.namedItem('password');
+                var button = form && form.querySelector('[data-password-toggle]');
                 if (!form || !username || !password) return;
                 form.noValidate = true;
 
                 function validate(input) {
-                    var message = input === username
-                        ? (!input.value.trim() ? 'Please enter your username.' : (!/^[a-z0-9._-]{3,60}$/i.test(input.value.trim()) ? 'Username must be 3–60 characters and may contain only letters, numbers, periods, hyphens, and underscores.' : ''))
-                        : (!input.value ? 'Please enter your password.' : '');
+                    var value = input === username ? input.value.trim() : input.value;
+                    var message = '';
+                    if (input === username) {
+                        if (!value) message = 'Please enter your username.';
+                        else if (!/^[a-z0-9._-]{3,60}$/i.test(value)) {
+                            message = 'Username must be 3–60 characters and may contain only letters, numbers, periods, hyphens, and underscores.';
+                        }
+                    } else if (!value) {
+                        message = 'Please enter your password.';
+                    }
+
                     var field = input.closest('.field');
                     var error = field.querySelector('.field-error');
                     if (message && !error) {
@@ -109,8 +112,9 @@
                     }
                 });
                 form.addEventListener('input', function (event) {
-                    if (event.target === username || event.target === password) {
-                        if (event.target.hasAttribute('aria-invalid')) validate(event.target);
+                    if ((event.target === username || event.target === password)
+                            && event.target.hasAttribute('aria-invalid')) {
+                        validate(event.target);
                     }
                 });
                 if (button) button.addEventListener('click', function () {
@@ -128,26 +132,14 @@
         'overview' => 'grid', 'employees' => 'users', 'attendance' => 'clock', 'time-off' => 'calendar',
         'payroll' => 'wallet', 'recruitment' => 'briefcase', 'reports' => 'chart',
     ];
-    $isAdmin = is_admin($user);
-    // HR is notified of every pending request; a supervising employee only of their direct reports' requests.
-    $needsDecision = function ($item) use ($isAdmin, $user) {
-        return $item['status'] === 'pending' && ($isAdmin || $item['empId'] !== $user['employeeId']);
-    };
-    $pendingLeaves = array_filter($state['leaves'] ?? [], $needsDecision);
-    $pendingEmployeeRequests = array_filter($state['employeeRequests'] ?? [], $needsDecision);
-    // Attendance corrections are decided by HR only.
-    $pendingCorrections = $isAdmin ? array_filter($state['corrections'] ?? [], function ($c) { return $c['status'] === 'pending'; }) : [];
-    $pendingCount = count($pendingLeaves) + count($pendingEmployeeRequests) + count($pendingCorrections);
+    $pendingCount = count(array_filter($state['leaves'] ?? [], function ($leave) { return $leave['status'] === 'pending'; }));
+    $pendingEmployeeRequests = array_filter($state['employeeRequests'] ?? [], function ($request) { return $request['status'] === 'pending'; });
+    $pendingCount += count($pendingEmployeeRequests);
     $employeesById = array_column($state['employees'] ?? [], null, 'id');
     $notifications = [];
-    foreach ($pendingLeaves as $leave) $notifications[] = ['leave', $leave];
+    foreach (($state['leaves'] ?? []) as $leave) if ($leave['status'] === 'pending') $notifications[] = ['leave', $leave];
     foreach ($pendingEmployeeRequests as $request) $notifications[] = ['request', $request];
-    foreach ($pendingCorrections as $correction) $notifications[] = ['correction', $correction + ['start' => $correction['date']]];
     $notifications = array_slice($notifications, 0, 8);
-    $myUpdates = $isAdmin ? [] : employee_updates($state, (int) $user['employeeId']);
-    $reviewPage = $isAdmin ? 'time-off' : 'supervisor';
-    $reviewQuery = $isAdmin ? ['status' => 'pending'] : [];
-    $homePage = 'overview';
     $settings = $state['settings'] ?? [];
     $signOutReturn = page_url($page, $query);
     $showSignOut = ($_GET['confirmSignOut'] ?? '') === '1';
@@ -155,48 +147,38 @@
     <div class="app web-app">
         <aside class="sidebar" id="web-sidebar" aria-label="Main navigation">
             <button class="sidebar-toggle" id="web-sidebar-toggle" type="button" aria-controls="web-sidebar" aria-expanded="true" aria-label="Collapse sidebar" title="Collapse sidebar"><?= icon('chevLeft', 16) ?></button>
-            <a class="brand sidebar-brand" href="<?= h(page_url($homePage)) ?>" title="Human Resource Management System">
+            <a class="brand sidebar-brand" href="<?= h(page_url('overview')) ?>" title="Human Resource Management System">
                 <img src="assets/psa-logo.svg" width="40" height="40" alt="Philippine Statistics Authority">
                 <span class="brand-copy"><strong>HRMS</strong><small>Human Resource Management System</small></span>
             </a>
             <div>
                 <div class="side-label">Workspace</div>
                 <a class="ws-switch" href="<?= h(page_url('preferences')) ?>">
-                    <div><strong><?= h($settings['company'] ?? 'HRMS') ?></strong><span><?= h($isAdmin ? ($settings['workspace'] ?? 'Workspace') : 'Employee workspace') ?></span></div>
+                    <div><strong><?= h($settings['company'] ?? 'HRMS') ?></strong><span><?= h($settings['workspace'] ?? 'Workspace') ?></span></div>
                     <?= icon('chevDown', 14) ?>
                 </a>
             </div>
-            <?php if (!$isAdmin) $navIcons = ['overview' => 'grid', 'my-time-off' => 'calendar', 'my-attendance' => 'clock', 'my-payslips' => 'wallet', 'my-profile' => 'user']; ?>
             <div>
-                <div class="side-label"><?= $isAdmin ? 'Manage' : 'My workspace' ?></div>
+                <div class="side-label">Manage</div>
                 <nav class="nav">
                     <?php foreach ($navIcons as $key => $navIcon): ?>
-                        <a href="<?= h(page_url($key)) ?>" title="<?= h($pages[$key]) ?>"<?= $key === $page || ($key === 'my-time-off' && $page === 'request-leave') ? ' class="active" aria-current="page"' : '' ?>>
+                        <a href="<?= h(page_url($key)) ?>" title="<?= h($pages[$key]) ?>"<?= $key === $page ? ' class="active" aria-current="page"' : '' ?>>
                             <?= icon($navIcon) ?><span><?= h($pages[$key]) ?></span>
-                            <?php $navCount = $key === $reviewPage ? $pendingCount - count($pendingCorrections) : ($key === 'attendance' ? count($pendingCorrections) : 0); if ($navCount): ?><span class="count"><?= $navCount ?></span><?php endif; ?>
+                            <?php if ($key === 'time-off' && $pendingCount): ?><span class="count"><?= $pendingCount ?></span><?php endif; ?>
                         </a>
                     <?php endforeach; ?>
                 </nav>
             </div>
             <div class="side-spacer"></div>
-            <?php $sideLinks = $isAdmin ? ['supervisor', 'self-service'] : ($user['hasTeam'] ? ['supervisor'] : []); ?>
-            <?php if ($sideLinks): ?>
             <div class="side-links">
-                <?php foreach ($sideLinks as $key): ?>
-                    <a class="side-link<?= $page === $key ? ' active' : '' ?>" href="<?= h(page_url($key)) ?>" title="<?= h($pages[$key]) ?>"><?= h($pages[$key]) ?><?php if (!$isAdmin && $key === $reviewPage && $pendingCount): ?><span class="count"><?= $pendingCount ?></span><?php endif; ?><?= icon('arrowUpRight', 13) ?></a>
+                <?php foreach (['supervisor', 'self-service'] as $key): ?>
+                    <a class="side-link<?= $page === $key ? ' active' : '' ?>" href="<?= h(page_url($key)) ?>" title="<?= h($pages[$key]) ?>"><?= h($pages[$key]) ?><?= icon('arrowUpRight', 13) ?></a>
                 <?php endforeach; ?>
             </div>
-            <?php endif; ?>
             <div class="help-card">
-                <?php if ($isAdmin): ?>
                 <strong>Human Resource Support</strong>
                 <p>Access system guidance and assistance.</p>
                 <a href="<?= h(page_url('help')) ?>">Open help center <?= icon('arrowRight', 15) ?></a>
-                <?php else: ?>
-                <strong>Need a hand?</strong>
-                <p>Your HR team is here to help.</p>
-                <a href="<?= h(page_url('help')) ?>">Contact HR <?= icon('arrowRight', 15) ?></a>
-                <?php endif; ?>
             </div>
             <nav class="nav" aria-label="Settings and help">
                 <a class="<?= $page === 'preferences' ? 'active' : '' ?>" href="<?= h(page_url('preferences')) ?>" aria-label="Settings" title="Settings"<?= $page === 'preferences' ? ' aria-current="page"' : '' ?>>
@@ -211,67 +193,58 @@
         <div class="main">
             <header class="topbar">
                 <button class="icon-btn menu-btn" id="web-menu-btn" type="button" aria-label="Open navigation"><?= icon('menu', 18) ?></button>
-                <div class="crumbs"><span>Workspace</span><?= icon('chevRight', 13) ?><strong><?= h($page === 'request-leave' ? 'My time off / Request leave' : $pages[$page]) ?></strong></div>
+                <div class="crumbs"><span>Workspace</span><?= icon('chevRight', 13) ?><strong><?= h($pages[$page]) ?></strong></div>
                 <div class="top-actions">
                     <button class="btn desktop-full-screen" type="button" hidden>Full screen</button>
                     <form method="post" id="web-theme-form">
-                        <?php hidden_inputs(['_action' => 'theme', '_token' => $_SESSION['web_csrf']]); ?>
-                        <?php /* Two plain buttons; CSS shows the right one, including for "System" theme on a dark device. */ ?>
-                        <button type="submit" name="theme" value="light" class="icon-btn theme-to-light" aria-label="Switch to light mode" title="Switch to light mode"><?= icon('sun', 17) ?></button>
-                        <button type="submit" name="theme" value="dark" class="icon-btn theme-to-dark" aria-label="Switch to dark mode" title="Switch to dark mode"><?= icon('moon', 17) ?></button>
+                        <?php hidden_inputs(['_action' => 'theme', '_token' => $_SESSION['web_csrf'], 'theme' => $theme === 'dark' ? 'light' : 'dark']); ?>
+                        <button type="submit" class="icon-btn" aria-label="<?= $theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode' ?>" title="<?= $theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode' ?>">
+                            <span class="theme-sun"><?= icon('sun', 17) ?></span>
+                            <span class="theme-moon"><?= icon('moon', 17) ?></span>
+                        </button>
                     </form>
                     <details class="popover-wrap web-notifications-wrap">
-                        <summary class="icon-btn web-bell" id="notification-bell" aria-label="Notifications<?= $pendingCount ? ', ' . $pendingCount . ' pending' : '' ?><?= $myUpdates ? ', ' . count($myUpdates) . ' update' . (count($myUpdates) === 1 ? '' : 's') : '' ?>" aria-haspopup="true" aria-expanded="false">
-                            <?= icon('bell') ?><?php if ($pendingCount || $myUpdates): ?><span class="dot"></span><?php endif; ?>
+                        <summary class="icon-btn web-bell" id="notification-bell" aria-label="Notifications<?= $pendingCount ? ', ' . $pendingCount . ' pending' : '' ?>" aria-haspopup="true" aria-expanded="false">
+                            <?= icon('bell') ?><?php if ($pendingCount): ?><span class="dot"></span><?php endif; ?>
                         </summary>
                         <div class="popover notification-popover" id="notification-popover">
-                            <div class="notification-popover-head"><strong>Notifications</strong><?php if ($pendingCount): ?><span class="pill"><?= $pendingCount ?> pending</span><?php elseif ($myUpdates): ?><span class="pill"><?= count($myUpdates) ?> new</span><?php endif; ?></div>
-                            <?php foreach ($myUpdates as $u): ?>
-                                <a class="notification-item" href="<?= h(page_url('my-time-off')) ?>">
-                                    <span class="avatar sm"><?= icon($u['ok'] ? 'check' : 'x', 14) ?></span>
-                                    <span><strong><?= h($u['title']) ?></strong><small><?= h($u['detail']) ?></small></span>
-                                </a>
-                            <?php endforeach; ?>
+                            <div class="notification-popover-head"><strong>Notifications</strong><?php if ($pendingCount): ?><span class="pill"><?= $pendingCount ?> pending</span><?php endif; ?></div>
                             <?php if ($notifications): ?>
                                 <?php foreach ($notifications as [$kind, $item]):
                                     $employee = $employeesById[$item['empId']] ?? null;
                                     $name = $employee ? employee_name($employee) : 'Former employee';
-                                    $label = $kind === 'leave' ? 'Requested ' . strtolower($item['type'])
-                                        : ($kind === 'correction' ? 'Attendance correction' : ($item['type'] === 'travel_order' ? 'Travel Order' : 'Special Order') . ' · ' . $item['purpose']);
+                                    $label = $kind === 'leave' ? 'Requested ' . strtolower($item['type']) : ($item['type'] === 'travel_order' ? 'Travel Order' : 'Special Order') . ' · ' . $item['purpose'];
                                 ?>
-                                    <a class="notification-item" href="<?= h($kind === 'correction' ? page_url('attendance') : page_url($reviewPage, $reviewQuery)) ?>">
+                                    <a class="notification-item" href="<?= h(page_url($kind === 'leave' ? 'time-off' : 'time-off', ['status' => 'pending'])) ?>">
                                         <span class="avatar sm"><?= h(initials($name)) ?></span>
                                         <span><strong><?= h($name) ?></strong><small><?= h($label) ?> · <?= h($item['start']) ?></small></span>
                                     </a>
                                 <?php endforeach; ?>
-                                <a class="notification-footer" href="<?= h(page_url($reviewPage, $reviewQuery)) ?>">Review pending requests</a>
-                            <?php elseif (!$myUpdates): ?>
+                                <a class="notification-footer" href="<?= h(page_url('time-off', ['status' => 'pending'])) ?>">Review pending requests</a>
+                            <?php else: ?>
                                 <div class="notification-empty"><?= icon('check', 18) ?><strong>No pending notifications</strong><span>There are no new notifications.</span></div>
                             <?php endif; ?>
                         </div>
                     </details>
                     <details class="popover-wrap web-user">
-                        <summary class="user-btn"><span class="avatar"><?php if (!empty($user['avatarUrl'])): ?><img src="<?= h($user['avatarUrl']) ?>" alt=""><?php else: ?><?= h(initials($user['name'])) ?><?php endif; ?></span><span class="who-text"><strong><?= h($user['name']) ?></strong><span><?= h($isAdmin ? 'Administrator · ' . $user['role'] : $user['role'] . ' · Employee') ?></span></span><?= icon('chevDown', 14) ?></summary>
+                        <summary class="user-btn"><span class="avatar"><?php if (!empty($user['avatarUrl'])): ?><img src="<?= h($user['avatarUrl']) ?>" alt=""><?php else: ?><?= h(initials($user['name'])) ?><?php endif; ?></span><span class="who-text"><strong><?= h($user['name']) ?></strong><span><?= h($user['role']) ?></span></span><?= icon('chevDown', 14) ?></summary>
                         <div class="popover menu">
                             <a href="<?= h(page_url('preferences')) ?>"><?= icon('settings') ?> Settings</a>
-                            <a href="<?= h(page_url($isAdmin ? 'self-service' : 'my-profile')) ?>"><?= icon('user') ?> <?= h($isAdmin ? $pages['self-service'] : 'My profile') ?></a><hr>
+                            <a href="<?= h(page_url('self-service')) ?>"><?= icon('user') ?> Employee workspace</a><hr>
                             <a id="open-sign-out" href="<?= h(page_url($page, ['confirmSignOut' => 1] + $query)) ?>" aria-haspopup="dialog"><?= icon('logOut') ?> Sign out</a>
                         </div>
                     </details>
                 </div>
             </header>
             <main class="content">
-                <?php if (!in_array($page, ['overview', 'employees', 'attendance', 'time-off', 'reports', 'my-time-off', 'request-leave', 'my-attendance', 'my-payslips', 'my-profile'], true) || !$state): ?>
+                <?php if (!in_array($page, ['overview', 'employees', 'attendance', 'time-off', 'reports'], true) || !$state): ?>
                     <div class="page-head"><h1><?= h($pages[$page]) ?></h1></div>
                 <?php endif; ?>
                 <?php
                 $hasEmployeeModal = $state && $page === 'employees' && (int) ($_GET['id'] ?? 0) === 0;
                 web_message($hasEmployeeModal && !empty($formError['employeeModal']) ? '' : $error, '');
                 ?>
-                <?php if (!empty($user['mustChangePassword']) && $page !== 'preferences'): ?>
-                    <div class="temp-password-banner" role="status"><?= icon('settings', 16) ?><span>You’re signed in with a temporary password from HR. Please choose your own.</span><a class="btn sm primary" href="<?= h(page_url('preferences')) ?>">Change password</a></div>
-                <?php endif; ?>
-                <?php if ($state) require __DIR__ . '/../pages/' . ($page === 'preferences' ? 'settings' : ($page === 'overview' && !$isAdmin ? 'my-overview' : $page)) . '.php'; ?>
+                <?php if ($state) require __DIR__ . '/../pages/' . ($page === 'preferences' ? 'settings' : $page) . '.php'; ?>
                 <?php if ($hasEmployeeModal) add_employee_modal($state, $page, $formError); ?>
             </main>
         </div>
@@ -302,12 +275,47 @@
             });
         }());
     </script>
+    <script src="<?= h(versioned_asset('assets/js/sign-out-dialog.js')) ?>" defer></script>
     <script src="<?= h(versioned_asset('assets/js/form-dialog.js')) ?>" defer></script>
 <?php endif; ?>
 <?php if ($error !== '' || $notice !== '') require __DIR__ . '/../partials/notifications.php'; ?>
 <?php if ($user): ?>
 <script>
     (function () {
+        var themeForm = document.getElementById('web-theme-form');
+        var themeButton = themeForm.querySelector('button');
+        var themeInput = themeForm.elements.theme;
+        var root = document.documentElement;
+        var systemTheme = window.matchMedia('(prefers-color-scheme: dark)');
+        function updateThemeButton() {
+            var dark = root.dataset.theme === 'dark' || (root.dataset.theme === 'system' && systemTheme.matches);
+            themeInput.value = dark ? 'light' : 'dark';
+            themeButton.title = dark ? 'Switch to light mode' : 'Switch to dark mode';
+            themeButton.setAttribute('aria-label', themeButton.title);
+        }
+        updateThemeButton();
+        systemTheme.addEventListener('change', updateThemeButton);
+        themeForm.addEventListener('submit', async function (event) {
+            event.preventDefault();
+            if (themeButton.disabled) return;
+            var nextTheme = themeInput.value;
+            themeButton.disabled = true;
+            try {
+                var response = await fetch(themeForm.action, {
+                    method: 'POST',
+                    body: new FormData(themeForm),
+                    headers: { 'X-Horizon-View': 'theme-toggle' },
+                    redirect: 'error'
+                });
+                if (response.status !== 204) throw new Error('Theme could not be saved.');
+                root.dataset.theme = nextTheme;
+                updateThemeButton();
+            } catch (_) {
+                themeForm.submit();
+            } finally {
+                themeButton.disabled = false;
+            }
+        });
         var app = document.querySelector('.web-app');
         var toggle = document.getElementById('web-sidebar-toggle');
         var menu = document.getElementById('web-menu-btn');

@@ -16,15 +16,8 @@ function install_schema(): void
 function seed_demo(): void
 {
     $pdo = db();
-    // Employee logins belong to employee records that are about to be replaced; admin logins are kept.
-    ensure_account_columns();
-    ensure_biometrics();
-    ensure_announcements();
-    ensure_attendance_corrections();
-    ensure_profile_details();
-    $pdo->exec("DELETE FROM users WHERE account_role = 'employee'");
     $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
-    foreach (['document_acknowledgements', 'employee_documents', 'attendance_corrections', 'announcements', 'payslips', 'pay_bonuses', 'pay_runs', 'candidates', 'positions', 'events', 'attendance_punches', 'attendance', 'employee_requests', 'leave_requests', 'employees', 'settings'] as $t) {
+    foreach (['payslips', 'pay_bonuses', 'pay_runs', 'candidates', 'positions', 'events', 'attendance', 'employee_requests', 'leave_requests', 'employees', 'settings'] as $t) {
         $pdo->exec("TRUNCATE TABLE $t");
     }
     $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
@@ -67,7 +60,6 @@ function seed_demo(): void
         $insEmp->execute([$f, $l, strtolower("$f.$l") . '@horizon.studio', $mobile,
             $title, $dept, $pick($cities), $type, $start, $salary, 'Active']);
         $id = (int) $pdo->lastInsertId();
-        q('UPDATE employees SET biometric_id = ? WHERE id = ?', [(string) (1000 + $id), $id]); // sample device user number
         $emps[$id] = ['id' => $id, 'dept' => $dept, 'start' => $start, 'name' => "$f $l"];
         return $id;
     };
@@ -117,7 +109,6 @@ function seed_demo(): void
 
     /* Attendance for the past 7 weeks */
     $insAtt = $pdo->prepare('INSERT INTO attendance (work_date,emp_id,status,time_in,time_out) VALUES (?,?,?,?,?)');
-    $insPunch = $pdo->prepare("INSERT IGNORE INTO attendance_punches (emp_id, punched_at, source) VALUES (?, ?, 'biometric')");
     $pdo->beginTransaction();
     for ($back = 49; $back >= 0; $back--) {
         $day = $T->modify("-$back days");
@@ -132,31 +123,19 @@ function seed_demo(): void
             $o = $in + 480 + mt_rand(0, 70);
             $out = $back === 0 ? null : sprintf('%02d:%02d', intdiv($o, 60), $o % 60);
             $insAtt->execute([$di, $e['id'], $st, sprintf('%02d:%02d', intdiv($in, 60), $in % 60), $out]);
-            // Office days also get biometric punches: arrival, lunch out and back, departure.
-            if ($st === 'office') {
-                $punch = function (int $m) use ($insPunch, $di, $e) { $insPunch->execute([$e['id'], sprintf('%s %02d:%02d:%02d', $di, intdiv($m, 60), $m % 60, mt_rand(0, 59))]); };
-                $punch($in);
-                if ($back > 0 || (int) date('G') >= 13) { $punch(12 * 60 + mt_rand(0, 6)); $punch(12 * 60 + 48 + mt_rand(0, 11)); }
-                if ($out !== null) $punch($o);
-            }
         }
     }
     $pdo->commit();
 
     /* Schedule */
-    // Last value: 1 = also on employees' Today's schedule (interviews and payroll stay HR-only).
-    $insEv = $pdo->prepare('INSERT INTO events (event_date,start_time,end_time,title,detail,for_employees) VALUES (?,?,?,?,?,?)');
+    $insEv = $pdo->prepare('INSERT INTO events (event_date,start_time,end_time,title,detail) VALUES (?,?,?,?,?)');
     foreach ([
-        [0, '09:30', '10:00', 'People team sync', 'Weekly check-in · 6 people', 1],
-        [0, '11:00', '11:45', 'Product designer interview', 'With Jamie Chen · Interview', 0],
-        [0, '14:30', '15:00', 'New hire orientation', '2 new teammates · Onboarding', 1],
-        [1, '10:00', '11:00', 'Payroll review', 'Finance · Monthly close', 0],
-        [2, '13:00', '14:00', 'Quarterly all-hands', 'Whole company · Main hall', 1],
-    ] as $ev) $insEv->execute([$d($ev[0]), $ev[1], $ev[2], $ev[3], $ev[4], $ev[5]]);
-
-    /* Company updates */
-    q('INSERT INTO announcements (title, body, created_at) VALUES (?, ?, ?)', ['Year-end holiday schedule', 'The office will be closed on December 25 and January 1.', $d(-2) . ' 09:00:00']);
-    q('INSERT INTO announcements (title, body, created_at) VALUES (?, ?, ?)', ['Updated biometric devices', 'Use the new fingerprint scanners at the main entrance starting next week.', $d(-5) . ' 09:00:00']);
+        [0, '09:30', '10:00', 'People team sync', 'Weekly check-in · 6 people'],
+        [0, '11:00', '11:45', 'Product designer interview', 'With Jamie Chen · Interview'],
+        [0, '14:30', '15:00', 'New hire orientation', '2 new teammates · Onboarding'],
+        [1, '10:00', '11:00', 'Payroll review', 'Finance · Monthly close'],
+        [2, '13:00', '14:00', 'Quarterly all-hands', 'Whole company · Main hall'],
+    ] as $ev) $insEv->execute([$d($ev[0]), $ev[1], $ev[2], $ev[3], $ev[4]]);
 
     /* Recruitment */
     $candFirst = ['Ines', 'Marcus', 'Hana', 'Tobias', 'Aisha', 'Pablo', 'Freya', 'Kenji', 'Lena', 'Victor', 'Ada', 'Bruno', 'Selin', 'Owen', 'Talia', 'Diego', 'Nora', 'Emil', 'Rosa', 'Idris', 'Clara', 'Malik', 'Signe', 'Julian'];

@@ -47,6 +47,7 @@ function action_success_message(string $action, array $input): string
         'install' => 'Database installed.',
         'setup' => 'Administrator account created.',
         'login' => 'Signed in successfully.',
+        'logout' => 'Signed out successfully.',
         'employee.save' => empty($input['id']) ? 'Employee added successfully.' : 'Employee updated.',
         'employee.status' => ($input['status'] ?? '') === 'Active' ? 'Employee reactivated.' : 'Employee offboarded.',
         'employee.delete' => 'Employee deleted.',
@@ -75,19 +76,6 @@ function action_success_message(string $action, array $input): string
         'password.change' => 'Password changed.',
         'theme' => 'Appearance saved.',
         'demo.reset' => 'Demo data reset.',
-        'account.create' => 'Sign-in access created. Share the temporary password privately.',
-        'account.password' => 'Temporary password set.',
-        'account.remove' => 'Sign-in access removed.',
-        'announcement.save' => 'Company update posted. Employees see it on their Overview.',
-        'announcement.delete' => 'Company update removed.',
-        'correction.create' => 'Correction sent to HR. You’ll be notified when it’s reviewed.',
-        'correction.cancel' => 'Correction request cancelled.',
-        'correction.decide' => ($input['status'] ?? '') === 'approved' ? 'Correction approved and attendance updated.' : 'Correction declined.',
-        'profile.personal.save' => 'Personal details saved.',
-        'profile.emergency.save' => 'Emergency contact saved.',
-        'document.upload' => 'Document shared.',
-        'document.delete' => 'Document removed.',
-        'document.acknowledge' => 'Thanks — your acknowledgement is recorded.',
     ];
     return $messages[$action] ?? 'Changes saved.';
 }
@@ -158,9 +146,9 @@ function options(array $values): array
     return array_combine($values, $values);
 }
 
-function card(string $title): void
+function card(string $title, string $class = ''): void
 {
-    echo '<section class="card web-card"><h2>' . h($title) . '</h2>';
+    echo '<section class="card web-card' . ($class !== '' ? ' ' . h($class) : '') . '"><h2>' . h($title) . '</h2>';
 }
 
 function web_table(array $headers, array $rows): void
@@ -182,9 +170,8 @@ function web_table(array $headers, array $rows): void
     echo '</tbody></table></div>';
 }
 
-function paginate(array $rows, string $parameter = 'p'): array
+function paginate(array $rows, string $parameter = 'p', int $size = 9): array
 {
-    $size = 9;
     $total = count($rows);
     $pages = max(1, (int) ceil($total / $size));
     $current = max(1, min($pages, (int) ($_GET[$parameter] ?? 1)));
@@ -207,7 +194,15 @@ function pagination(array $list, string $page, array $query, string $label, stri
             <div class="toolbar">
                 <?php if ($current > 1) link_to($page, 'Previous', [$parameter => $current - 1] + $query, 'btn sm'); ?>
                 <?php
-                $numbers = array_unique(array_merge([1], range(max(1, $current - 1), min($pages, $current + 1)), [$pages]));
+                if ($pages <= 7) {
+                    $numbers = range(1, $pages);
+                } else {
+                    $numbers = [1, 2, 3];
+                    $windowStart = max(4, $current - 1);
+                    $windowEnd = min($pages - 1, $current + 1);
+                    if ($windowStart <= $windowEnd) $numbers = array_merge($numbers, range($windowStart, $windowEnd));
+                    $numbers[] = $pages;
+                }
                 $previous = 0;
                 foreach ($numbers as $number):
                     if ($previous && $number > $previous + 1) echo '<span aria-hidden="true">…</span>';
@@ -288,7 +283,9 @@ function employee_list(array $state, ?array $todayStatuses = null): array
         && ($department === '' || $e['department'] === $department)
         && ($status === '' || $e['status'] === $status)
         && ($type === '' || $e['type'] === $type)
-        && ($todayStatus === '' || ($todayStatuses[$e['id']] ?? 'none') === $todayStatus); }
+        && ($todayStatus === '' || ($todayStatus === 'present'
+            ? in_array($todayStatuses[$e['id']] ?? 'none', ['office', 'remote'], true)
+            : ($todayStatuses[$e['id']] ?? 'none') === $todayStatus)); }
     ));
 }
 
@@ -342,6 +339,231 @@ function report_month(array $state): string
     return preg_match('/^[1-9]\d{3}-(0[1-9]|1[0-2])$/D', $month) ? $month : substr($state['today'], 0, 7);
 }
 
+function report_types(): array
+{
+    return [
+        'headcount' => 'Headcount by department',
+        'hiring' => 'Hiring and departures',
+        'attendance' => 'Attendance summary',
+        'leave' => 'Approved time off',
+        'payroll' => 'Payroll by pay period',
+    ];
+}
+
+function selected_report_type(): string
+{
+    $type = $_GET['report'] ?? 'headcount';
+    if (!is_string($type)) return 'headcount';
+    return array_key_exists($type, report_types()) ? $type : 'headcount';
+}
+
+function report_range(array $state): array
+{
+    $defaultTo = $state['today'];
+    $defaultFrom = substr($defaultTo, 0, 7) . '-01';
+    $fromInput = $_GET['from'] ?? $defaultFrom;
+    $toInput = $_GET['to'] ?? $defaultTo;
+    $from = is_string($fromInput) ? $fromInput : '';
+    $to = is_string($toInput) ? $toInput : '';
+    $fromDate = DateTimeImmutable::createFromFormat('!Y-m-d', $from);
+    $toDate = DateTimeImmutable::createFromFormat('!Y-m-d', $to);
+    $error = '';
+    if (!$fromDate || $fromDate->format('Y-m-d') !== $from) {
+        $from = $defaultFrom;
+        $error = 'Choose a valid start date.';
+    }
+    if (!$toDate || $toDate->format('Y-m-d') !== $to) {
+        $to = $defaultTo;
+        $error = 'Choose a valid end date.';
+    }
+    if ($from > $to) {
+        $from = $defaultFrom;
+        $to = $defaultTo;
+        $error = 'The start date must be on or before the end date.';
+    }
+    return [$from, $to, $error];
+}
+
+function descriptive_report_data(array $state, string $type, string $from, string $to): array
+{
+    $money = function ($amount) use ($state) { return money($amount, $state); };
+    if ($type === 'headcount') {
+        $groups = array_fill_keys(DEPARTMENTS, []);
+        foreach ($state['employees'] as $employee) {
+            if ($employee['startDate'] <= $to && (!$employee['endDate'] || $employee['endDate'] >= $to)) {
+                $groups[$employee['department']][] = $employee['salary'];
+            }
+        }
+        $rows = [];
+        $totalSalary = 0;
+        $total = 0;
+        $chart = [];
+        foreach ($groups as $department => $salaries) {
+            $count = count($salaries);
+            $average = $count ? round(array_sum($salaries) / $count, 2) : 0;
+            $rows[] = [$department, $count, $average];
+            $chart[] = [$department, $count];
+            $total += $count;
+            $totalSalary += array_sum($salaries);
+        }
+        $departments = count(array_filter($groups, function ($salaries) { return count($salaries) > 0; }));
+        return [
+            'title' => 'Headcount by department',
+            'description' => 'Employees with an active employment period on ' . $to . ', grouped by department. Salary figures show average annual base salary.',
+            'headers' => ['Department', 'Employees', 'Average annual base salary'],
+            'rows' => $rows, 'chartTitle' => 'Employees by department', 'chart' => $chart, 'chartType' => 'bar', 'chartFormat' => 'count',
+            'metrics' => [
+                ['Employees at period end', $total, 'As of ' . $to],
+                ['Departments represented', $departments, 'With at least one active employee'],
+                ['Average annual base salary', $money($total ? $totalSalary / $total : 0), 'Across active employees'],
+            ],
+        ];
+    }
+
+    if ($type === 'hiring') {
+        $groups = [];
+        foreach (DEPARTMENTS as $department) $groups[$department] = ['hires' => 0, 'leavers' => 0];
+        foreach ($state['employees'] as $employee) {
+            if ($employee['startDate'] >= $from && $employee['startDate'] <= $to && isset($groups[$employee['department']])) {
+                $groups[$employee['department']]['hires']++;
+            }
+            if ($employee['endDate'] && $employee['endDate'] >= $from && $employee['endDate'] <= $to && isset($groups[$employee['department']])) {
+                $groups[$employee['department']]['leavers']++;
+            }
+        }
+        $rows = [];
+        $chart = [];
+        $hires = $leavers = 0;
+        foreach ($groups as $department => $counts) {
+            $rows[] = [$department, $counts['hires'], $counts['leavers'], $counts['hires'] - $counts['leavers']];
+            $chart[] = [$department, $counts['hires'], $counts['leavers']];
+            $hires += $counts['hires'];
+            $leavers += $counts['leavers'];
+        }
+        return [
+            'title' => 'Hiring and departures',
+            'description' => 'Employee start dates and last working dates within the selected period, grouped by department.',
+            'headers' => ['Department', 'Hires', 'Departures', 'Net change'],
+            'rows' => $rows, 'chartTitle' => 'Hires and departures by department', 'chart' => $chart, 'chartType' => 'grouped', 'chartFormat' => 'count',
+            'metrics' => [
+                ['Hires', $hires, 'Started between ' . $from . ' and ' . $to],
+                ['Departures', $leavers, 'Last working day in the selected period'],
+                ['Net change', $hires - $leavers, 'Hires minus departures'],
+            ],
+        ];
+    }
+
+    if ($type === 'attendance') {
+        $groups = [];
+        foreach (DEPARTMENTS as $department) $groups[$department] = ['office' => 0, 'remote' => 0, 'away' => 0];
+        $records = q(
+            'SELECT e.department, a.status, COUNT(*) AS total
+             FROM attendance a INNER JOIN employees e ON e.id = a.emp_id
+             WHERE a.work_date BETWEEN ? AND ?
+             GROUP BY e.department, a.status',
+            [$from, $to]
+        )->fetchAll();
+        foreach ($records as $record) {
+            if (isset($groups[$record['department']][$record['status']])) {
+                $groups[$record['department']][$record['status']] = (int) $record['total'];
+            }
+        }
+        $rows = [];
+        $chart = [];
+        $office = $remote = $away = 0;
+        foreach ($groups as $department => $counts) {
+            $recorded = $counts['office'] + $counts['remote'] + $counts['away'];
+            $rate = $recorded ? round(($counts['office'] + $counts['remote']) / $recorded * 100, 1) : 0;
+            $rows[] = [$department, $counts['office'], $counts['remote'], $counts['away'], $recorded, $rate];
+            $chart[] = [$department, $counts['office'], $counts['remote'], $counts['away'], $rate];
+            $office += $counts['office'];
+            $remote += $counts['remote'];
+            $away += $counts['away'];
+        }
+        $recorded = $office + $remote + $away;
+        $rate = $recorded ? round(($office + $remote) / $recorded * 100, 1) : 0;
+        return [
+            'title' => 'Attendance summary',
+            'description' => 'Recorded office, remote, and away workdays between ' . $from . ' and ' . $to . '. Attendance rate is present workdays divided by recorded workdays.',
+            'headers' => ['Department', 'Office days', 'Remote days', 'Away days', 'Recorded days', 'Attendance rate'],
+            'rows' => $rows, 'chartTitle' => 'Attendance mix by department', 'chart' => $chart, 'chartType' => 'stacked', 'chartFormat' => 'percent',
+            'metrics' => [
+                ['Attendance rate', number_format($rate, 1) . '%', 'Office and remote ÷ recorded days'],
+                ['Recorded workdays', $recorded, 'Across all departments'],
+                ['Office / remote days', $office + $remote, $office . ' office · ' . $remote . ' remote'],
+            ],
+        ];
+    }
+
+    if ($type === 'leave') {
+        $groups = [];
+        foreach (LEAVE_TYPES as $leaveType) $groups[$leaveType] = ['requests' => 0, 'days' => 0];
+        foreach ($state['leaves'] as $leave) {
+            if ($leave['status'] !== 'approved' || $leave['start'] > $to || $leave['end'] < $from || !isset($groups[$leave['type']])) continue;
+            $groups[$leave['type']]['requests']++;
+            $groups[$leave['type']]['days'] += workdays(max($from, $leave['start']), min($to, $leave['end']));
+        }
+        $rows = [];
+        $chart = [];
+        $requests = $days = 0;
+        $topType = 'None';
+        $topDays = 0;
+        foreach ($groups as $leaveType => $counts) {
+            $rows[] = [$leaveType, $counts['requests'], $counts['days']];
+            $chart[] = [$leaveType, $counts['days']];
+            $requests += $counts['requests'];
+            $days += $counts['days'];
+            if ($counts['days'] > $topDays) { $topType = $leaveType; $topDays = $counts['days']; }
+        }
+        return [
+            'title' => 'Approved time off',
+            'description' => 'Approved leave requests overlapping ' . $from . ' through ' . $to . '. Days are counted as weekdays within the selected range.',
+            'headers' => ['Leave type', 'Approved requests', 'Weekdays taken'],
+            'rows' => $rows, 'chartTitle' => 'Approved weekdays by leave type', 'chart' => $chart, 'chartType' => 'donut', 'chartFormat' => 'days',
+            'metrics' => [
+                ['Approved leave days', $days, 'Weekdays in the selected period'],
+                ['Approved requests', $requests, 'Requests overlapping the period'],
+                ['Most used leave type', $topType, $topDays ? $topDays . ($topDays === 1 ? ' weekday taken' : ' weekdays taken') : 'No approved leave'],
+            ],
+        ];
+    }
+
+    $rows = [];
+    $chart = [];
+    $runs = $paidRuns = 0;
+    $grossTotal = $netTotal = 0;
+    foreach ($state['payRuns'] as $run) {
+        $periodStart = $run['period'] . '-01';
+        if (period_end($run['period']) < $from || $periodStart > $to) continue;
+        $runs++;
+        if ($run['status'] !== 'paid') {
+            $rows[] = [$run['period'], 'Draft', 0, null, null, null, null];
+            continue;
+        }
+        $paidRuns++;
+        $lines = $run['lines'] ?? [];
+        $gross = array_sum(array_column($lines, 'gross'));
+        $tax = array_sum(array_column($lines, 'tax'));
+        $benefits = array_sum(array_column($lines, 'benefits'));
+        $net = array_sum(array_column($lines, 'net'));
+        $rows[] = [$run['period'], 'Paid', count($lines), $gross, $tax, $benefits, $net];
+        $chart[] = [$run['period'], $gross];
+        $grossTotal += $gross;
+        $netTotal += $net;
+    }
+    return [
+        'title' => 'Payroll by pay period',
+        'description' => 'Pay runs whose payroll month overlaps ' . $from . ' through ' . $to . '. Draft runs are listed, but only finalized paid runs are included in totals.',
+        'headers' => ['Pay period', 'Status', 'Employees', 'Gross pay', 'Tax', 'Benefits', 'Net pay'],
+        'rows' => $rows, 'chartTitle' => 'Finalized gross payroll by period', 'chart' => $chart, 'chartType' => 'line', 'chartFormat' => 'money',
+        'metrics' => [
+            ['Pay runs', $runs, 'Overlapping the selected range'],
+            ['Finalized gross pay', $money($grossTotal), $paidRuns . ' paid runs'],
+            ['Finalized net pay', $money($netTotal), 'After tax and benefits'],
+        ],
+    ];
+}
+
 function export_page(string $page, array $state): void
 {
     switch ($page) {
@@ -350,6 +572,10 @@ function export_page(string $page, array $state): void
             $rows = [['ID', 'First name', 'Last name', 'Email', 'Phone', 'Job title', 'Department', 'Type', 'Location', 'Start date', 'End date', 'Annual salary', 'Manager', 'Status']];
             foreach (employee_list($state) as $e) {
                 $rows[] = [$e['id'], $e['firstName'], $e['lastName'], $e['email'], $e['phone'], $e['title'], $e['department'], $e['type'], $e['location'], $e['startDate'], $e['endDate'], $e['salary'], $names[$e['managerId']] ?? '', $e['status']];
+            }
+            if (($_GET['export'] ?? '') === 'xlsx') {
+                require_once __DIR__ . '/employee-workbook.php';
+                download_employee_workbook($rows);
             }
             break;
         case 'attendance':
@@ -371,7 +597,9 @@ function export_page(string $page, array $state): void
             }
             break;
         case 'reports':
-            $rows = array_merge([['Department', 'Active employees', 'Average annual salary']], department_report($state, report_month($state)));
+            [$from, $to] = report_range($state);
+            $report = descriptive_report_data($state, selected_report_type(), $from, $to);
+            $rows = array_merge([$report['headers']], $report['rows']);
             break;
         default:
             return;
@@ -381,7 +609,7 @@ function export_page(string $page, array $state): void
     $output = fopen('php://output', 'w');
     foreach ($rows as $row) {
         $safe = array_map(function ($v) { return is_string($v) && preg_match('/^(?:\s*[=+@-]|[\t\r\n])/', $v) ? "'" . $v : $v; }, $row);
-        fputcsv($output, $safe, ',', '"', '');
+        fputcsv($output, $safe, ',', '"', '\\');
     }
     fclose($output);
     exit;
@@ -419,7 +647,3 @@ require __DIR__ . '/../../views/partials/icons.php';
 require __DIR__ . '/../../views/partials/employee-form.php';
 require __DIR__ . '/../../views/partials/leave.php';
 require __DIR__ . '/../../views/partials/workspace.php';
-require __DIR__ . '/../../views/partials/self.php';
-require __DIR__ . '/../../views/partials/self-attendance.php';
-require __DIR__ . '/../../views/partials/self-payslips.php';
-require __DIR__ . '/../../views/partials/self-profile.php';
