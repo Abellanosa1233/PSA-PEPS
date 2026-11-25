@@ -383,28 +383,31 @@ table.data tfoot td { font-weight: 600; border-top: 1px solid var(--line-strong)
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  background:
-    linear-gradient(rgba(242, 245, 248, .12), rgba(242, 245, 248, .12)),
-    url("../sign-in-building.png") center / cover no-repeat;
+  background: url("../sign-in-building.png") center / cover no-repeat;
 }
-.auth-signin-screen::before,
-.auth-signin-screen::after {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  content: "";
-  clip-path: polygon(0 62%, 10% 63%, 20% 64%, 30% 65%, 40% 66%, 50% 67%, 60% 66%, 70% 65%, 80% 64%, 90% 63%, 100% 62%, 100% 100%, 0 100%);
+.auth-card.auth-signin-card {
+  --surface: rgba(8, 25, 48, .96);
+  --surface-2: #142f50;
+  --line: #284564;
+  --fg: #f4f7fc;
+  --fg-2: #c4d0df;
+  --fg-3: #98a9bd;
+  --primary: #2168e2;
+  --primary-hover: #3478ed;
+  --primary-fg: #ffffff;
+  width: min(490px, 100%);
+  gap: 18px;
+  padding: 26px clamp(28px, 3.5vw, 48px);
+  border: 1px solid rgba(75, 141, 211, .35);
+  border-top: 3px solid #168df0;
+  border-radius: 17px;
+  background: linear-gradient(135deg, rgba(13, 39, 68, .97), rgba(7, 23, 45, .97));
+  box-shadow: 0 24px 70px rgba(0, 10, 25, .48);
 }
-.auth-signin-screen::before { background: linear-gradient(180deg, #ffe17a, #b27b12); }
-.auth-signin-screen::after {
-  background: linear-gradient(120deg, #0b50b7, #002b7f);
-  clip-path: polygon(0 64%, 10% 65%, 20% 66%, 30% 67%, 40% 68%, 50% 69%, 60% 68%, 70% 67%, 80% 66%, 90% 65%, 100% 64%, 100% 100%, 0 100%);
-}
-.auth-card.auth-signin-card { width: min(440px, 100%); gap: 18px; padding: clamp(26px, 6vw, 42px); border-radius: 16px; box-shadow: 0 24px 70px rgba(17, 40, 74, .14); }
 .auth-card.auth-signin-card h1 { font-size: 25px; letter-spacing: -.025em; }
 .auth-card.auth-signin-card .field { gap: 7px; }
 .auth-card.auth-signin-card .field label { color: var(--fg); font-size: 12px; }
-.auth-card.auth-signin-card .field .input { min-height: 44px; padding-inline: 12px; border-radius: 8px; }
+.auth-card.auth-signin-card .field .input { min-height: 44px; padding-inline: 12px; border-color: var(--line); border-radius: 8px; background: rgba(8, 25, 48, .28); color: var(--fg); }
 .auth-card.auth-signin-card .password-input-wrap { position: relative; display: block; width: 100%; }
 .auth-card.auth-signin-card .password-input-wrap .input { padding-right: 44px; }
 .auth-card.auth-signin-card .password-toggle {
