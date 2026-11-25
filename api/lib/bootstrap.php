@@ -136,6 +136,7 @@ function current_user(): ?array
     ensure_biometrics();
     ensure_announcements();
     ensure_leave_extras();
+    ensure_attendance_corrections();
     $u = q('SELECT u.id, u.username, u.display_name, u.role_title, u.profile_image_updated_at, u.account_role, u.employee_id,
                    u.must_change_password, e.first_name, e.last_name, e.title, e.status AS employee_status
             FROM users u LEFT JOIN employees e ON e.id = u.employee_id WHERE u.id = ?', [$_SESSION['uid']])->fetch();
@@ -210,6 +211,25 @@ function ensure_leave_extras(): void
     if (($cols['days'] ?? 'decimal') !== 'decimal') q('ALTER TABLE leave_requests MODIFY days DECIMAL(5,1) NOT NULL');
     if (!isset($cols['day_length'])) q("ALTER TABLE leave_requests ADD COLUMN day_length VARCHAR(10) NOT NULL DEFAULT 'full'");
     if (!isset($cols['attachment'])) q('ALTER TABLE leave_requests ADD COLUMN attachment MEDIUMBLOB NULL, ADD COLUMN attachment_name VARCHAR(160) NULL, ADD COLUMN attachment_type VARCHAR(60) NULL');
+    $checked = true;
+}
+
+/* Employees ask HR to fix a missing or wrong time; an approved correction replaces that day's times. */
+function ensure_attendance_corrections(): void
+{
+    static $checked = false;
+    if ($checked) return;
+    // Check first: CREATE TABLE would silently commit an open transaction.
+    $exists = q("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = ? AND table_name = 'attendance_corrections'", [DB_NAME])->fetchColumn();
+    if (!$exists) db()->exec("CREATE TABLE attendance_corrections (
+        id INT AUTO_INCREMENT PRIMARY KEY, emp_id INT NOT NULL, work_date DATE NOT NULL,
+        time_in TIME NULL, time_out TIME NULL, reason VARCHAR(255) NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'pending', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        decided_at DATETIME NULL, decided_by INT NULL,
+        INDEX idx_correction_status (status), INDEX idx_correction_emp_date (emp_id, work_date),
+        CONSTRAINT fk_correction_emp FOREIGN KEY (emp_id) REFERENCES employees(id) ON DELETE CASCADE,
+        CONSTRAINT fk_correction_user FOREIGN KEY (decided_by) REFERENCES users(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
     $checked = true;
 }
 

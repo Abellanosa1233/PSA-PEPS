@@ -217,6 +217,7 @@ function dtr_card(array $employee, DateTimeImmutable $from, DateTimeImmutable $t
     $leaves = q("SELECT leave_type, start_date, end_date FROM leave_requests WHERE emp_id = ? AND status = 'approved' AND start_date <= ? AND end_date >= ?",
         [$id, $to->format('Y-m-d'), $from->format('Y-m-d')])->fetchAll();
 
+    $corrections = approved_corrections($id, $from->format('Y-m-d'), $to->format('Y-m-d'));
     $rows = [];
     $totals = ['regular' => 0, 'overtime' => 0, 'absences' => 0, 'daysPresent' => 0];
     for ($d = $from; $d <= $to; $d = $d->modify('+1 day')) {
@@ -226,6 +227,12 @@ function dtr_card(array $employee, DateTimeImmutable $from, DateTimeImmutable $t
         $note = '';
         if (!$times && isset($records[$day]) && $records[$day]['i']) {
             $times = array_values(array_filter([$records[$day]['i'], $records[$day]['o']]));
+        }
+        if (isset($corrections[$day])) {
+            // HR approved a correction: its times replace the first in and/or last out for the day.
+            $c = $corrections[$day];
+            $times = array_values(array_filter([$c['in'] ?? ($times[0] ?? null), $c['out'] ?? ($times ? end($times) : null)]));
+            if (count($times) === 2 && $times[0] === $times[1]) $times = [$times[0]];
         }
         $slots = dtr_slots($times);
         [$regular, $overtime] = dtr_worked($slots);
@@ -244,4 +251,67 @@ function dtr_card(array $employee, DateTimeImmutable $from, DateTimeImmutable $t
             'total' => dtr_hm($regular + $overtime), 'note' => $note];
     }
     return ['employee' => $employee, 'from' => $from, 'to' => $to, 'rows' => $rows, 'totals' => $totals];
+}
+
+/* ---------- Attendance corrections ---------- */
+
+function act_correction_create(array $in): array
+{
+    ensure_attendance_corrections();
+    $emp = employee_exists(int_in($in, 'empId'));
+    $day = date_in($in, 'date', true, 'Date');
+    if ($day > today()) fail('You can only correct today or an earlier day.', 422, 'date');
+    if ($day < $emp['start_date']) fail('That date is before your start date.', 422, 'date');
+    $in1 = time_in($in, 'in');
+    $out1 = time_in($in, 'out');
+    if ($in1 === null && $out1 === null) fail('Enter the correct check-in, check-out, or both.', 422, 'in');
+    if ($in1 !== null && $out1 !== null && $out1 <= $in1) fail('Check-out must be later than check-in.', 422, 'out');
+    $reason = str_in($in, 'reason', 255, true, 'Reason');
+    if (q("SELECT COUNT(*) FROM attendance_corrections WHERE emp_id = ? AND work_date = ? AND status = 'pending'", [$emp['id'], $day])->fetchColumn()) {
+        fail('You already have a pending correction for that day. Cancel it first to send a new one.', 422, 'date');
+    }
+    q('INSERT INTO attendance_corrections (emp_id, work_date, time_in, time_out, reason) VALUES (?,?,?,?,?)', [$emp['id'], $day, $in1, $out1, $reason]);
+    return ['id' => (int) db()->lastInsertId()];
+}
+
+function act_correction_cancel(array $in): array
+{
+    ensure_attendance_corrections();
+    $deleted = q("DELETE FROM attendance_corrections WHERE id = ? AND emp_id = ? AND status = 'pending'", [int_in($in, 'id'), int_in($in, 'empId')]);
+    if (!$deleted->rowCount()) fail('Only your own pending corrections can be cancelled.', 404);
+    return [];
+}
+
+/* HR only. Approving writes the corrected times onto that day's attendance record. */
+function act_correction_decide(array $in, array $user): array
+{
+    ensure_attendance_corrections();
+    $id = int_in($in, 'id');
+    $status = one_of((string) ($in['status'] ?? ''), ['approved', 'rejected'], 'Decision');
+    $c = q('SELECT * FROM attendance_corrections WHERE id = ?', [$id])->fetch();
+    if (!$c) fail('That correction no longer exists.', 404);
+    if ($c['status'] !== 'pending') fail('This correction was already ' . ($c['status'] === 'rejected' ? 'declined' : $c['status']) . '.');
+    if ($status === 'approved') {
+        $rec = q('SELECT time_in, time_out FROM attendance WHERE work_date = ? AND emp_id = ?', [$c['work_date'], $c['emp_id']])->fetch();
+        $newIn = $c['time_in'] ?? ($rec['time_in'] ?? null);
+        $newOut = $c['time_out'] ?? ($rec['time_out'] ?? null);
+        if ($newIn !== null && $newOut !== null && $newOut <= $newIn) fail('With this correction, check-out would be before check-in. Decline it and ask for both times.');
+        q("INSERT INTO attendance (work_date, emp_id, status, time_in, time_out) VALUES (?, ?, 'office', ?, ?)
+           ON DUPLICATE KEY UPDATE status = IF(status = 'away', 'office', status), time_in = VALUES(time_in), time_out = VALUES(time_out)",
+            [$c['work_date'], $c['emp_id'], $newIn, $newOut]);
+    }
+    q('UPDATE attendance_corrections SET status = ?, decided_at = NOW(), decided_by = ? WHERE id = ?', [$status, ($user['id'] ?? 0) ?: null, $id]);
+    return [];
+}
+
+/* Approved corrections in a date range: [day => ['in' => 'HH:MM'|null, 'out' => ...]] (latest wins). */
+function approved_corrections(int $empId, string $from, string $to): array
+{
+    ensure_attendance_corrections();
+    $out = [];
+    foreach (q("SELECT work_date, TIME_FORMAT(time_in, '%H:%i') AS i, TIME_FORMAT(time_out, '%H:%i') AS o FROM attendance_corrections
+                WHERE emp_id = ? AND status = 'approved' AND work_date BETWEEN ? AND ? ORDER BY decided_at", [$empId, $from, $to])->fetchAll() as $c) {
+        $out[$c['work_date']] = ['in' => $c['i'], 'out' => $c['o']];
+    }
+    return $out;
 }

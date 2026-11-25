@@ -20,9 +20,10 @@ function seed_demo(): void
     ensure_account_columns();
     ensure_biometrics();
     ensure_announcements();
+    ensure_attendance_corrections();
     $pdo->exec("DELETE FROM users WHERE account_role = 'employee'");
     $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
-    foreach (['announcements', 'payslips', 'pay_bonuses', 'pay_runs', 'candidates', 'positions', 'events', 'attendance_punches', 'attendance', 'employee_requests', 'leave_requests', 'employees', 'settings'] as $t) {
+    foreach (['attendance_corrections', 'announcements', 'payslips', 'pay_bonuses', 'pay_runs', 'candidates', 'positions', 'events', 'attendance_punches', 'attendance', 'employee_requests', 'leave_requests', 'employees', 'settings'] as $t) {
         $pdo->exec("TRUNCATE TABLE $t");
     }
     $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');

@@ -89,6 +89,7 @@ $now = new DateTimeImmutable();
         window.setInterval(updateClock, 1000);
     }());
 </script>
+<?php hr_corrections_card($state); ?>
 <div class="toolbar">
     <?php foreach ($labels as $key => $label): ?><span class="pill"><?= h($label) ?> <strong><?= $counts[$key] ?></strong></span><?php endforeach; ?>
     <span class="muted web-push"><?= h($day->format('l, M j')) ?></span>

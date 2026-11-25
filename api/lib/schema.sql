@@ -187,3 +187,22 @@ CREATE TABLE IF NOT EXISTS announcements (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_announcement_user FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Employees' requests to fix a missing or wrong check-in/check-out; HR approves or declines.
+-- An approved correction replaces that day's times on the attendance record and the DTR.
+CREATE TABLE IF NOT EXISTS attendance_corrections (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  emp_id INT NOT NULL,
+  work_date DATE NOT NULL,
+  time_in TIME NULL,
+  time_out TIME NULL,
+  reason VARCHAR(255) NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  decided_at DATETIME NULL,
+  decided_by INT NULL,
+  INDEX idx_correction_status (status),
+  INDEX idx_correction_emp_date (emp_id, work_date),
+  CONSTRAINT fk_correction_emp FOREIGN KEY (emp_id) REFERENCES employees(id) ON DELETE CASCADE,
+  CONSTRAINT fk_correction_user FOREIGN KEY (decided_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

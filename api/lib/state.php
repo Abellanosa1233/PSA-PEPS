@@ -103,6 +103,13 @@ function build_state(array $user): array
     $state['announcements'] = array_map(function ($a) {
         return ['id' => (int) $a['id'], 'title' => $a['title'], 'body' => $a['body'], 'createdAt' => $a['created_at']];
     }, q('SELECT id, title, body, created_at FROM announcements ORDER BY created_at DESC, id DESC LIMIT 20')->fetchAll());
+    // Attendance correction requests (pending, plus decisions from the last 60 days)
+    ensure_attendance_corrections();
+    $hmOrNull = function ($t) { return $t === null ? null : substr($t, 0, 5); };
+    $state['corrections'] = array_map(function ($c) use ($hmOrNull) {
+        return ['id' => (int) $c['id'], 'empId' => (int) $c['emp_id'], 'date' => $c['work_date'], 'in' => $hmOrNull($c['time_in']), 'out' => $hmOrNull($c['time_out']),
+            'reason' => $c['reason'], 'status' => $c['status'], 'createdAt' => $c['created_at'], 'decidedAt' => $c['decided_at']];
+    }, q("SELECT * FROM attendance_corrections WHERE status = 'pending' OR decided_at >= NOW() - INTERVAL 60 DAY ORDER BY created_at DESC, id DESC")->fetchAll());
     if (!is_admin($user)) return scope_state_to_employee($state, (int) $user['employeeId']);
 
     // HR sees which employees can sign in (usernames only, never passwords).
@@ -192,6 +199,7 @@ function scope_state_to_employee(array $state, int $me): array
         'leaves' => array_values(array_filter($state['leaves'], function ($l) use ($me) { return $l['empId'] === $me; })),
         'employeeRequests' => $mine($state['employeeRequests']),
         'teamAbsences' => $teamAbsences,
+        'corrections' => array_values(array_filter($state['corrections'] ?? [], function ($c) use ($me) { return $c['empId'] === $me; })),
         'attendance' => (object) $attendance,
         'events' => $events,
         'positions' => [],

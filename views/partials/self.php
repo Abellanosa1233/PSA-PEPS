@@ -332,9 +332,10 @@ function self_before_you_request_card(): void
 function employee_updates(array $state, int $me): array
 {
     $since = date('Y-m-d H:i:s', strtotime('-14 days'));
-    $kinds = ['travel_order' => 'travel order', 'special_order' => 'special order'];
+    $kinds = ['travel_order' => 'travel order', 'special_order' => 'special order', 'correction' => 'attendance correction'];
     $updates = [];
-    foreach (array_merge($state['leaves'] ?? [], $state['employeeRequests'] ?? []) as $item) {
+    $corrections = array_map(function ($c) { return ['type' => 'correction', 'start' => $c['date'], 'end' => $c['date']] + $c; }, $state['corrections'] ?? []);
+    foreach (array_merge($state['leaves'] ?? [], $state['employeeRequests'] ?? [], $corrections) as $item) {
         if ($item['empId'] !== $me || !in_array($item['status'], ['approved', 'rejected'], true) || ($item['decidedAt'] ?? '') < $since) continue;
         $updates[] = [
             'title' => 'Your ' . ($kinds[$item['type']] ?? strtolower($item['type'])) . ' was ' . ($item['status'] === 'approved' ? 'approved' : 'declined'),

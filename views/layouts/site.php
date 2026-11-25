@@ -135,11 +135,14 @@
     };
     $pendingLeaves = array_filter($state['leaves'] ?? [], $needsDecision);
     $pendingEmployeeRequests = array_filter($state['employeeRequests'] ?? [], $needsDecision);
-    $pendingCount = count($pendingLeaves) + count($pendingEmployeeRequests);
+    // Attendance corrections are decided by HR only.
+    $pendingCorrections = $isAdmin ? array_filter($state['corrections'] ?? [], function ($c) { return $c['status'] === 'pending'; }) : [];
+    $pendingCount = count($pendingLeaves) + count($pendingEmployeeRequests) + count($pendingCorrections);
     $employeesById = array_column($state['employees'] ?? [], null, 'id');
     $notifications = [];
     foreach ($pendingLeaves as $leave) $notifications[] = ['leave', $leave];
     foreach ($pendingEmployeeRequests as $request) $notifications[] = ['request', $request];
+    foreach ($pendingCorrections as $correction) $notifications[] = ['correction', $correction + ['start' => $correction['date']]];
     $notifications = array_slice($notifications, 0, 8);
     $myUpdates = $isAdmin ? [] : employee_updates($state, (int) $user['employeeId']);
     $reviewPage = $isAdmin ? 'time-off' : 'supervisor';
@@ -170,7 +173,7 @@
                     <?php foreach ($navIcons as $key => $navIcon): ?>
                         <a href="<?= h(page_url($key)) ?>" title="<?= h($pages[$key]) ?>"<?= $key === $page || ($key === 'my-time-off' && $page === 'request-leave') ? ' class="active" aria-current="page"' : '' ?>>
                             <?= icon($navIcon) ?><span><?= h($pages[$key]) ?></span>
-                            <?php if ($key === $reviewPage && $pendingCount): ?><span class="count"><?= $pendingCount ?></span><?php endif; ?>
+                            <?php $navCount = $key === $reviewPage ? $pendingCount - count($pendingCorrections) : ($key === 'attendance' ? count($pendingCorrections) : 0); if ($navCount): ?><span class="count"><?= $navCount ?></span><?php endif; ?>
                         </a>
                     <?php endforeach; ?>
                 </nav>
@@ -233,9 +236,10 @@
                                 <?php foreach ($notifications as [$kind, $item]):
                                     $employee = $employeesById[$item['empId']] ?? null;
                                     $name = $employee ? employee_name($employee) : 'Former employee';
-                                    $label = $kind === 'leave' ? 'Requested ' . strtolower($item['type']) : ($item['type'] === 'travel_order' ? 'Travel Order' : 'Special Order') . ' · ' . $item['purpose'];
+                                    $label = $kind === 'leave' ? 'Requested ' . strtolower($item['type'])
+                                        : ($kind === 'correction' ? 'Attendance correction' : ($item['type'] === 'travel_order' ? 'Travel Order' : 'Special Order') . ' · ' . $item['purpose']);
                                 ?>
-                                    <a class="notification-item" href="<?= h(page_url($reviewPage, $reviewQuery)) ?>">
+                                    <a class="notification-item" href="<?= h($kind === 'correction' ? page_url('attendance') : page_url($reviewPage, $reviewQuery)) ?>">
                                         <span class="avatar sm"><?= h(initials($name)) ?></span>
                                         <span><strong><?= h($name) ?></strong><small><?= h($label) ?> · <?= h($item['start']) ?></small></span>
                                     </a>
@@ -257,7 +261,7 @@
                 </div>
             </header>
             <main class="content">
-                <?php if (!in_array($page, ['overview', 'employees', 'attendance', 'time-off', 'reports', 'my-time-off', 'request-leave'], true) || !$state): ?>
+                <?php if (!in_array($page, ['overview', 'employees', 'attendance', 'time-off', 'reports', 'my-time-off', 'request-leave', 'my-attendance'], true) || !$state): ?>
                     <div class="page-head"><h1><?= h($pages[$page]) ?></h1></div>
                 <?php endif; ?>
                 <?php

@@ -72,7 +72,7 @@ There are two kinds of sign-in:
   * **Overview** — greeting and **Request leave**, leave balances (annual, sick, personal; pending requests aren't deducted until approved), recent leave requests, today's attendance with office hours and clock in/out, today's schedule (only calendar events HR marks "Show on employees' schedule"), and company updates.
   * **My time off** — balances, request history with a status filter, leave breakdown, Special/Travel Orders, and teammates out of office.
   * **Request leave** — leave type, dates, full or half day (morning/afternoon), a required reason and an optional supporting document (PDF/JPG/PNG, up to 5 MB, viewable only by HR and the employee). **Check days & balance** recalculates working days and the balance on the server; requests go to HR, and the employee's bell shows when HR approves or declines.
-  * **My attendance** — today's time in/out, the printable DTR, the last two weeks.
+  * **My attendance** — today's check-in, hours this month, on-time rate (arrival at or before office start) and days present; a weekly attendance log (check-in, check-out, break, total, status); this week's days; the printable DTR; and **Request correction** for a missing or wrong time. Corrections go to HR (**Attendance → Attendance corrections to review**); an approved correction replaces that day's times on the attendance record and the DTR.
   * **My payslips** and **My profile** (their HR record, read-only).
   * **Supervisor workspace** — only if they supervise someone (someone's "Reports to" is them): their direct reports' attendance today, and approve/decline their Special/Travel Order requests.
 
