@@ -62,8 +62,11 @@
   inset: 0;
   z-index: 0;
   background:
-    radial-gradient(ellipse 76rem 48rem at 3% 112%, transparent 66%, rgba(214, 233, 255, .13) 66.15%, transparent 66.4%),
-    radial-gradient(ellipse 60rem 40rem at 106% -8%, transparent 68%, rgba(113, 181, 255, .15) 68.15%, transparent 68.4%),
+    radial-gradient(ellipse 32rem 24rem at 12% 4%, rgba(43, 125, 232, .20), transparent 72%),
+    radial-gradient(ellipse 26rem 22rem at 92% 92%, rgba(243, 191, 62, .13), transparent 75%),
+    radial-gradient(circle, rgba(224, 238, 255, .045) .65px, transparent 1px) 0 0 / 40px 40px,
+    radial-gradient(ellipse 76rem 48rem at 3% 112%, transparent 66%, rgba(214, 233, 255, .20) 66.15%, transparent 66.4%),
+    radial-gradient(ellipse 60rem 40rem at 106% -8%, transparent 68%, rgba(113, 181, 255, .22) 68.15%, transparent 68.4%),
     radial-gradient(ellipse at center, transparent 48%, rgba(4, 17, 36, .22) 100%),
     linear-gradient(180deg, rgba(6, 21, 43, .04), transparent 36%, transparent 72%, rgba(4, 17, 36, .22));
   content: "";
