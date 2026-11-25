@@ -384,8 +384,8 @@ table.data tfoot td { font-weight: 600; border-top: 1px solid var(--line-strong)
   isolation: isolate;
   overflow: hidden;
   background:
-    linear-gradient(rgba(242, 245, 248, .38), rgba(242, 245, 248, .38)),
-    url("../sign-in-building.jpg") center 28% / cover no-repeat;
+    linear-gradient(rgba(242, 245, 248, .12), rgba(242, 245, 248, .12)),
+    url("../sign-in-building.png") center / cover no-repeat;
 }
 .auth-signin-screen::before,
 .auth-signin-screen::after {
@@ -393,12 +393,12 @@ table.data tfoot td { font-weight: 600; border-top: 1px solid var(--line-strong)
   inset: 0;
   z-index: -1;
   content: "";
-  clip-path: polygon(0 25%, 10% 29%, 20% 33%, 30% 37%, 40% 40%, 50% 42%, 60% 40%, 70% 37%, 80% 33%, 90% 29%, 100% 25%, 100% 100%, 0 100%);
+  clip-path: polygon(0 62%, 10% 63%, 20% 64%, 30% 65%, 40% 66%, 50% 67%, 60% 66%, 70% 65%, 80% 64%, 90% 63%, 100% 62%, 100% 100%, 0 100%);
 }
 .auth-signin-screen::before { background: linear-gradient(180deg, #ffe17a, #b27b12); }
 .auth-signin-screen::after {
   background: linear-gradient(120deg, #0b50b7, #002b7f);
-  clip-path: polygon(0 27%, 10% 31%, 20% 35%, 30% 39%, 40% 42%, 50% 44%, 60% 42%, 70% 39%, 80% 35%, 90% 31%, 100% 27%, 100% 100%, 0 100%);
+  clip-path: polygon(0 64%, 10% 65%, 20% 66%, 30% 67%, 40% 68%, 50% 69%, 60% 68%, 70% 67%, 80% 66%, 90% 65%, 100% 64%, 100% 100%, 0 100%);
 }
 .auth-card.auth-signin-card { width: min(440px, 100%); gap: 18px; padding: clamp(26px, 6vw, 42px); border-radius: 16px; box-shadow: 0 24px 70px rgba(17, 40, 74, .14); }
 .auth-card.auth-signin-card h1 { font-size: 25px; letter-spacing: -.025em; }
