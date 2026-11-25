@@ -45,7 +45,7 @@ function build_state(array $user): array
     $events = array_map(function ($e) use ($hm) {
         return [
             'id' => (int) $e['id'], 'date' => $e['event_date'], 'start' => $hm($e['start_time']), 'end' => $hm($e['end_time']),
-            'title' => $e['title'], 'detail' => $e['detail'],
+            'title' => $e['title'], 'detail' => $e['detail'], 'forEmployees' => !empty($e['for_employees']),
         ];
     }, q('SELECT * FROM events ORDER BY event_date, start_time')->fetchAll());
 
@@ -95,6 +95,10 @@ function build_state(array $user): array
         'candidates' => $candidates,
         'payRuns' => $payRuns,
     ];
+    ensure_announcements();
+    $state['announcements'] = array_map(function ($a) {
+        return ['id' => (int) $a['id'], 'title' => $a['title'], 'body' => $a['body'], 'createdAt' => $a['created_at']];
+    }, q('SELECT id, title, body, created_at FROM announcements ORDER BY created_at DESC, id DESC LIMIT 20')->fetchAll());
     if (!is_admin($user)) return scope_state_to_employee($state, (int) $user['employeeId']);
 
     // HR sees which employees can sign in (usernames only, never passwords).
@@ -164,7 +168,17 @@ function scope_state_to_employee(array $state, int $me): array
         $run['lines'] = array_values(array_filter($run['lines'] ?? [], function ($line) use ($me) { return $line['empId'] === $me; }));
         $payRuns[] = $run;
     }
-    $settings = array_intersect_key($state['settings'], array_flip(['company', 'workspace', 'currency', 'allowances']));
+    $settings = array_intersect_key($state['settings'], array_flip(['company', 'workspace', 'currency', 'allowances', 'workStart', 'workEnd']));
+    // Only calendar events HR marked for employees, today and the next two weeks.
+    $soon = (new DateTimeImmutable($state['today']))->modify('+14 days')->format('Y-m-d');
+    $events = array_values(array_filter($state['events'], function ($e) use ($state, $soon) {
+        return $e['forEmployees'] && $e['date'] >= $state['today'] && $e['date'] <= $soon;
+    }));
+    // The pay date of the run being prepared (no amounts), for "Company updates".
+    $nextPayday = null;
+    foreach ($state['payRuns'] as $run) {
+        if ($run['status'] === 'draft') $nextPayday = ['period' => $run['period'], 'date' => period_end($run['period'])];
+    }
 
     return [
         'user' => $state['user'],
@@ -175,10 +189,12 @@ function scope_state_to_employee(array $state, int $me): array
         'employeeRequests' => $mine($state['employeeRequests']),
         'teamAbsences' => $teamAbsences,
         'attendance' => (object) $attendance,
-        'events' => [],
+        'events' => $events,
         'positions' => [],
         'candidates' => [],
         'payRuns' => $payRuns,
+        'nextPayday' => $nextPayday,
+        'announcements' => $state['announcements'] ?? [],
         'accounts' => (object) [],
     ];
 }

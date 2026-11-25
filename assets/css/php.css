@@ -631,3 +631,24 @@ html.sidebar-collapsed .web-app .sidebar .nav .count { display: block; position:
 /* ---------- Daily Time Record ---------- */
 .dtr-open { align-items: end; gap: 10px; margin-top: 10px; }
 .dtr-open .field { min-width: 150px; }
+
+/* ---------- Employee workspace (Overview and My … pages) ---------- */
+.self-leave-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.self-leave-cards .kpi { gap: 8px; }
+.self-leave-value { display: flex; align-items: baseline; gap: 8px; }
+.self-leave-cards .meter { margin-top: 4px; }
+.self-leave-note { margin: -6px 0 0; font-size: 12px; }
+.self-today .card-body { display: flex; flex-direction: column; gap: 10px; }
+.self-today-time { font-size: 30px; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.self-today-facts { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; margin: 4px 0; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12.5px; }
+.self-today-facts dt { color: var(--fg-3); }
+.self-today-facts dd { margin: 0; text-align: right; font-weight: 500; }
+.self-wide { width: 100%; justify-content: center; }
+.self-updates { display: flex; flex-direction: column; }
+.self-update { padding: 12px 16px; border-top: 1px solid var(--line); }
+.self-update:first-child { border-top: 0; }
+.self-update strong { font-size: 13px; }
+.self-update p { margin-top: 3px; font-size: 12.5px; }
+.self-profile { grid-template-columns: 160px minmax(0, 1fr); margin-bottom: 12px; }
+.check-line { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+@media (max-width: 900px) { .self-leave-cards { grid-template-columns: minmax(0, 1fr); } }

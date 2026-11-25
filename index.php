@@ -24,7 +24,10 @@ $pages = [
     'reports' => 'Reports', 'supervisor' => 'Supervisor workspace',
     'self-service' => 'Employee workspace', 'preferences' => 'Settings', 'help' => 'Help & resources',
     'dtr' => 'Daily Time Record',
+    // Employee-account pages
+    'my-time-off' => 'My time off', 'my-attendance' => 'My attendance', 'my-payslips' => 'My payslips', 'my-profile' => 'My profile',
 ];
+$employeeOnlyPages = ['my-time-off', 'my-attendance', 'my-payslips', 'my-profile'];
 $path = rawurldecode(explode('?', $_SERVER['REQUEST_URI'] ?? '', 2)[0]);
 $route = basename($path);
 $entry = $path === '' || substr($path, -1) === '/' || $route === 'index.php';
@@ -55,18 +58,21 @@ try {
     $theme = $_SESSION['web_theme'] ?? 'system';
     $user = current_user();
     if ($user && !is_admin($user)) {
-        // Employee accounts only see their own workspace (and their team, if they supervise anyone).
-        $pages['self-service'] = 'My workspace';
-        $pages['supervisor'] = 'My team';
-        $allowedPages = ['self-service', 'preferences', 'help', 'dtr'];
+        // Employee accounts only see their own pages (and their team, if they supervise anyone).
+        $pages['supervisor'] = 'Supervisor workspace';
+        $allowedPages = array_merge(['overview', 'preferences', 'help', 'dtr'], $employeeOnlyPages);
         if ($user['hasTeam']) $allowedPages[] = 'supervisor';
         if (!in_array($page, $allowedPages, true)) {
             if (!$isPost) {
-                header('Location: ' . page_url('self-service'), true, 302);
+                header('Location: ' . page_url('overview'), true, 302);
                 exit;
             }
-            $page = 'self-service';
+            $page = 'overview';
         }
+    } elseif ($user && in_array($page, $employeeOnlyPages, true) && !$isPost) {
+        // HR administrators use the Employee workspace view instead of these pages.
+        header('Location: ' . page_url('self-service'), true, 302);
+        exit;
     }
     $screen = !installed() ? 'Install HRMS' : (has_users() ? 'Sign in' : 'Create administrator');
     if ($isPost) {
@@ -160,7 +166,7 @@ if ($isPost) {
     $sharedForm = $_POST['_shared_form'] ?? '';
     $sharedFormFields = [
         'leave.create' => ['empId', 'type', 'start', 'end', 'reason', 'approveNow'],
-        'event.save' => ['date', 'title', 'detail', 'start', 'end'],
+        'event.save' => ['date', 'title', 'detail', 'start', 'end', 'forEmployees'],
         'position.save' => ['id', 'title', 'department', 'type', 'location'],
         'candidate.save' => ['positionId', 'name', 'email', 'source'],
         'profile.save' => ['name', 'role'],

@@ -142,7 +142,7 @@ $calendarMonth = $scheduleDay->modify('first day of this month');
                 <button class="btn" type="submit">Show events</button>
             </form>
             <details class="form-disclosure" data-form-dialog="form"><summary class="btn primary"><?= icon('plus', 14) ?> Add event</summary>
-                <?php post_form('event.save'); field('date', 'Event date', $date, 'date'); field('title', 'Event title'); field('detail', 'Details', '', 'text', false); field('start', 'Start time', '', 'time'); field('end', 'End time', '', 'time'); end_form('Save event'); ?>
+                <?php post_form('event.save'); field('date', 'Event date', $date, 'date'); field('title', 'Event title'); field('detail', 'Details', '', 'text', false); field('start', 'Start time', '', 'time'); field('end', 'End time', '', 'time'); echo '<label class="check-line"><input type="checkbox" name="forEmployees" value="1"> Show on employees’ schedule</label>'; end_form('Save event'); ?>
             </details>
         </div>
     </section>

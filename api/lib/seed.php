@@ -19,9 +19,10 @@ function seed_demo(): void
     // Employee logins belong to employee records that are about to be replaced; admin logins are kept.
     ensure_account_columns();
     ensure_biometrics();
+    ensure_announcements();
     $pdo->exec("DELETE FROM users WHERE account_role = 'employee'");
     $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
-    foreach (['payslips', 'pay_bonuses', 'pay_runs', 'candidates', 'positions', 'events', 'attendance_punches', 'attendance', 'employee_requests', 'leave_requests', 'employees', 'settings'] as $t) {
+    foreach (['announcements', 'payslips', 'pay_bonuses', 'pay_runs', 'candidates', 'positions', 'events', 'attendance_punches', 'attendance', 'employee_requests', 'leave_requests', 'employees', 'settings'] as $t) {
         $pdo->exec("TRUNCATE TABLE $t");
     }
     $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
@@ -141,14 +142,19 @@ function seed_demo(): void
     $pdo->commit();
 
     /* Schedule */
-    $insEv = $pdo->prepare('INSERT INTO events (event_date,start_time,end_time,title,detail) VALUES (?,?,?,?,?)');
+    // Last value: 1 = also on employees' Today's schedule (interviews and payroll stay HR-only).
+    $insEv = $pdo->prepare('INSERT INTO events (event_date,start_time,end_time,title,detail,for_employees) VALUES (?,?,?,?,?,?)');
     foreach ([
-        [0, '09:30', '10:00', 'People team sync', 'Weekly check-in · 6 people'],
-        [0, '11:00', '11:45', 'Product designer interview', 'With Jamie Chen · Interview'],
-        [0, '14:30', '15:00', 'New hire orientation', '2 new teammates · Onboarding'],
-        [1, '10:00', '11:00', 'Payroll review', 'Finance · Monthly close'],
-        [2, '13:00', '14:00', 'Quarterly all-hands', 'Whole company · Main hall'],
-    ] as $ev) $insEv->execute([$d($ev[0]), $ev[1], $ev[2], $ev[3], $ev[4]]);
+        [0, '09:30', '10:00', 'People team sync', 'Weekly check-in · 6 people', 1],
+        [0, '11:00', '11:45', 'Product designer interview', 'With Jamie Chen · Interview', 0],
+        [0, '14:30', '15:00', 'New hire orientation', '2 new teammates · Onboarding', 1],
+        [1, '10:00', '11:00', 'Payroll review', 'Finance · Monthly close', 0],
+        [2, '13:00', '14:00', 'Quarterly all-hands', 'Whole company · Main hall', 1],
+    ] as $ev) $insEv->execute([$d($ev[0]), $ev[1], $ev[2], $ev[3], $ev[4], $ev[5]]);
+
+    /* Company updates */
+    q('INSERT INTO announcements (title, body, created_at) VALUES (?, ?, ?)', ['Year-end holiday schedule', 'The office will be closed on December 25 and January 1.', $d(-2) . ' 09:00:00']);
+    q('INSERT INTO announcements (title, body, created_at) VALUES (?, ?, ?)', ['Updated biometric devices', 'Use the new fingerprint scanners at the main entrance starting next week.', $d(-5) . ' 09:00:00']);
 
     /* Recruitment */
     $candFirst = ['Ines', 'Marcus', 'Hana', 'Tobias', 'Aisha', 'Pablo', 'Freya', 'Kenji', 'Lena', 'Victor', 'Ada', 'Bruno', 'Selin', 'Owen', 'Talia', 'Diego', 'Nora', 'Emil', 'Rosa', 'Idris', 'Clara', 'Malik', 'Signe', 'Julian'];

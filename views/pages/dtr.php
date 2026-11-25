@@ -36,7 +36,7 @@ $sheets = array_chunk($cards, 2);
 $periodLabel = $from->format('F j') . '–' . $to->format('j, Y');
 $titleWho = count($selected) === 1 ? employee_name($selected[0]) : (count($selected) . ' employees');
 $company = $state['settings']['company'] ?? 'HRMS';
-$back = $isAdmin ? ($choice !== '' && $choice !== 'all' ? page_url('employees', ['id' => (int) $choice]) : page_url('attendance')) : page_url('self-service');
+$back = $isAdmin ? ($choice !== '' && $choice !== 'all' ? page_url('employees', ['id' => (int) $choice]) : page_url('attendance')) : page_url('my-attendance');
 ?>
 <!doctype html>
 <html lang="en">

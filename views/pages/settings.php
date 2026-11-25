@@ -49,6 +49,15 @@ function settings_view(array $state): void
             <?php foreach (LEAVE_TYPES as $type) field('allowances[' . $type . ']', $type, $settings['allowances'][$type] ?? 0, 'number'); ?>
         </div>
     </fieldset>
+    <fieldset class="settings-fields">
+        <legend>Office hours</legend>
+        <div class="settings-fields-grid">
+            <?php
+            field('workStart', 'Starts', $settings['workStart'] ?? '08:00', 'time');
+            field('workEnd', 'Ends', $settings['workEnd'] ?? '17:00', 'time');
+            ?>
+        </div>
+    </fieldset>
     <div class="settings-actions"><button type="submit" class="btn primary">Save organization</button></div>
     </form>
     </section>
@@ -114,6 +123,22 @@ function settings_view(array $state): void
     </section>
     <?php
     if ($isAdmin) {
+        card('Company updates');
+        echo '<p class="muted">Short notices shown to every employee on their Overview, newest first. The next pay date is added automatically while a pay run is in progress.</p>';
+        echo '<details class="form-disclosure" data-form-dialog="form"><summary class="btn primary">Post an update</summary>';
+        post_form('announcement.save');
+        field('title', 'Headline', '', 'text', true, '', ['maxlength' => '120']);
+        field('body', 'Message', '', 'text', false, '', ['maxlength' => '500']);
+        end_form('Post update');
+        echo '</details>';
+        web_table(['Update', 'Posted', 'Actions'], array_map(function ($a) {
+            return [
+                function () use ($a) { echo '<strong>' . h($a['title']) . '</strong>' . ($a['body'] !== '' ? '<span class="sub">' . h($a['body']) . '</span>' : ''); },
+                (new DateTimeImmutable($a['createdAt']))->format('M j, Y'),
+                function () use ($a) { confirm_action('announcement.delete', 'Remove', 'Remove this update for everyone?', ['id' => $a['id']]); },
+            ];
+        }, $state['announcements'] ?? []));
+        echo '</section>';
         card('Demo data');
         confirm_action('demo.reset', 'Reset demo data', 'This replaces existing workspace records with sample data. Employee sign-in accounts are removed; administrator accounts are kept.');
         echo '</section>';

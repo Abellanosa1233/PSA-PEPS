@@ -134,6 +134,7 @@ function current_user(): ?array
     ensure_employee_requests_table();
     ensure_account_columns();
     ensure_biometrics();
+    ensure_announcements();
     $u = q('SELECT u.id, u.username, u.display_name, u.role_title, u.profile_image_updated_at, u.account_role, u.employee_id,
                    u.must_change_password, e.first_name, e.last_name, e.title, e.status AS employee_status
             FROM users u LEFT JOIN employees e ON e.id = u.employee_id WHERE u.id = ?', [$_SESSION['uid']])->fetch();
@@ -174,6 +175,24 @@ function ensure_biometrics(): void
         UNIQUE KEY uq_punch (emp_id, punched_at), INDEX idx_punch_time (punched_at),
         CONSTRAINT fk_punch_emp FOREIGN KEY (emp_id) REFERENCES employees(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $checked = true;
+}
+
+/* Company updates that HR posts for everyone (shown on the employee Overview). */
+function ensure_announcements(): void
+{
+    static $checked = false;
+    if ($checked) return;
+    // Check first: CREATE TABLE would silently commit an open transaction.
+    $exists = q("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = ? AND table_name = 'announcements'", [DB_NAME])->fetchColumn();
+    if (!$exists) db()->exec("CREATE TABLE announcements (
+        id INT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(120) NOT NULL, body VARCHAR(500) NOT NULL DEFAULT '',
+        created_by INT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT fk_announcement_user FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    // Calendar events are HR-only unless HR ticks "Show on employees' schedule".
+    $col = q("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = ? AND table_name = 'events' AND column_name = 'for_employees'", [DB_NAME])->fetchColumn();
+    if (!$col) q('ALTER TABLE events ADD COLUMN for_employees TINYINT(1) NOT NULL DEFAULT 0');
     $checked = true;
 }
 
@@ -252,6 +271,8 @@ function default_settings(): array
         'benefits' => 2000,
         'selfEmpId' => null,
         'supervisorId' => null,
+        'workStart' => '08:00', // office hours, shown as each employee's schedule
+        'workEnd' => '17:00',
     ];
 }
 

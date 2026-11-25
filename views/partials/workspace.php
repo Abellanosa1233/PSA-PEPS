@@ -149,75 +149,12 @@ function workspace_view(array $state, bool $supervisor): void
         echo '</section>';
         return;
     }
-    $record = ((array) ($state['attendance']->{$state['today']} ?? []))[$profileId] ?? [];
+    // HR's view of one employee's workspace: the same sections the employee sees on their own pages.
     dtr_card_form($profileId, $selfAccount);
     if ($selfAccount) team_absence_card($state);
-    card('Attendance today');
-    if (empty($record['in'])) {
-        action_button('attendance.clock', 'Clock in at office', ['empId' => $profileId, 'mode' => 'in', 'status' => 'office']);
-        action_button('attendance.clock', 'Clock in remotely', ['empId' => $profileId, 'mode' => 'in', 'status' => 'remote']);
-    } else {
-        echo '<p>Clocked in at ' . h($record['in']) . '</p>';
-        if (empty($record['out'])) action_button('attendance.clock', 'Clock out', ['empId' => $profileId, 'mode' => 'out']);
-        else echo '<p>Clocked out at ' . h($record['out']) . '</p>';
-    }
-    echo '</section>';
-    card('Time off');
-    leave_balances($state, $profileId);
-    leave_form([$profileId => employee_name($employees[$profileId])]);
-    $requests = paginate(array_filter($state['leaves'], function ($l) use ($profileId) { return $l['empId'] === $profileId; }), 'leavePage');
-    leave_table($state, $requests['rows'], false);
-    pagination($requests, 'self-service', array_intersect_key($_GET, ['slipsPage' => true]), 'requests', 'leavePage');
-    echo '</section>';
-    $myRequests = array_values(array_filter($state['employeeRequests'], function ($request) use ($profileId) { return $request['empId'] === $profileId; }));
-    card('Special and travel orders');
-    echo '<div class="card-body"><p class="muted" style="margin-bottom:12px">Submit a request for review by your supervisor or HR administrator.</p><div class="toolbar">';
-    echo '<details class="form-disclosure" data-form-dialog="form"><summary class="btn primary">Request Special Order</summary>';
-    post_form('employee.request.create', ['empId' => $profileId, 'type' => 'special_order']);
-    field('purpose', 'Order subject');
-    field('start', 'Effective date', today(), 'date');
-    field('details', 'Details', '', 'text', false);
-    end_form('Submit Special Order');
-    echo '</details><details class="form-disclosure" data-form-dialog="form"><summary class="btn">Request Travel Order</summary>';
-    post_form('employee.request.create', ['empId' => $profileId, 'type' => 'travel_order']);
-    field('purpose', 'Travel purpose');
-    field('destination', 'Destination');
-    field('start', 'Departure date', today(), 'date');
-    field('end', 'Return date', today(), 'date');
-    field('details', 'Details', '', 'text', false);
-    end_form('Submit Travel Order');
-    echo '</details></div>';
-    web_table(['Request', 'Purpose / destination', 'Dates', 'Status', 'Actions'], array_map(function ($request) use ($profileId) {
-        return [
-            $request['type'] === 'travel_order' ? 'Travel Order' : 'Special Order',
-            function () use ($request) {
-                echo h($request['purpose']);
-                if ($request['destination']) echo '<span class="sub">' . h($request['destination']) . '</span>';
-                if ($request['details']) echo '<span class="sub">' . h($request['details']) . '</span>';
-            },
-            $request['start'] . ($request['end'] ? ' – ' . $request['end'] : ''),
-            function () use ($request) {
-                status_badge($request['status']);
-                if ($request['decisionRole']) echo '<span class="sub">Reviewed by ' . h($request['decisionRole'] === 'hr_admin' ? 'HR administrator' : 'supervisor') . ($request['decidedBy'] ? ' · ' . h($request['decidedBy']) : '') . '</span>';
-            },
-            function () use ($request, $profileId) {
-                if ($request['status'] === 'pending') confirm_action('employee.request.cancel', 'Cancel', 'Cancel this request?', ['id' => $request['id'], 'empId' => $profileId]);
-            },
-        ];
-    }, $myRequests));
-    echo '</div></section>';
-    card('Payslips');
-    $rows = [];
-    foreach (array_reverse($state['payRuns']) as $run) {
-        foreach ($run['lines'] ?? [] as $line) {
-            if ($line['empId'] === $profileId) {
-                $rows[] = [$run['period'], money($line['gross'], $state), money($line['tax'], $state), money($line['benefits'], $state), money($line['net'], $state)];
-            }
-        }
-    }
-    $slips = paginate($rows, 'slipsPage');
-    web_table(['Period', 'Gross', 'Tax', 'Benefits', 'Net'], $slips['rows']);
-    pagination($slips, 'self-service', array_intersect_key($_GET, ['leavePage' => true]), 'payslips', 'slipsPage');
-    echo '</section>';
+    self_clock_card($state, $profileId);
+    self_time_off_section($state, $profileId, 'self-service');
+    self_orders_section($state, $profileId);
+    self_payslips_section($state, $profileId, 'self-service');
 }
 

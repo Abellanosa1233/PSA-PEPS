@@ -78,6 +78,8 @@ function action_success_message(string $action, array $input): string
         'account.create' => 'Sign-in access created. Share the temporary password privately.',
         'account.password' => 'Temporary password set.',
         'account.remove' => 'Sign-in access removed.',
+        'announcement.save' => 'Company update posted. Employees see it on their Overview.',
+        'announcement.delete' => 'Company update removed.',
     ];
     return $messages[$action] ?? 'Changes saved.';
 }
@@ -409,3 +411,4 @@ require __DIR__ . '/../../views/partials/icons.php';
 require __DIR__ . '/../../views/partials/employee-form.php';
 require __DIR__ . '/../../views/partials/leave.php';
 require __DIR__ . '/../../views/partials/workspace.php';
+require __DIR__ . '/../../views/partials/self.php';

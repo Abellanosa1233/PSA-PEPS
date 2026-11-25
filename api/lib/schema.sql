@@ -113,6 +113,7 @@ CREATE TABLE IF NOT EXISTS events (
   end_time TIME NOT NULL,
   title VARCHAR(160) NOT NULL,
   detail VARCHAR(255) NOT NULL DEFAULT '',
+  for_employees TINYINT(1) NOT NULL DEFAULT 0, -- 1 = also shown on employees' Today's schedule
   INDEX idx_event_date (event_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -171,4 +172,14 @@ CREATE TABLE IF NOT EXISTS payslips (
   net DECIMAL(12,2) NOT NULL,
   CONSTRAINT fk_slip_run FOREIGN KEY (run_id) REFERENCES pay_runs(id) ON DELETE CASCADE,
   CONSTRAINT fk_slip_emp FOREIGN KEY (emp_id) REFERENCES employees(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Company updates posted by HR; shown on every employee's Overview.
+CREATE TABLE IF NOT EXISTS announcements (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  title VARCHAR(120) NOT NULL,
+  body VARCHAR(500) NOT NULL DEFAULT '',
+  created_by INT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_announcement_user FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

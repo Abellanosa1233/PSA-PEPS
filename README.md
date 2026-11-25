@@ -69,8 +69,13 @@ There are two kinds of sign-in:
 
 * **HR administrator** — the account created at setup. Sees and manages everything.
 * **Employee** — created by HR from an employee's profile (**Employees → open a person → Sign-in access → Give sign-in access**) with a username and a temporary password. The employee is asked to change it after signing in. Employees see only:
-  * **My workspace** — clock in/out, their leave balance and requests, Special/Travel Orders, their own payslips.
-  * **My team** — only if they supervise someone (someone's "Reports to" is them): their direct reports' attendance today, and approve/decline their Special/Travel Order requests.
+  * **Overview** — greeting and **Request leave**, leave balances (annual, sick, personal; pending requests aren't deducted until approved), recent leave requests, today's attendance with office hours and clock in/out, today's schedule (only calendar events HR marks "Show on employees' schedule"), and company updates.
+  * **My time off** — balances, leave requests (go to HR), Special/Travel Orders, and teammates out of office.
+  * **My attendance** — today's time in/out, the printable DTR, the last two weeks.
+  * **My payslips** and **My profile** (their HR record, read-only).
+  * **Supervisor workspace** — only if they supervise someone (someone's "Reports to" is them): their direct reports' attendance today, and approve/decline their Special/Travel Order requests.
+
+HR posts **company updates** and sets **office hours** in **Settings**. The next pay date is shown automatically while a pay run is in progress.
 
 **Leave is HR-only.** Only HR administrators see and approve leave requests. Supervisors don't see their team's leave at all (not even pending requests), so nobody learns of a colleague's planned time off before HR does.
 

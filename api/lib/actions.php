@@ -379,9 +379,10 @@ function act_event_save(array $in): array
     $start = time_in($in, 'start') ?? fail('Start time is required.', 422, 'start');
     $end = time_in($in, 'end') ?? fail('End time is required.', 422, 'end');
     if ($end <= $start) fail('The event must end after it starts.', 422, 'end');
-    $vals = [date_in($in, 'date'), $start, $end, str_in($in, 'title', 160, true, 'Title'), str_in($in, 'detail', 255, false)];
-    if ($id) q('UPDATE events SET event_date=?, start_time=?, end_time=?, title=?, detail=? WHERE id = ?', array_merge($vals, [$id]));
-    else q('INSERT INTO events (event_date,start_time,end_time,title,detail) VALUES (?,?,?,?,?)', $vals);
+    ensure_announcements(); // adds events.for_employees on older databases
+    $vals = [date_in($in, 'date'), $start, $end, str_in($in, 'title', 160, true, 'Title'), str_in($in, 'detail', 255, false), empty($in['forEmployees']) ? 0 : 1];
+    if ($id) q('UPDATE events SET event_date=?, start_time=?, end_time=?, title=?, detail=?, for_employees=? WHERE id = ?', array_merge($vals, [$id]));
+    else q('INSERT INTO events (event_date,start_time,end_time,title,detail,for_employees) VALUES (?,?,?,?,?,?)', $vals);
     return [];
 }
 
@@ -494,6 +495,30 @@ function act_settings_save(array $in): array
         $allow[$t] = $v;
     }
     set_setting('allowances', $allow);
+    if (array_key_exists('workStart', $in) || array_key_exists('workEnd', $in)) {
+        $start = time_in($in, 'workStart') ?? fail('Enter when office hours start.', 422, 'workStart');
+        $end = time_in($in, 'workEnd') ?? fail('Enter when office hours end.', 422, 'workEnd');
+        if ($end <= $start) fail('Office hours must end after they start.', 422, 'workEnd');
+        set_setting('workStart', $start);
+        set_setting('workEnd', $end);
+    }
+    return [];
+}
+
+/* ---------- Company updates (HR only; see authorize_action) ---------- */
+function act_announcement_save(array $in, array $user): array
+{
+    ensure_announcements();
+    q('INSERT INTO announcements (title, body, created_by) VALUES (?, ?, ?)', [
+        str_in($in, 'title', 120, true, 'Headline'), str_in($in, 'body', 500, false, 'Message'), $user['id'] ?: null,
+    ]);
+    return ['id' => (int) db()->lastInsertId()];
+}
+
+function act_announcement_delete(array $in): array
+{
+    ensure_announcements();
+    q('DELETE FROM announcements WHERE id = ?', [int_in($in, 'id')]);
     return [];
 }
 

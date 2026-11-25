@@ -143,7 +143,7 @@
     $notifications = array_slice($notifications, 0, 8);
     $reviewPage = $isAdmin ? 'time-off' : 'supervisor';
     $reviewQuery = $isAdmin ? ['status' => 'pending'] : [];
-    $homePage = $isAdmin ? 'overview' : 'self-service';
+    $homePage = 'overview';
     $settings = $state['settings'] ?? [];
     $signOutReturn = page_url($page, $query);
     $showSignOut = ($_GET['confirmSignOut'] ?? '') === '1';
@@ -158,13 +158,13 @@
             <div>
                 <div class="side-label">Workspace</div>
                 <a class="ws-switch" href="<?= h(page_url('preferences')) ?>">
-                    <div><strong><?= h($settings['company'] ?? 'HRMS') ?></strong><span><?= h($settings['workspace'] ?? 'Workspace') ?></span></div>
+                    <div><strong><?= h($settings['company'] ?? 'HRMS') ?></strong><span><?= h($isAdmin ? ($settings['workspace'] ?? 'Workspace') : 'Employee workspace') ?></span></div>
                     <?= icon('chevDown', 14) ?>
                 </a>
             </div>
-            <?php if (!$isAdmin) $navIcons = ['self-service' => 'user'] + ($user['hasTeam'] ? ['supervisor' => 'users'] : []); ?>
+            <?php if (!$isAdmin) $navIcons = ['overview' => 'grid', 'my-time-off' => 'calendar', 'my-attendance' => 'clock', 'my-payslips' => 'wallet', 'my-profile' => 'user']; ?>
             <div>
-                <div class="side-label"><?= $isAdmin ? 'Manage' : 'My account' ?></div>
+                <div class="side-label"><?= $isAdmin ? 'Manage' : 'My workspace' ?></div>
                 <nav class="nav">
                     <?php foreach ($navIcons as $key => $navIcon): ?>
                         <a href="<?= h(page_url($key)) ?>" title="<?= h($pages[$key]) ?>"<?= $key === $page ? ' class="active" aria-current="page"' : '' ?>>
@@ -175,17 +175,24 @@
                 </nav>
             </div>
             <div class="side-spacer"></div>
-            <?php if ($isAdmin): ?>
+            <?php $sideLinks = $isAdmin ? ['supervisor', 'self-service'] : ($user['hasTeam'] ? ['supervisor'] : []); ?>
+            <?php if ($sideLinks): ?>
             <div class="side-links">
-                <?php foreach (['supervisor', 'self-service'] as $key): ?>
-                    <a class="side-link<?= $page === $key ? ' active' : '' ?>" href="<?= h(page_url($key)) ?>" title="<?= h($pages[$key]) ?>"><?= h($pages[$key]) ?><?= icon('arrowUpRight', 13) ?></a>
+                <?php foreach ($sideLinks as $key): ?>
+                    <a class="side-link<?= $page === $key ? ' active' : '' ?>" href="<?= h(page_url($key)) ?>" title="<?= h($pages[$key]) ?>"><?= h($pages[$key]) ?><?php if (!$isAdmin && $key === $reviewPage && $pendingCount): ?><span class="count"><?= $pendingCount ?></span><?php endif; ?><?= icon('arrowUpRight', 13) ?></a>
                 <?php endforeach; ?>
             </div>
             <?php endif; ?>
             <div class="help-card">
+                <?php if ($isAdmin): ?>
                 <strong>Human Resource Support</strong>
                 <p>Access system guidance and assistance.</p>
                 <a href="<?= h(page_url('help')) ?>">Open help center <?= icon('arrowRight', 15) ?></a>
+                <?php else: ?>
+                <strong>Need a hand?</strong>
+                <p>Your HR team is here to help.</p>
+                <a href="<?= h(page_url('help')) ?>">Contact HR <?= icon('arrowRight', 15) ?></a>
+                <?php endif; ?>
             </div>
             <nav class="nav" aria-label="Settings and help">
                 <a class="<?= $page === 'preferences' ? 'active' : '' ?>" href="<?= h(page_url('preferences')) ?>" aria-label="Settings" title="Settings"<?= $page === 'preferences' ? ' aria-current="page"' : '' ?>>
@@ -233,10 +240,10 @@
                         </div>
                     </details>
                     <details class="popover-wrap web-user">
-                        <summary class="user-btn"><span class="avatar"><?php if (!empty($user['avatarUrl'])): ?><img src="<?= h($user['avatarUrl']) ?>" alt=""><?php else: ?><?= h(initials($user['name'])) ?><?php endif; ?></span><span class="who-text"><strong><?= h($user['name']) ?></strong><span><?= h($isAdmin ? 'Administrator · ' . $user['role'] : 'Employee access') ?></span></span><?= icon('chevDown', 14) ?></summary>
+                        <summary class="user-btn"><span class="avatar"><?php if (!empty($user['avatarUrl'])): ?><img src="<?= h($user['avatarUrl']) ?>" alt=""><?php else: ?><?= h(initials($user['name'])) ?><?php endif; ?></span><span class="who-text"><strong><?= h($user['name']) ?></strong><span><?= h($isAdmin ? 'Administrator · ' . $user['role'] : $user['role'] . ' · Employee') ?></span></span><?= icon('chevDown', 14) ?></summary>
                         <div class="popover menu">
                             <a href="<?= h(page_url('preferences')) ?>"><?= icon('settings') ?> Settings</a>
-                            <a href="<?= h(page_url('self-service')) ?>"><?= icon('user') ?> <?= h($pages['self-service']) ?></a><hr>
+                            <a href="<?= h(page_url($isAdmin ? 'self-service' : 'my-profile')) ?>"><?= icon('user') ?> <?= h($isAdmin ? $pages['self-service'] : 'My profile') ?></a><hr>
                             <a id="open-sign-out" href="<?= h(page_url($page, ['confirmSignOut' => 1] + $query)) ?>" aria-haspopup="dialog"><?= icon('logOut') ?> Sign out</a>
                         </div>
                     </details>
@@ -253,7 +260,7 @@
                 <?php if (!empty($user['mustChangePassword']) && $page !== 'preferences'): ?>
                     <div class="temp-password-banner" role="status"><?= icon('settings', 16) ?><span>You’re signed in with a temporary password from HR. Please choose your own.</span><a class="btn sm primary" href="<?= h(page_url('preferences')) ?>">Change password</a></div>
                 <?php endif; ?>
-                <?php if ($state) require __DIR__ . '/../pages/' . ($page === 'preferences' ? 'settings' : $page) . '.php'; ?>
+                <?php if ($state) require __DIR__ . '/../pages/' . ($page === 'preferences' ? 'settings' : ($page === 'overview' && !$isAdmin ? 'my-overview' : $page)) . '.php'; ?>
                 <?php if ($hasEmployeeModal) add_employee_modal($state, $page, $formError); ?>
             </main>
         </div>

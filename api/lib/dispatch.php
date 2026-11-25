@@ -16,6 +16,7 @@ function action_handler(string $action): string
         'settings.save' => 'act_settings_save', 'workspace.view' => 'act_workspace_view', 'profile.save' => 'act_profile_save',
         'password.change' => 'act_password_change', 'demo.reset' => 'act_demo_reset',
         'account.create' => 'act_account_create', 'account.password' => 'act_account_password', 'account.remove' => 'act_account_remove',
+        'announcement.save' => 'act_announcement_save', 'announcement.delete' => 'act_announcement_delete',
     ];
     if (!isset($writeActions[$action])) fail('Unknown action.', 404);
     return $writeActions[$action];
