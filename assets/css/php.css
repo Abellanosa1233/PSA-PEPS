@@ -44,25 +44,8 @@
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  background:
-    radial-gradient(ellipse at 18% 16%, rgba(35, 111, 232, .62), transparent 34rem),
-    radial-gradient(ellipse at 87% 82%, rgba(252, 209, 22, .22), transparent 29rem),
-    repeating-linear-gradient(135deg, rgba(255, 255, 255, .025) 0 1px, transparent 1px 18px),
-    linear-gradient(135deg, #07172f 0%, #063b88 52%, #09264f 100%);
+  background: #e8edf2 url("../sign-in-background.svg") center / cover no-repeat;
 }
-.web-auth-signin::before,
-.web-auth-signin::after {
-  position: absolute;
-  z-index: -1;
-  width: 280px;
-  height: 280px;
-  border: 1px solid rgba(255, 255, 255, .20);
-  border-radius: 50%;
-  box-shadow: 0 0 0 30px rgba(255, 255, 255, .035), 0 0 0 60px rgba(252, 209, 22, .07);
-  content: "";
-}
-.web-auth-signin::before { top: -150px; right: -80px; }
-.web-auth-signin::after { bottom: -180px; left: -110px; width: 360px; height: 360px; }
 .web-auth-signin .auth-card-signin {
   width: min(440px, 100%);
   gap: 18px;
