@@ -6,17 +6,28 @@ function workspace_view(array $state, bool $supervisor): void
     $employees = array_column($state['employees'], null, 'id');
     $active = array_filter($employees, function ($e) { return $e['status'] === 'Active'; });
     $key = $supervisor ? 'supervisorId' : 'selfEmpId';
-    $profileId = (int) ($state['settings'][$key] ?? 0);
+    $selfAccount = !is_admin($state['user']);
+    $profileId = $selfAccount ? (int) $state['user']['employeeId'] : (int) ($state['settings'][$key] ?? 0);
     $selectable = $active;
     if ($supervisor) {
         $managerIds = array_column($active, 'managerId');
         $selectable = array_filter($active, function ($e) use ($managerIds) { return in_array($e['id'], $managerIds, true); });
     }
-    card($supervisor ? 'Select supervisor' : 'Select employee');
-    post_form('workspace.view');
-    choice($key, 'Profile', ['' => 'Select a profile'] + employee_options($selectable), $profileId);
-    end_form('Open workspace');
-    echo '</section>';
+    if ($selfAccount) {
+        // Employee accounts always see their own workspace; there is nothing to choose.
+        $me = $employees[$profileId] ?? null;
+        if ($me) {
+            echo '<p class="muted workspace-intro">' . h($supervisor
+                ? 'Your direct reports today, and the requests waiting for your decision.'
+                : employee_name($me) . ' · ' . $me['title'] . ' · ' . $me['department']) . '</p>';
+        }
+    } else {
+        card($supervisor ? 'Select supervisor' : 'Select employee');
+        post_form('workspace.view');
+        choice($key, 'Profile', ['' => 'Select a profile'] + employee_options($selectable), $profileId);
+        end_form('Open workspace');
+        echo '</section>';
+    }
     if (!isset($selectable[$profileId])) return;
     if ($supervisor) {
         $team = array_filter($active, function ($e) use ($profileId) { return $e['managerId'] === $profileId; });

@@ -81,7 +81,7 @@ function build_state(array $user): array
         ];
     }, q('SELECT * FROM pay_runs ORDER BY period')->fetchAll());
 
-    return [
+    $state = [
         'user' => $user,
         'today' => today(),
         'settings' => settings(),
@@ -93,5 +93,69 @@ function build_state(array $user): array
         'positions' => $positions,
         'candidates' => $candidates,
         'payRuns' => $payRuns,
+    ];
+    if (!is_admin($user)) return scope_state_to_employee($state, (int) $user['employeeId']);
+
+    // HR sees which employees can sign in (usernames only, never passwords).
+    ensure_account_columns();
+    $accounts = [];
+    foreach (q("SELECT employee_id, username, must_change_password FROM users WHERE account_role = 'employee' AND employee_id IS NOT NULL")->fetchAll() as $a) {
+        $accounts[(string) $a['employee_id']] = ['username' => $a['username'], 'mustChangePassword' => (bool) $a['must_change_password']];
+    }
+    $state['accounts'] = (object) $accounts;
+    return $state;
+}
+
+/* What an employee account may see: their own records and, if they supervise people,
+   their direct reports' attendance and requests. No salaries except their own, no other
+   payslips, no recruitment, schedule or payroll settings. */
+function scope_state_to_employee(array $state, int $me): array
+{
+    $byId = array_column($state['employees'], null, 'id');
+    $self = $byId[$me] ?? null;
+    $teamIds = [];
+    foreach ($state['employees'] as $e) {
+        if ($e['managerId'] === $me && $e['status'] === 'Active') $teamIds[$e['id']] = true;
+    }
+    $peopleIds = [$me => true] + $teamIds;
+    $visible = $peopleIds;
+    if ($self && $self['managerId'] !== null) $visible[$self['managerId']] = true; // their supervisor's name only
+
+    $employees = [];
+    foreach ($state['employees'] as $e) {
+        if (!isset($visible[$e['id']])) continue;
+        if ($e['id'] !== $me) $e['salary'] = null;
+        $employees[] = $e;
+    }
+    $mine = function (array $rows) use ($peopleIds) {
+        return array_values(array_filter($rows, function ($row) use ($peopleIds) { return isset($peopleIds[$row['empId']]); }));
+    };
+    $attendance = [];
+    foreach ((array) $state['attendance'] as $day => $records) {
+        $kept = array_intersect_key((array) $records, array_flip(array_map('strval', array_keys($peopleIds))));
+        if ($kept) $attendance[$day] = (object) $kept;
+    }
+    $payRuns = [];
+    foreach ($state['payRuns'] as $run) {
+        if ($run['status'] !== 'paid') continue;
+        $run['bonuses'] = (object) [];
+        $run['lines'] = array_values(array_filter($run['lines'] ?? [], function ($line) use ($me) { return $line['empId'] === $me; }));
+        $payRuns[] = $run;
+    }
+    $settings = array_intersect_key($state['settings'], array_flip(['company', 'workspace', 'currency', 'allowances']));
+
+    return [
+        'user' => $state['user'],
+        'today' => $state['today'],
+        'settings' => $settings + ['selfEmpId' => $me, 'supervisorId' => $me],
+        'employees' => $employees,
+        'leaves' => $mine($state['leaves']),
+        'employeeRequests' => $mine($state['employeeRequests']),
+        'attendance' => (object) $attendance,
+        'events' => [],
+        'positions' => [],
+        'candidates' => [],
+        'payRuns' => $payRuns,
+        'accounts' => (object) [],
     ];
 }

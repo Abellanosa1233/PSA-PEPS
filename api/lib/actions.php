@@ -538,9 +538,52 @@ function act_profile_photo_remove(array $user): array
 function act_password_change(array $in, array $user): array
 {
     [$oldHash, $newHash] = account_password_hashes($in, $user['id'], true);
-    $updated = q('UPDATE users SET password_hash = ? WHERE id = ? AND password_hash = ?', [$newHash, $user['id'], $oldHash]);
+    $updated = q('UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ? AND password_hash = ?', [$newHash, $user['id'], $oldHash]);
     if (!$updated->rowCount()) fail('Your password changed. Enter your current password and try again.', 422, 'currentPassword');
     return [];
+}
+
+/* ---------- Employee sign-in accounts (HR administrators only; see authorize_action) ---------- */
+function temporary_password_in(array $in): string
+{
+    $password = (string) ($in['password'] ?? '');
+    if (strlen($password) < 8) fail('Use a temporary password with at least 8 characters.', 422, 'password');
+    if (strlen($password) > 72 || strpos($password, "\0") !== false) fail('Use a password of up to 72 bytes without null characters.', 422, 'password');
+    return $password;
+}
+
+function act_account_create(array $in): array
+{
+    ensure_account_columns();
+    $employee = employee_exists(int_in($in, 'empId'));
+    if ($employee['status'] !== 'Active') fail('Only active employees can be given sign-in access.');
+    if (q("SELECT id FROM users WHERE employee_id = ?", [$employee['id']])->fetch()) fail('This employee already has sign-in access.');
+    $username = strtolower(str_in($in, 'username', 60, true, 'Username'));
+    if (!preg_match('/^[a-z0-9._-]{3,60}$/', $username)) fail('Usernames use 3–60 letters, numbers, dots, dashes or underscores.', 422, 'username');
+    if (q('SELECT id FROM users WHERE username = ?', [$username])->fetch()) fail('That username is already taken. Choose another.', 422, 'username');
+    q("INSERT INTO users (username, display_name, role_title, password_hash, account_role, employee_id, must_change_password) VALUES (?,?,?,?,'employee',?,1)", [
+        $username, $employee['first_name'] . ' ' . $employee['last_name'], $employee['title'],
+        password_hash(temporary_password_in($in), PASSWORD_DEFAULT), $employee['id'],
+    ]);
+    return ['id' => (int) $employee['id']];
+}
+
+function act_account_password(array $in): array
+{
+    ensure_account_columns();
+    $employeeId = int_in($in, 'empId');
+    $updated = q("UPDATE users SET password_hash = ?, must_change_password = 1 WHERE employee_id = ? AND account_role = 'employee'",
+        [password_hash(temporary_password_in($in), PASSWORD_DEFAULT), $employeeId]);
+    if (!$updated->rowCount()) fail('This employee does not have sign-in access.', 404);
+    return ['id' => $employeeId];
+}
+
+function act_account_remove(array $in): array
+{
+    ensure_account_columns();
+    $employeeId = int_in($in, 'empId');
+    q("DELETE FROM users WHERE employee_id = ? AND account_role = 'employee'", [$employeeId]);
+    return ['id' => $employeeId];
 }
 
 function account_password_hashes(array $in, int $userId, bool $requireConfirmation = false): array

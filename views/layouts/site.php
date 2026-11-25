@@ -128,14 +128,22 @@
         'overview' => 'grid', 'employees' => 'users', 'attendance' => 'clock', 'time-off' => 'calendar',
         'payroll' => 'wallet', 'recruitment' => 'briefcase', 'reports' => 'chart',
     ];
-    $pendingCount = count(array_filter($state['leaves'] ?? [], function ($leave) { return $leave['status'] === 'pending'; }));
-    $pendingEmployeeRequests = array_filter($state['employeeRequests'] ?? [], function ($request) { return $request['status'] === 'pending'; });
-    $pendingCount += count($pendingEmployeeRequests);
+    $isAdmin = is_admin($user);
+    // HR is notified of every pending request; a supervising employee only of their direct reports' requests.
+    $needsDecision = function ($item) use ($isAdmin, $user) {
+        return $item['status'] === 'pending' && ($isAdmin || $item['empId'] !== $user['employeeId']);
+    };
+    $pendingLeaves = array_filter($state['leaves'] ?? [], $needsDecision);
+    $pendingEmployeeRequests = array_filter($state['employeeRequests'] ?? [], $needsDecision);
+    $pendingCount = count($pendingLeaves) + count($pendingEmployeeRequests);
     $employeesById = array_column($state['employees'] ?? [], null, 'id');
     $notifications = [];
-    foreach (($state['leaves'] ?? []) as $leave) if ($leave['status'] === 'pending') $notifications[] = ['leave', $leave];
+    foreach ($pendingLeaves as $leave) $notifications[] = ['leave', $leave];
     foreach ($pendingEmployeeRequests as $request) $notifications[] = ['request', $request];
     $notifications = array_slice($notifications, 0, 8);
+    $reviewPage = $isAdmin ? 'time-off' : 'supervisor';
+    $reviewQuery = $isAdmin ? ['status' => 'pending'] : [];
+    $homePage = $isAdmin ? 'overview' : 'self-service';
     $settings = $state['settings'] ?? [];
     $signOutReturn = page_url($page, $query);
     $showSignOut = ($_GET['confirmSignOut'] ?? '') === '1';
@@ -143,7 +151,7 @@
     <div class="app web-app">
         <aside class="sidebar" id="web-sidebar" aria-label="Main navigation">
             <button class="sidebar-toggle" id="web-sidebar-toggle" type="button" aria-controls="web-sidebar" aria-expanded="true" aria-label="Collapse sidebar" title="Collapse sidebar"><?= icon('chevLeft', 16) ?></button>
-            <a class="brand sidebar-brand" href="<?= h(page_url('overview')) ?>" title="Human Resource Management System">
+            <a class="brand sidebar-brand" href="<?= h(page_url($homePage)) ?>" title="Human Resource Management System">
                 <img src="assets/psa-logo.svg" width="40" height="40" alt="Philippine Statistics Authority">
                 <span class="brand-copy"><strong>HRMS</strong><small>Human Resource Management System</small></span>
             </a>
@@ -154,23 +162,26 @@
                     <?= icon('chevDown', 14) ?>
                 </a>
             </div>
+            <?php if (!$isAdmin) $navIcons = ['self-service' => 'user'] + ($user['hasTeam'] ? ['supervisor' => 'users'] : []); ?>
             <div>
-                <div class="side-label">Manage</div>
+                <div class="side-label"><?= $isAdmin ? 'Manage' : 'My account' ?></div>
                 <nav class="nav">
                     <?php foreach ($navIcons as $key => $navIcon): ?>
                         <a href="<?= h(page_url($key)) ?>" title="<?= h($pages[$key]) ?>"<?= $key === $page ? ' class="active" aria-current="page"' : '' ?>>
                             <?= icon($navIcon) ?><span><?= h($pages[$key]) ?></span>
-                            <?php if ($key === 'time-off' && $pendingCount): ?><span class="count"><?= $pendingCount ?></span><?php endif; ?>
+                            <?php if ($key === $reviewPage && $pendingCount): ?><span class="count"><?= $pendingCount ?></span><?php endif; ?>
                         </a>
                     <?php endforeach; ?>
                 </nav>
             </div>
             <div class="side-spacer"></div>
+            <?php if ($isAdmin): ?>
             <div class="side-links">
                 <?php foreach (['supervisor', 'self-service'] as $key): ?>
                     <a class="side-link<?= $page === $key ? ' active' : '' ?>" href="<?= h(page_url($key)) ?>" title="<?= h($pages[$key]) ?>"><?= h($pages[$key]) ?><?= icon('arrowUpRight', 13) ?></a>
                 <?php endforeach; ?>
             </div>
+            <?php endif; ?>
             <div class="help-card">
                 <strong>Human Resource Support</strong>
                 <p>Access system guidance and assistance.</p>
@@ -211,12 +222,12 @@
                                     $name = $employee ? employee_name($employee) : 'Former employee';
                                     $label = $kind === 'leave' ? 'Requested ' . strtolower($item['type']) : ($item['type'] === 'travel_order' ? 'Travel Order' : 'Special Order') . ' · ' . $item['purpose'];
                                 ?>
-                                    <a class="notification-item" href="<?= h(page_url($kind === 'leave' ? 'time-off' : 'time-off', ['status' => 'pending'])) ?>">
+                                    <a class="notification-item" href="<?= h(page_url($reviewPage, $reviewQuery)) ?>">
                                         <span class="avatar sm"><?= h(initials($name)) ?></span>
                                         <span><strong><?= h($name) ?></strong><small><?= h($label) ?> · <?= h($item['start']) ?></small></span>
                                     </a>
                                 <?php endforeach; ?>
-                                <a class="notification-footer" href="<?= h(page_url('time-off', ['status' => 'pending'])) ?>">Review pending requests</a>
+                                <a class="notification-footer" href="<?= h(page_url($reviewPage, $reviewQuery)) ?>">Review pending requests</a>
                             <?php else: ?>
                                 <div class="notification-empty"><?= icon('check', 18) ?><strong>No pending notifications</strong><span>There are no new notifications.</span></div>
                             <?php endif; ?>
@@ -226,7 +237,7 @@
                         <summary class="user-btn"><span class="avatar"><?php if (!empty($user['avatarUrl'])): ?><img src="<?= h($user['avatarUrl']) ?>" alt=""><?php else: ?><?= h(initials($user['name'])) ?><?php endif; ?></span><span class="who-text"><strong><?= h($user['name']) ?></strong><span><?= h($user['role']) ?></span></span><?= icon('chevDown', 14) ?></summary>
                         <div class="popover menu">
                             <a href="<?= h(page_url('preferences')) ?>"><?= icon('settings') ?> Settings</a>
-                            <a href="<?= h(page_url('self-service')) ?>"><?= icon('user') ?> Employee workspace</a><hr>
+                            <a href="<?= h(page_url('self-service')) ?>"><?= icon('user') ?> <?= h($pages['self-service']) ?></a><hr>
                             <a id="open-sign-out" href="<?= h(page_url($page, ['confirmSignOut' => 1] + $query)) ?>" aria-haspopup="dialog"><?= icon('logOut') ?> Sign out</a>
                         </div>
                     </details>
@@ -240,6 +251,9 @@
                 $hasEmployeeModal = $state && $page === 'employees' && (int) ($_GET['id'] ?? 0) === 0;
                 web_message($hasEmployeeModal && !empty($formError['employeeModal']) ? '' : $error, '');
                 ?>
+                <?php if (!empty($user['mustChangePassword']) && $page !== 'preferences'): ?>
+                    <div class="temp-password-banner" role="status"><?= icon('settings', 16) ?><span>You’re signed in with a temporary password from HR. Please choose your own.</span><a class="btn sm primary" href="<?= h(page_url('preferences')) ?>">Change password</a></div>
+                <?php endif; ?>
                 <?php if ($state) require __DIR__ . '/../pages/' . ($page === 'preferences' ? 'settings' : $page) . '.php'; ?>
                 <?php if ($hasEmployeeModal) add_employee_modal($state, $page, $formError); ?>
             </main>

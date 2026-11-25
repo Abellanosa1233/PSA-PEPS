@@ -16,6 +16,9 @@ function install_schema(): void
 function seed_demo(): void
 {
     $pdo = db();
+    // Employee logins belong to employee records that are about to be replaced; admin logins are kept.
+    ensure_account_columns();
+    $pdo->exec("DELETE FROM users WHERE account_role = 'employee'");
     $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
     foreach (['payslips', 'pay_bonuses', 'pay_runs', 'candidates', 'positions', 'events', 'attendance', 'employee_requests', 'leave_requests', 'employees', 'settings'] as $t) {
         $pdo->exec("TRUNCATE TABLE $t");

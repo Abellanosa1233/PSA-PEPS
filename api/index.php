@@ -64,6 +64,7 @@ try {
     $handler = action_handler($action);
     if ($method !== 'POST') fail('Use POST.', 405);
     $user = require_user();
+    authorize_action($action, $in, $user);
     $result = $handler($in, $user);
     respond(['result' => $result, 'state' => build_state($user)]);
 } catch (ApiError $e) {

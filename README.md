@@ -38,7 +38,7 @@ Philippine defaults: pesos (₱), Asia/Manila time, phone numbers saved as `+63 
 | Page | What it does |
 | --- | --- |
 | Overview | KPIs, weekly attendance chart, monthly calendar with event previews/details, pending time off, hiring summary |
-| Employees | Search/filter, add, edit, offboard, delete, CSV import/export, profile with leave balance and history |
+| Employees | Search/filter, add, edit, offboard, delete, CSV import/export, profile with leave balance and history, sign-in access for the employee |
 | Attendance | Per-day status (office / remote / away), clock-in/out times, bulk fill, CSV import/export |
 | Time off | Requests with approve/decline/cancel, weekday counting, balance and overlap checks; Special and Travel Order review |
 | Payroll | Monthly pay runs, bonuses, tax and benefits, approve and lock, payslips, CSV export |
@@ -47,6 +47,18 @@ Philippine defaults: pesos (₱), Asia/Manila time, phone numbers saved as `+63 
 | Supervisor workspace | A manager's team today, leave and Special/Travel Order approvals, and who's out |
 | Employee workspace | Self-service: clock in/out, request time off, Special/Travel Orders, view payslips |
 | Settings | Company, currency, tax, benefits, leave allowances, profile photo, account password, theme, demo reset |
+
+## Accounts and access
+
+There are two kinds of sign-in:
+
+* **HR administrator** — the account created at setup. Sees and manages everything.
+* **Employee** — created by HR from an employee's profile (**Employees → open a person → Sign-in access → Give sign-in access**) with a username and a temporary password. The employee is asked to change it after signing in. Employees see only:
+  * **My workspace** — clock in/out, their leave balance and requests, Special/Travel Orders, their own payslips.
+  * **My team** — only if they supervise someone (someone's "Reports to" is them): their direct reports' attendance today, and approve/decline their leave and Special/Travel Order requests.
+  * **Settings** (profile photo and password only) and **Help**.
+
+The rules are enforced on the server (`authorize_action()` in `api/lib/dispatch.php` and `scope_state_to_employee()` in `api/lib/state.php`), not only hidden in the menus: employee accounts never receive other people's salaries, payslips, recruitment data or payroll settings, and any form an employee submits is forced onto their own record. Offboarding or deleting an employee stops their sign-in immediately. **Reset demo data** removes employee accounts and keeps administrator accounts.
 
 ## Structure
 

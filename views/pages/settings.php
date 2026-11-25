@@ -4,8 +4,20 @@ declare(strict_types=1);
 function settings_view(array $state): void
 {
     $settings = $state['settings'];
+    $isAdmin = is_admin($state['user']);
     ?>
     <div class="settings-layout">
+    <?php if (!$isAdmin): ?>
+    <section class="card web-card settings-organization">
+    <h2>Your details</h2>
+    <dl class="dl account-details">
+        <dt>Name</dt><dd><?= h($state['user']['name']) ?></dd>
+        <dt>Position</dt><dd><?= h($state['user']['role']) ?></dd>
+        <dt>Username</dt><dd><?= h($state['user']['username']) ?></dd>
+    </dl>
+    <p class="muted">Your name, position and department come from your HR record. Ask your HR administrator to correct them.</p>
+    </section>
+    <?php else: ?>
     <section class="card web-card settings-organization">
     <h2>Organization</h2>
     <?php
@@ -39,6 +51,7 @@ function settings_view(array $state): void
     <div class="settings-actions"><button type="submit" class="btn primary">Save organization</button></div>
     </form>
     </section>
+    <?php endif; ?>
     <?php
     card('Profile photo');
     ?>
@@ -61,7 +74,11 @@ function settings_view(array $state): void
     <?php
     card('Account & security');
     ?>
+    <?php if (!empty($state['user']['mustChangePassword'])): ?>
+        <p class="temp-password-note">You’re using a temporary password from HR. Choose a new one that only you know.</p>
+    <?php endif; ?>
     <div class="toolbar">
+        <?php if ($isAdmin): ?>
         <details data-form-dialog="form">
             <summary class="btn">Edit profile</summary>
             <?php
@@ -71,7 +88,8 @@ function settings_view(array $state): void
             end_form('Save profile');
             ?>
         </details>
-        <details data-form-dialog="form">
+        <?php endif; ?>
+        <details data-form-dialog="form"<?= !empty($state['user']['mustChangePassword']) ? ' open' : '' ?>>
             <summary class="btn">Change password</summary>
             <?php post_form('password.change'); ?>
             <?php foreach ([
@@ -94,9 +112,11 @@ function settings_view(array $state): void
     </div>
     </section>
     <?php
-    card('Demo data');
-    confirm_action('demo.reset', 'Reset demo data', 'This replaces existing workspace records with sample data.');
-    echo '</section>';
+    if ($isAdmin) {
+        card('Demo data');
+        confirm_action('demo.reset', 'Reset demo data', 'This replaces existing workspace records with sample data. Employee sign-in accounts are removed; administrator accounts are kept.');
+        echo '</section>';
+    }
     echo '</div></div>';
 }
 

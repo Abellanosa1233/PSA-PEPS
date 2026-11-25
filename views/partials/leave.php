@@ -43,7 +43,11 @@ function leave_table(array $state, array $leaves, bool $canDecide = true, bool $
                     action_button('leave.decide', 'Approve', ['id' => $l['id'], 'status' => 'approved']);
                     action_button('leave.decide', 'Decline', ['id' => $l['id'], 'status' => 'rejected']);
                 }
-                if ($l['status'] === 'pending' || ($l['status'] === 'approved' && $l['end'] >= $state['today'])) {
+                // Employees may withdraw only their own pending requests; HR can also cancel upcoming approved leave.
+                $canCancel = is_admin($state['user'])
+                    ? ($l['status'] === 'pending' || ($l['status'] === 'approved' && $l['end'] >= $state['today']))
+                    : ($l['status'] === 'pending' && $l['empId'] === $state['user']['employeeId']);
+                if ($canCancel) {
                     confirm_action('leave.cancel', 'Cancel request', 'Remove this leave request?', ['id' => $l['id']]);
                 }
             },

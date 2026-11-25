@@ -610,3 +610,16 @@ html.sidebar-collapsed .web-app .sidebar .nav .count { display: block; position:
 @media (max-width: 560px) {
   .report-bars { grid-template-columns: minmax(0, 90px) minmax(0, 1fr) max-content; }
 }
+
+/* ---------- Employee accounts ---------- */
+.temp-password-banner {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 14px; border-radius: var(--radius-sm);
+  background: var(--warn-bg); color: var(--warn); font-weight: 500;
+}
+.temp-password-banner span { flex: 1 1 220px; min-width: 0; }
+.temp-password-note { color: var(--warn); font-weight: 500; margin-bottom: 10px; }
+.workspace-intro { margin-top: -6px; }
+.access-card { display: flex; flex-direction: column; gap: 10px; }
+.access-card .toolbar { margin-top: 4px; }
+.account-details { margin: 6px 0 12px; }

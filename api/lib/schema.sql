@@ -9,7 +9,13 @@ CREATE TABLE IF NOT EXISTS users (
   profile_image MEDIUMBLOB NULL,
   profile_image_type VARCHAR(30) NULL,
   profile_image_updated_at DATETIME NULL,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  -- 'admin' (HR, full access) or 'employee' (own records only, linked to employee_id).
+  -- The employee foreign key is added by ensure_account_columns() once employees exists.
+  account_role VARCHAR(20) NOT NULL DEFAULT 'admin',
+  employee_id INT NULL,
+  must_change_password TINYINT(1) NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_users_employee (employee_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS settings (

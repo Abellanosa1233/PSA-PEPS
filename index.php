@@ -53,6 +53,20 @@ try {
     if (!isset($_SESSION['web_csrf'])) $_SESSION['web_csrf'] = bin2hex(random_bytes(32));
     $theme = $_SESSION['web_theme'] ?? 'system';
     $user = current_user();
+    if ($user && !is_admin($user)) {
+        // Employee accounts only see their own workspace (and their team, if they supervise anyone).
+        $pages['self-service'] = 'My workspace';
+        $pages['supervisor'] = 'My team';
+        $allowedPages = ['self-service', 'preferences', 'help'];
+        if ($user['hasTeam']) $allowedPages[] = 'supervisor';
+        if (!in_array($page, $allowedPages, true)) {
+            if (!$isPost) {
+                header('Location: ' . page_url('self-service'), true, 302);
+                exit;
+            }
+            $page = 'self-service';
+        }
+    }
     $screen = !installed() ? 'Install HRMS' : (has_users() ? 'Sign in' : 'Create administrator');
     if ($isPost) {
         unset($_SESSION['web_form_error'], $_SESSION['web_notice']);
@@ -75,13 +89,15 @@ try {
             }
         } else {
             $user = require_user();
+            $input = $_POST;
+            authorize_action($action, $input, $user);
             if ($action === 'profile.photo') $result = act_profile_photo($_FILES['profileImage'] ?? [], $user);
             elseif ($action === 'profile.photo.remove') $result = act_profile_photo_remove($user);
             elseif ($action === 'employee.import') $result = act_employee_import($_FILES['employeeCsv'] ?? []);
             elseif ($action === 'attendance.import') $result = act_attendance_import($_FILES['attendanceCsv'] ?? []);
             else {
                 $handler = action_handler($action);
-                $result = $handler($_POST, $user);
+                $result = $handler($input, $user);
             }
         }
         if ($action !== 'logout' && ($result['changed'] ?? true) !== false) {
@@ -172,9 +188,11 @@ if ($user) {
     try {
         if (db()->inTransaction()) db()->rollBack();
         $state = build_state($user);
-        if ($page === 'employees' && isset($_GET['template'])) employee_import_template();
-        if ($page === 'attendance' && isset($_GET['template'])) attendance_import_template();
-        if (isset($_GET['export'])) export_page($page, $state);
+        if (is_admin($user)) {
+            if ($page === 'employees' && isset($_GET['template'])) employee_import_template();
+            if ($page === 'attendance' && isset($_GET['template'])) attendance_import_template();
+            if (isset($_GET['export'])) export_page($page, $state);
+        }
     } catch (Throwable $e) {
         error_log((string) $e);
         $error = 'The workspace data could not be loaded.';

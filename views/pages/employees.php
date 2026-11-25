@@ -17,8 +17,9 @@ function employees_view(array $state): void
         } else {
             action_button('employee.status', 'Reactivate', ['id' => $id, 'status' => 'Active']);
         }
-        confirm_action('employee.delete', 'Delete employee', 'This also deletes the employee’s attendance and leave records.', ['id' => $id]);
+        confirm_action('employee.delete', 'Delete employee', 'This also deletes the employee’s attendance and leave records, and their sign-in access.', ['id' => $id]);
         echo '</section>';
+        employee_access_card($state, $employee);
         card('Leave history and balances');
         leave_balances($state, $id);
         if ($employee['status'] === 'Active') leave_form([$id => employee_name($employee)], true);
@@ -117,6 +118,42 @@ function employees_view(array $state): void
     </section>
     <script src="<?= h(versioned_asset('assets/js/employee-search.js')) ?>" defer></script>
     <?php
+}
+
+/* HR controls for an employee's own login to the employee workspace. */
+function employee_access_card(array $state, array $employee): void
+{
+    $id = $employee['id'];
+    $account = ((array) ($state['accounts'] ?? []))[$id] ?? null;
+    card('Sign-in access');
+    echo '<div class="card-body access-card">';
+    if ($account) {
+        echo '<p>' . h($employee['firstName']) . ' signs in as <strong>' . h($account['username']) . '</strong>';
+        if ($account['mustChangePassword']) echo ' <span class="badge warn">Temporary password</span>';
+        echo '</p><p class="muted">They see only their own workspace: attendance, time off, Special and Travel Orders, and payslips'
+            . ($employee['status'] === 'Active' ? '' : '. Sign-in is blocked while they are offboarded') . '.</p><div class="toolbar">';
+        echo '<details class="form-disclosure" data-form-dialog="form"><summary class="btn">Reset password</summary>';
+        post_form('account.password', ['empId' => $id]);
+        field('password', 'New temporary password', '', 'password', true, '', ['autocomplete' => 'new-password', 'minlength' => '8', 'maxlength' => '72']);
+        echo '<p class="hint">Give this to ' . h($employee['firstName']) . ' privately. They’ll be asked to change it after signing in.</p>';
+        end_form('Set temporary password');
+        echo '</details>';
+        confirm_action('account.remove', 'Remove access', 'Remove ' . employee_name($employee) . '’s sign-in access? Their HR records are kept.', ['empId' => $id]);
+        echo '</div>';
+    } elseif ($employee['status'] !== 'Active') {
+        echo '<p class="muted">Offboarded employees can’t be given sign-in access.</p>';
+    } else {
+        $suggested = strtolower(preg_replace('/[^a-z0-9._-]/i', '', strstr($employee['email'], '@', true) ?: ''));
+        echo '<p class="muted">Let ' . h($employee['firstName']) . ' sign in to their own workspace to clock in and out, request time off and Special or Travel Orders, and view payslips. They won’t see anyone else’s records.</p>';
+        echo '<details class="form-disclosure" data-form-dialog="form"><summary class="btn primary">Give sign-in access</summary>';
+        post_form('account.create', ['empId' => $id]);
+        field('username', 'Username', $suggested, 'text', true, '', ['autocomplete' => 'off', 'minlength' => '3', 'maxlength' => '60', 'pattern' => '[A-Za-z0-9._-]+']);
+        field('password', 'Temporary password', '', 'password', true, '', ['autocomplete' => 'new-password', 'minlength' => '8', 'maxlength' => '72']);
+        echo '<p class="hint">At least 8 characters. Share it privately; they’ll be asked to choose their own after signing in.</p>';
+        end_form('Create login');
+        echo '</details>';
+    }
+    echo '</div></section>';
 }
 
 employees_view($state);

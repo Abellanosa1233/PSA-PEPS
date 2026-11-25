@@ -132,14 +132,50 @@ function current_user(): ?array
     if (empty($_SESSION['uid']) || !installed()) return null;
     ensure_profile_image_columns();
     ensure_employee_requests_table();
-    $u = q('SELECT id, username, display_name, role_title, profile_image_updated_at FROM users WHERE id = ?', [$_SESSION['uid']])->fetch();
+    ensure_account_columns();
+    $u = q('SELECT u.id, u.username, u.display_name, u.role_title, u.profile_image_updated_at, u.account_role, u.employee_id,
+                   u.must_change_password, e.first_name, e.last_name, e.title, e.status AS employee_status
+            FROM users u LEFT JOIN employees e ON e.id = u.employee_id WHERE u.id = ?', [$_SESSION['uid']])->fetch();
     if (!$u) return null;
+    $isEmployee = $u['account_role'] === 'employee';
+    // Employee logins stop working as soon as the employee is offboarded or deleted.
+    if ($isEmployee && (!$u['employee_id'] || $u['employee_status'] !== 'Active')) return null;
+    $employeeId = $isEmployee ? (int) $u['employee_id'] : null;
     return [
-        'id' => (int) $u['id'], 'username' => $u['username'], 'name' => $u['display_name'], 'role' => $u['role_title'],
+        'id' => (int) $u['id'], 'username' => $u['username'],
+        // Employees always see their name and title as HR keeps them in the employee record.
+        'name' => $isEmployee ? $u['first_name'] . ' ' . $u['last_name'] : $u['display_name'],
+        'role' => $isEmployee ? $u['title'] : $u['role_title'],
+        'accountRole' => $isEmployee ? 'employee' : 'admin',
+        'employeeId' => $employeeId,
+        'hasTeam' => $isEmployee && (int) q("SELECT COUNT(*) FROM employees WHERE manager_id = ? AND status = 'Active'", [$employeeId])->fetchColumn() > 0,
+        'mustChangePassword' => (bool) $u['must_change_password'],
         'avatarUrl' => $u['profile_image_updated_at']
             ? 'api/index.php?action=profile.image&v=' . rawurlencode((string) strtotime($u['profile_image_updated_at']))
             : null,
     ];
+}
+
+function is_admin(array $user): bool
+{
+    return ($user['accountRole'] ?? 'admin') === 'admin';
+}
+
+/* Adds employee-account columns to databases created before employee logins existed. */
+function ensure_account_columns(): void
+{
+    static $checked = false;
+    if ($checked) return;
+    $columns = array_flip(q('SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema = ? AND table_name = ?', [DB_NAME, 'users'])->fetchAll(PDO::FETCH_COLUMN));
+    if (!isset($columns['account_role'])) q("ALTER TABLE users ADD COLUMN account_role VARCHAR(20) NOT NULL DEFAULT 'admin'");
+    if (!isset($columns['must_change_password'])) q('ALTER TABLE users ADD COLUMN must_change_password TINYINT(1) NOT NULL DEFAULT 0');
+    if (!isset($columns['employee_id'])) q('ALTER TABLE users ADD COLUMN employee_id INT NULL, ADD UNIQUE KEY uq_users_employee (employee_id)');
+    $hasFk = (int) q("SELECT COUNT(*) FROM information_schema.table_constraints WHERE table_schema = ? AND table_name = 'users' AND constraint_name = 'fk_users_employee'", [DB_NAME])->fetchColumn();
+    if (!$hasFk) {
+        q("DELETE FROM users WHERE account_role = 'employee' AND (employee_id IS NULL OR employee_id NOT IN (SELECT id FROM employees))");
+        q('ALTER TABLE users ADD CONSTRAINT fk_users_employee FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE');
+    }
+    $checked = true;
 }
 
 function ensure_profile_image_columns(): void

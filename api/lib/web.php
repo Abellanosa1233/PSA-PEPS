@@ -75,6 +75,9 @@ function action_success_message(string $action, array $input): string
         'password.change' => 'Password changed.',
         'theme' => 'Appearance saved.',
         'demo.reset' => 'Demo data reset.',
+        'account.create' => 'Sign-in access created. Share the temporary password privately.',
+        'account.password' => 'Temporary password set.',
+        'account.remove' => 'Sign-in access removed.',
     ];
     return $messages[$action] ?? 'Changes saved.';
 }
