@@ -16,6 +16,18 @@
     </script>
 </head>
 <body>
+<div class="page-loader" id="page-loader" role="status" aria-label="Loading page" hidden>
+    <div class="page-loader-seal">
+        <img src="assets/psa-logo.svg" width="64" height="64" alt="">
+    </div>
+</div>
+<script>
+    if (performance.getEntriesByType('navigation')[0]?.type === 'reload') {
+        const loader = document.getElementById('page-loader');
+        loader.hidden = false;
+        window.addEventListener('pageshow', () => { loader.hidden = true; }, { once: true });
+    }
+</script>
 <?php if (!$user): ?>
     <main class="auth web-auth">
         <button class="btn desktop-full-screen desktop-full-screen-auth" type="button" hidden>Full screen</button>
@@ -254,5 +266,6 @@
 </script>
 <?php endif; ?>
 <script src="<?= h(versioned_asset('assets/js/desktop-window.js')) ?>" defer></script>
+<script src="<?= h(versioned_asset('assets/js/page-loader.js')) ?>" defer></script>
 </body>
 </html>

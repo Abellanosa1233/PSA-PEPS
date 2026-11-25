@@ -47,7 +47,6 @@ function action_success_message(string $action, array $input): string
         'install' => 'Database installed.',
         'setup' => 'Administrator account created.',
         'login' => 'Signed in successfully.',
-        'logout' => 'Signed out successfully.',
         'employee.save' => empty($input['id']) ? 'Employee added successfully.' : 'Employee updated.',
         'employee.status' => ($input['status'] ?? '') === 'Active' ? 'Employee reactivated.' : 'Employee offboarded.',
         'employee.delete' => 'Employee deleted.',

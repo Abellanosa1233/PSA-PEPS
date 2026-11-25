@@ -84,7 +84,7 @@ try {
                 $result = $handler($_POST, $user);
             }
         }
-        if (($result['changed'] ?? true) !== false) {
+        if ($action !== 'logout' && ($result['changed'] ?? true) !== false) {
             if ($action === 'employee.import') $_SESSION['web_notice'] = $result['imported'] . ' employee' . ($result['imported'] === 1 ? '' : 's') . ' imported successfully.';
             elseif ($action === 'attendance.import') $_SESSION['web_notice'] = $result['imported'] . ' attendance record' . ($result['imported'] === 1 ? '' : 's') . ' imported successfully.';
             else $_SESSION['web_notice'] = action_success_message($action, $_POST);
