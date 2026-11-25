@@ -27,6 +27,7 @@ $pages = [
     // Employee-account pages
     'my-time-off' => 'My time off', 'my-attendance' => 'My attendance', 'my-payslips' => 'My payslips', 'my-profile' => 'My profile',
     'request-leave' => 'Request leave',
+    'payslip' => 'Payslip', // printable payslip (employees: their own only)
     'leave-file' => 'Leave attachment', // download of a supporting document (HR, or the employee who sent it)
 ];
 $employeeOnlyPages = ['my-time-off', 'my-attendance', 'my-payslips', 'my-profile', 'request-leave'];
@@ -62,7 +63,7 @@ try {
     if ($user && !is_admin($user)) {
         // Employee accounts only see their own pages (and their team, if they supervise anyone).
         $pages['supervisor'] = 'Supervisor workspace';
-        $allowedPages = array_merge(['overview', 'preferences', 'help', 'dtr', 'leave-file'], $employeeOnlyPages);
+        $allowedPages = array_merge(['overview', 'preferences', 'help', 'dtr', 'leave-file', 'payslip'], $employeeOnlyPages);
         if ($user['hasTeam']) $allowedPages[] = 'supervisor';
         if (!in_array($page, $allowedPages, true)) {
             if (!$isPost) {
@@ -245,6 +246,11 @@ if ($user && $page === 'leave-file') {
     header('Cache-Control: private, no-store');
     header("Content-Security-Policy: default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox");
     echo $file['attachment'];
+    exit;
+}
+if ($user && $state && $page === 'payslip') {
+    // Standalone printable payslip, like the DTR.
+    require __DIR__ . '/views/pages/payslip.php';
     exit;
 }
 if ($user && $state && $page === 'dtr') {

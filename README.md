@@ -73,7 +73,8 @@ There are two kinds of sign-in:
   * **My time off** — balances, request history with a status filter, leave breakdown, Special/Travel Orders, and teammates out of office.
   * **Request leave** — leave type, dates, full or half day (morning/afternoon), a required reason and an optional supporting document (PDF/JPG/PNG, up to 5 MB, viewable only by HR and the employee). **Check days & balance** recalculates working days and the balance on the server; requests go to HR, and the employee's bell shows when HR approves or declines.
   * **My attendance** — today's check-in, hours this month, on-time rate (arrival at or before office start) and days present; a weekly attendance log (check-in, check-out, break, total, status); this week's days; the printable DTR; and **Request correction** for a missing or wrong time. Corrections go to HR (**Attendance → Attendance corrections to review**); an approved correction replaces that day's times on the attendance record and the DTR.
-  * **My payslips** and **My profile** (their HR record, read-only).
+  * **My payslips** — latest and year-to-date net pay, next pay date, payslip history by year, a month's breakdown (base, bonus, withholding tax, SSS/PhilHealth/Pag-IBIG) and **Download**, which opens a printable payslip (`/payslip`) to save as PDF. Amounts are the payslips saved when HR approved each pay run. Bank details are not stored or shown.
+  * **My profile** — their HR record, read-only.
   * **Supervisor workspace** — only if they supervise someone (someone's "Reports to" is them): their direct reports' attendance today, and approve/decline their Special/Travel Order requests.
 
 HR posts **company updates** and sets **office hours** in **Settings**. The next pay date is shown automatically while a pay run is in progress.
