@@ -400,9 +400,12 @@ table.data tfoot td { font-weight: 600; border-top: 1px solid var(--line-strong)
   inset: 0;
   z-index: 0;
   background:
+    linear-gradient(132deg, rgba(24, 84, 166, .12), transparent 30%, transparent 70%, rgba(244, 194, 79, .08)),
     radial-gradient(ellipse 32rem 24rem at 12% 4%, rgba(43, 125, 232, .20), transparent 72%),
     radial-gradient(ellipse 26rem 22rem at 92% 92%, rgba(243, 191, 62, .13), transparent 75%),
     radial-gradient(circle, rgba(224, 238, 255, .045) .65px, transparent 1px) 0 0 / 40px 40px,
+    radial-gradient(ellipse 42rem 30rem at 2% -2%, transparent 69%, rgba(113, 181, 255, .15) 69.12%, transparent 69.35%),
+    radial-gradient(ellipse 44rem 28rem at 102% 102%, transparent 68%, rgba(255, 220, 140, .15) 68.12%, transparent 68.35%),
     radial-gradient(ellipse 76rem 48rem at 3% 112%, transparent 66%, rgba(214, 233, 255, .20) 66.15%, transparent 66.4%),
     radial-gradient(ellipse 60rem 40rem at 106% -8%, transparent 68%, rgba(113, 181, 255, .22) 68.15%, transparent 68.4%),
     radial-gradient(ellipse at center, transparent 48%, rgba(4, 17, 36, .22) 100%),
