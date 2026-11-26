@@ -337,6 +337,12 @@ function act_employee_request_create(array $in): array
         $destination = str_in($in, 'destination', 160, true, 'Destination');
         $end = date_in($in, 'end', true, 'Return date');
         if ($end < $start) fail('Return date must be on or after departure date.', 422, 'end');
+    } else {
+        // Special Order: the activity may run several days and have a venue (both optional).
+        $destination = str_in($in, 'destination', 160, false, 'Venue');
+        $end = date_in($in, 'end', false, 'End date');
+        if ($end !== null && $end < $start) fail('End date must be on or after the start date.', 422, 'end');
+        if ($end === $start) $end = null;
     }
     q('INSERT INTO employee_requests (emp_id, request_type, purpose, destination, start_date, end_date, details) VALUES (?,?,?,?,?,?,?)',
         [$employee['id'], $type, $purpose, $destination, $start, $end, str_in($in, 'details', 1000, false)]);

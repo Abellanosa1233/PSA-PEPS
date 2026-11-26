@@ -20,6 +20,7 @@ require __DIR__ . '/lib/bootstrap.php';
 require __DIR__ . '/lib/seed.php';
 require __DIR__ . '/lib/state.php';
 require __DIR__ . '/lib/actions.php';
+require __DIR__ . '/lib/special-orders.php';
 require __DIR__ . '/lib/dispatch.php';
 
 try {

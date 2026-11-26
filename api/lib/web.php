@@ -610,3 +610,4 @@ require __DIR__ . '/../../views/partials/workspace.php';
 require __DIR__ . '/../../views/partials/self.php';
 require __DIR__ . '/../../views/partials/self-attendance.php';
 require __DIR__ . '/../../views/partials/self-profile.php';
+require __DIR__ . '/../../views/partials/special-order-doc.php';

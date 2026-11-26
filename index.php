@@ -15,12 +15,17 @@ require_once __DIR__ . '/api/lib/bootstrap.php';
 require __DIR__ . '/api/lib/seed.php';
 require __DIR__ . '/api/lib/state.php';
 require __DIR__ . '/api/lib/actions.php';
+require __DIR__ . '/api/lib/special-orders.php';
 require __DIR__ . '/api/lib/dispatch.php';
 require __DIR__ . '/api/lib/web.php';
 
 $pages = [
     'overview' => 'Overview', 'employees' => 'Employees', 'attendance' => 'Attendance',
-    'time-off' => 'Time off', 'recruitment' => 'Recruitment',
+    'time-off' => 'Time off', 'special-orders' => 'Special Orders', 'recruitment' => 'Recruitment',
+    'special-order-print' => 'Special Order', // printable SO/RTA (HR, or an employee listed on it)
+    'special-order-edit' => 'Generate SO/RTA', // HR types on the SO/RTA itself
+    'special-order-request' => 'Request Special Order', // employee fills in the blanks on the SO
+    'special-order-file' => 'Signed Special Order', // the stored signed copy (HR, or the employee it was issued to)
     'reports' => 'Reports', 'supervisor' => 'Supervisor workspace',
     'self-service' => 'Employee workspace', 'preferences' => 'Settings', 'help' => 'Help & resources',
     'dtr' => 'Daily Time Record',
@@ -30,7 +35,7 @@ $pages = [
     'document' => 'Document', // a document HR shared (My profile)
     'leave-file' => 'Leave attachment', // download of a supporting document (HR, or the employee who sent it)
 ];
-$employeeOnlyPages = ['my-time-off', 'my-attendance', 'my-profile', 'request-leave'];
+$employeeOnlyPages = ['my-time-off', 'my-attendance', 'my-profile', 'request-leave', 'special-order-request'];
 $path = rawurldecode(explode('?', $_SERVER['REQUEST_URI'] ?? '', 2)[0]);
 $route = basename($path);
 $entry = $path === '' || substr($path, -1) === '/' || $route === 'index.php';
@@ -52,7 +57,7 @@ $errorLevel = 'failure';
 $errorField = null;
 $formError = [];
 $isPost = $method === 'POST';
-$query = array_intersect_key($_GET, array_flip(['id', 'date', 'q', 'department', 'status', 'month', 'type', 'todayStatus', 'week', 'p', 'candidate', 'candidates', 'rolesPage', 'leavePage', 'requestPage', 'orderRequestPage']));
+$query = array_intersect_key($_GET, array_flip(['id', 'date', 'q', 'department', 'status', 'month', 'type', 'todayStatus', 'week', 'p', 'candidate', 'candidates', 'rolesPage', 'leavePage', 'requestPage', 'orderRequestPage', 'stage']));
 $screen = 'Sign in';
 $theme = 'light';
 try {
@@ -71,7 +76,7 @@ try {
     if ($user && !is_admin($user)) {
         // Employee accounts only see their own pages (and their team, if they supervise anyone).
         $pages['supervisor'] = 'Supervisor workspace';
-        $allowedPages = array_merge(['overview', 'preferences', 'help', 'dtr', 'leave-file', 'document'], $employeeOnlyPages);
+        $allowedPages = array_merge(['overview', 'preferences', 'help', 'dtr', 'leave-file', 'document', 'special-orders', 'special-order-file', 'special-order-print'], $employeeOnlyPages);
         if ($user['hasTeam']) $allowedPages[] = 'supervisor';
         if (!in_array($page, $allowedPages, true)) {
             if (!$isPost) {
@@ -89,6 +94,12 @@ try {
         // Cancel on Request leave: forget the half-filled form.
         unset($_SESSION['leave_draft']);
         header('Location: ' . page_url('my-time-off'), true, 302);
+        exit;
+    }
+    if ($user && $page === 'special-orders' && isset($_GET['clear']) && !$isPost) {
+        // Cancel on Request Special Order: forget the half-filled request.
+        unset($_SESSION['so_draft']);
+        header('Location: ' . page_url('special-orders'), true, 302);
         exit;
     }
     if (installed() && !has_users()) ensure_default_admin();
@@ -126,12 +137,17 @@ try {
                 // Keep what was typed so a failed submission (e.g. a missing reason) doesn't clear the form.
                 $_SESSION['leave_draft'] = array_map('strval', array_intersect_key(array_filter($_POST, 'is_string'), array_flip(['type', 'start', 'end', 'dayLength', 'reason'])));
             }
+            if ($action === 'employee.request.create' && $page === 'special-order-request') {
+                // Keep what was typed on the Special Order so a missing field doesn't clear it.
+                $_SESSION['so_draft'] = array_map('strval', array_intersect_key(array_filter($_POST, 'is_string'), array_flip(['purpose', 'destination', 'start', 'end', 'details'])));
+            }
             authorize_action($action, $input, $user);
             if ($action === 'profile.photo') $result = act_profile_photo($_FILES['profileImage'] ?? [], $user);
             elseif ($action === 'profile.photo.remove') $result = act_profile_photo_remove($user);
             elseif ($action === 'employee.import') $result = act_employee_import($_FILES['employeeCsv'] ?? []);
             elseif ($action === 'attendance.import') $result = act_attendance_import($_FILES['attendanceCsv'] ?? []);
             elseif ($action === 'attendance.biometrics') $result = act_attendance_biometrics($_FILES['biometricLog'] ?? []);
+            elseif ($action === 'specialorder.sign') $result = act_special_order_sign($input, $user, leave_attachment_upload($_FILES['signedFile'] ?? [], 'signedFile'));
             elseif ($action === 'document.upload') $result = act_document_upload($input, $user, leave_attachment_upload($_FILES['document'] ?? [], 'document'));
             elseif ($action === 'leave.create') {
                 $result = act_leave_create($input, $user, leave_attachment_upload($_FILES['attachment'] ?? []));
@@ -139,6 +155,7 @@ try {
             } else {
                 $handler = action_handler($action);
                 $result = $handler($input, $user);
+                if ($action === 'employee.request.create' && $page === 'special-order-request') unset($_SESSION['so_draft']);
             }
         }
         if ($action !== 'theme' && ($result['changed'] ?? true) !== false) {
@@ -146,6 +163,9 @@ try {
             elseif ($action === 'employee.import') $_SESSION['web_notice'] = $result['imported'] . ' employee' . ($result['imported'] === 1 ? '' : 's') . ' imported successfully.';
             elseif ($action === 'attendance.import') $_SESSION['web_notice'] = $result['imported'] . ' attendance record' . ($result['imported'] === 1 ? '' : 's') . ' imported successfully.';
             elseif ($action === 'attendance.biometrics') $_SESSION['web_notice'] = biometric_import_message($result);
+            elseif ($action === 'specialorder.sign') $_SESSION['web_notice'] = special_order_message($result);
+            elseif ($action === 'specialorder.email') $_SESSION['web_notice'] = special_order_email_message($result);
+            elseif ($action === 'specialorder.generate') $_SESSION['web_notice'] = 'Special Order generated with ' . $result['participants'] . ' participant' . ($result['participants'] === 1 ? '' : 's') . '. Print it for the CSS’s signature, then upload the signed copy.';
             elseif ($action === 'employee.save' && !empty($result['onboarded'])) $_SESSION['web_notice'] = 'Employee added and sign-in details sent by email.';
             else $_SESSION['web_notice'] = action_success_message($action, $_POST);
         }
@@ -158,6 +178,7 @@ try {
             $query['date'] = $_POST['date'];
         }
         $destination = $action === 'login' ? 'overview' : ($action === 'employee.save' ? 'employees' : ($action === 'leave.create' && $page === 'request-leave' ? 'my-time-off' : $page));
+        if ($action === 'employee.request.create' && $page === 'special-order-request') $destination = 'special-orders';
         if ($action === 'login') $query = [];
         if ($action === 'employee.save' && ($_POST['_employee_modal'] ?? '') === '1') {
             $destination = $page;
@@ -246,14 +267,19 @@ if ($user) {
         http_response_code(500);
     }
 }
-if ($user && in_array($page, ['leave-file', 'document'], true)) {
-    // A leave request's supporting document, or a document HR shared on My profile.
-    // Access is checked by leave_attachment_for() / document_for().
+if ($user && in_array($page, ['leave-file', 'document', 'special-order-file'], true)) {
+    // A leave request's supporting document, a document HR shared on My profile, or a signed Special Order.
+    // Access is checked by leave_attachment_for() / document_for() / special_order_file_for().
     $id = (int) ($_GET['id'] ?? 0);
-    $row = $page === 'leave-file' ? leave_attachment_for($user, $id) : document_for($user, $id);
-    $file = !$row ? null : ($page === 'leave-file'
-        ? ['bytes' => $row['attachment'], 'name' => $row['attachment_name'], 'type' => $row['attachment_type']]
-        : ['bytes' => $row['file'], 'name' => $row['file_name'], 'type' => $row['file_type']]);
+    if ($page === 'special-order-file') {
+        $row = special_order_file_for($user, $id);
+        $file = $row ? ['bytes' => $row['signed_file'], 'name' => $row['signed_file_name'], 'type' => $row['signed_file_type']] : null;
+    } else {
+        $row = $page === 'leave-file' ? leave_attachment_for($user, $id) : document_for($user, $id);
+        $file = !$row ? null : ($page === 'leave-file'
+            ? ['bytes' => $row['attachment'], 'name' => $row['attachment_name'], 'type' => $row['attachment_type']]
+            : ['bytes' => $row['file'], 'name' => $row['file_name'], 'type' => $row['file_type']]);
+    }
     if (!$file) {
         http_response_code(404);
         header('Content-Type: text/plain; charset=utf-8');
@@ -271,6 +297,22 @@ if ($user && in_array($page, ['leave-file', 'document'], true)) {
 if ($user && $state && $page === 'dtr') {
     // The DTR is a standalone printable page, without the app's sidebar and header.
     require __DIR__ . '/views/pages/dtr.php';
+    exit;
+}
+if ($user && $state && $page === 'special-order-print') {
+    // The SO/RTA is a standalone printable page. An employee may open only an SO they are listed on;
+    // it shows the other participants' names and positions, as the printed list does, and nothing else.
+    if (!is_admin($user)) {
+        $requested = (int) ($_GET['id'] ?? 0);
+        $lead = (int) q("SELECT COALESCE(so_group_id, id) FROM employee_requests WHERE id = ? AND request_type = 'special_order'", [$requested])->fetchColumn();
+        $listed = $lead && q('SELECT COUNT(*) FROM employee_requests WHERE (id = ? OR so_group_id = ?) AND emp_id = ?', [$lead, $lead, (int) $user['employeeId']])->fetchColumn();
+        if (!$listed) {
+            header('Location: ' . page_url('special-orders'), true, 302);
+            exit;
+        }
+        $state = build_state(['accountRole' => 'admin'] + $user);
+    }
+    require __DIR__ . '/views/pages/special-order-print.php';
     exit;
 }
 require __DIR__ . '/views/layouts/site.php';

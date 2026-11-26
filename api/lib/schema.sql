@@ -89,6 +89,32 @@ CREATE TABLE IF NOT EXISTS employee_requests (
   decided_by_employee_id INT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   decided_at DATETIME NULL,
+  -- Special Order document (request_type = 'special_order'): drafted by the secretary for the
+  -- CSS's signature, then the signed copy is stored, emailed and put on the calendar.
+  so_number VARCHAR(40) NULL,
+  so_title VARCHAR(80) NULL,
+  so_office VARCHAR(160) NULL,
+  so_body TEXT NULL,
+  so_meta TEXT NULL, -- JSON: reference no., TO/SUBJECT, RTA checkboxes, participants columns
+
+  signatory_name VARCHAR(120) NULL,
+  signatory_title VARCHAR(120) NULL,
+  generated_at DATETIME NULL,
+  generated_by INT NULL,
+  signed_file MEDIUMBLOB NULL,
+  signed_file_name VARCHAR(160) NULL,
+  signed_file_type VARCHAR(60) NULL,
+  signed_at DATETIME NULL,
+  signed_by INT NULL,
+  emailed_at DATETIME NULL,
+  email_error VARCHAR(255) NULL,
+  calendar_added TINYINT(1) NOT NULL DEFAULT 0,
+  -- Group SOs: participants' rows point to the SO's row and share its document and signed copy.
+  so_group_id INT NULL,
+  so_accommodation VARCHAR(10) NULL,
+  so_travel_time VARCHAR(10) NULL,
+  so_added_by_hr TINYINT(1) NOT NULL DEFAULT 0,
+  INDEX idx_employee_request_so_group (so_group_id),
   INDEX idx_employee_request_status (status),
   INDEX idx_employee_request_emp (emp_id),
   CONSTRAINT fk_employee_request_emp FOREIGN KEY (emp_id) REFERENCES employees(id) ON DELETE CASCADE,

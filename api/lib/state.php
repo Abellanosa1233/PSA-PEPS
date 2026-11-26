@@ -30,6 +30,7 @@ function build_state(array $user): array
     }, q('SELECT id, emp_id, leave_type, start_date, end_date, days, status, reason, created_at, decided_at, day_length, attachment IS NOT NULL AS has_attachment
           FROM leave_requests ORDER BY start_date DESC, id DESC')->fetchAll()); // the document itself is never loaded here
 
+    ensure_special_orders();
     $employeeRequests = array_map(function ($r) {
         $decidedBy = $r['reviewer_user_name'] ?: trim(($r['reviewer_first_name'] ?? '') . ' ' . ($r['reviewer_last_name'] ?? ''));
         return [
@@ -37,10 +38,23 @@ function build_state(array $user): array
             'purpose' => $r['purpose'], 'destination' => $r['destination'], 'start' => $r['start_date'],
             'end' => $r['end_date'], 'details' => $r['details'], 'status' => $r['status'],
             'decisionRole' => $r['decision_role'], 'decidedBy' => $decidedBy, 'decidedAt' => $r['decided_at'],
+            'createdAt' => $r['created_at'],
+            // Special Order document (see special-orders.php); the signed file itself is never loaded here
+            'soNumber' => $r['so_number'], 'soTitle' => $r['so_title'], 'soOffice' => $r['so_office'], 'soBody' => $r['so_body'], 'soMeta' => special_order_meta($r['so_meta']),
+            'signatoryName' => $r['signatory_name'], 'signatoryTitle' => $r['signatory_title'],
+            'generatedAt' => $r['generated_at'], 'signedAt' => $r['signed_at'], 'hasSignedFile' => (bool) $r['has_signed_file'],
+            'emailedAt' => $r['emailed_at'], 'emailError' => $r['email_error'],
+            'groupId' => $r['so_group_id'] === null ? null : (int) $r['so_group_id'],
+            'accommodation' => $r['so_accommodation'] ?: 'LIVE-OUT', 'travelTime' => $r['so_travel_time'] ?: 'INCLUSIVE',
         ];
-    }, q('SELECT r.*, u.display_name AS reviewer_user_name, e.first_name AS reviewer_first_name, e.last_name AS reviewer_last_name
+    }, q('SELECT r.id, r.emp_id, r.request_type, r.purpose, r.destination, r.start_date, r.end_date, r.details, r.status,
+                 r.decision_role, r.decided_at, r.created_at, r.so_number, r.so_title, r.so_office, r.so_body, r.so_meta, r.signatory_name, r.signatory_title,
+                 r.generated_at, r.signed_at, r.signed_file IS NOT NULL AS has_signed_file, r.emailed_at, r.email_error,
+                 r.so_group_id, r.so_accommodation, r.so_travel_time,
+                 u.display_name AS reviewer_user_name, e.first_name AS reviewer_first_name, e.last_name AS reviewer_last_name
           FROM employee_requests r LEFT JOIN users u ON u.id=r.decided_by_user_id
           LEFT JOIN employees e ON e.id=r.decided_by_employee_id ORDER BY r.created_at DESC, r.id DESC')->fetchAll());
+    $employeeRequests = special_order_share_documents($employeeRequests);
 
     $attendance = [];
     $since = (new DateTime('-120 days'))->format('Y-m-d');
