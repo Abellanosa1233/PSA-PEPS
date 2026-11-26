@@ -136,7 +136,7 @@ $back = $isAdmin ? ($choice !== '' && $choice !== 'all' ? page_url('employees', 
     <?php if ($cards): ?><button class="btn primary" type="button" onclick="window.print()">Print</button><?php endif; ?>
 </form>
 <?php if ($cards): ?>
-    <p class="hint">Times come from the biometric device (and web clock-ins). Hours are filled in; Rate, Amount and Deductions are left for the payroll officer, as on the paper card. Print with Ctrl+P if the button doesn’t work.</p>
+    <p class="hint">Times come from the biometric device and web clock-ins. Print with Ctrl+P if the button doesn’t work.</p>
 <?php endif; ?>
 <main class="sheets">
 <?php if (!$cards): ?>

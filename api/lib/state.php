@@ -71,24 +71,6 @@ function build_state(array $user): array
         ];
     }, q('SELECT * FROM candidates ORDER BY applied_at DESC')->fetchAll());
 
-    $bonuses = [];
-    foreach (q('SELECT * FROM pay_bonuses')->fetchAll() as $b) $bonuses[(int) $b['run_id']][(string) $b['emp_id']] = (float) $b['amount'];
-    $slips = [];
-    foreach (q('SELECT * FROM payslips ORDER BY emp_name')->fetchAll() as $s) {
-        $slips[(int) $s['run_id']][] = [
-            'empId' => $s['emp_id'] === null ? null : (int) $s['emp_id'], 'name' => $s['emp_name'], 'department' => $s['department'],
-            'base' => (float) $s['base'], 'bonus' => (float) $s['bonus'], 'gross' => (float) $s['gross'], 'tax' => (float) $s['tax'],
-            'benefits' => (float) $s['benefits'], 'net' => (float) $s['net'],
-        ];
-    }
-    $payRuns = array_map(function ($r) use ($bonuses, $slips) {
-        return [
-            'id' => (int) $r['id'], 'period' => $r['period'], 'status' => $r['status'], 'paidAt' => $r['paid_at'],
-            'bonuses' => (object) ($bonuses[(int) $r['id']] ?? []),
-            'lines' => $r['status'] === 'paid' ? ($slips[(int) $r['id']] ?? []) : null,
-        ];
-    }, q('SELECT * FROM pay_runs ORDER BY period')->fetchAll());
-
     $state = [
         'user' => $user,
         'today' => today(),
@@ -100,7 +82,6 @@ function build_state(array $user): array
         'events' => $events,
         'positions' => $positions,
         'candidates' => $candidates,
-        'payRuns' => $payRuns,
     ];
     ensure_announcements();
     $state['announcements'] = array_map(function ($a) {
@@ -129,7 +110,7 @@ function build_state(array $user): array
 /* What an employee account may see: their own records and, if they supervise people,
    their direct reports' attendance and Special/Travel Orders. Never anyone else's leave
    request (planned time off is private between the employee and HR), salaries except
-   their own, other payslips, recruitment, schedule or payroll settings.
+   their own, recruitment, schedule or private settings.
    Once HR approves leave or an order, the person's team sees only that they are out and
    when ("teamAbsences"): no leave type, reason, purpose or destination. */
 function scope_state_to_employee(array $state, int $me): array
@@ -180,25 +161,12 @@ function scope_state_to_employee(array $state, int $me): array
         $kept = array_intersect_key((array) $records, array_flip(array_map('strval', array_keys($peopleIds))));
         if ($kept) $attendance[$day] = (object) $kept;
     }
-    $payRuns = [];
-    foreach ($state['payRuns'] as $run) {
-        if ($run['status'] !== 'paid') continue;
-        $run['bonuses'] = (object) [];
-        $run['lines'] = array_values(array_filter($run['lines'] ?? [], function ($line) use ($me) { return $line['empId'] === $me; }));
-        $payRuns[] = $run;
-    }
     $settings = array_intersect_key($state['settings'], array_flip(['company', 'workspace', 'currency', 'allowances', 'workStart', 'workEnd']));
     // Only calendar events HR marked for employees, today and the next two weeks.
     $soon = (new DateTimeImmutable($state['today']))->modify('+14 days')->format('Y-m-d');
     $events = array_values(array_filter($state['events'], function ($e) use ($state, $soon) {
         return $e['forEmployees'] && $e['date'] >= $state['today'] && $e['date'] <= $soon;
     }));
-    // The pay date of the run being prepared (no amounts), for "Company updates".
-    $nextPayday = null;
-    foreach ($state['payRuns'] as $run) {
-        if ($run['status'] === 'draft') $nextPayday = ['period' => $run['period'], 'date' => period_end($run['period'])];
-    }
-
     return [
         'user' => $state['user'],
         'today' => $state['today'],
@@ -213,8 +181,6 @@ function scope_state_to_employee(array $state, int $me): array
         'events' => $events,
         'positions' => [],
         'candidates' => [],
-        'payRuns' => $payRuns,
-        'nextPayday' => $nextPayday,
         'announcements' => $state['announcements'] ?? [],
         'accounts' => (object) [],
     ];

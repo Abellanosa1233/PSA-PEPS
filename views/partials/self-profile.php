@@ -106,7 +106,7 @@ function self_documents_card(array $state, int $id): void
 function self_protected_card(): void
 {
     echo '<section class="card"><div class="card-head"><h3>Your information, protected</h3></div><div class="card-body">'
-        . '<p class="muted">Personal and pay information is only visible to you and authorized HR team members. Teammates and supervisors never see your personal details or emergency contact.</p>'
+        . '<p class="muted">Personal information is visible only to you and authorized HR team members.</p>'
         . '<p class="self-protect-q"><strong>Need to change your work details?</strong><br><span class="muted">Contact HR to update your role, department or manager.</span></p>'
         . '<a class="link-btn" href="' . h(page_url('help')) . '">Contact HR ' . icon('arrowRight', 14) . '</a></div></section>';
 }

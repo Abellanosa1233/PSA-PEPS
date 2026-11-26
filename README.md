@@ -41,11 +41,10 @@ Philippine defaults: pesos (₱), Asia/Manila time, phone numbers saved as `+63 
 | Employees | Search/filter, add, edit, offboard, delete, CSV import, formatted Excel export, profile with leave balance and history; sign-in access is set in the Add/Edit employee form |
 | Attendance | Per-day status (office / remote / away), clock-in/out times, bulk fill, CSV import/export |
 | Time off | Requests with approve/decline/cancel, weekday counting, balance and overlap checks; Special and Travel Order review |
-| My payslips | View previously issued payslips |
 | Recruitment | Roles, candidate pipeline (Applied → Hired), convert a hire into an employee |
 | Reports | Headcount, turnover, attendance rate, leave by type, salary by department |
 | Supervisor workspace | A manager's team today, leave and Special/Travel Order approvals, and who's out |
-| Employee workspace | Self-service: clock in/out, request time off, Special/Travel Orders, view payslips |
+| Employee workspace | Self-service: clock in/out, request time off, Special/Travel Orders |
 | Settings | Company, currency, tax, benefits, leave allowances, profile photo, account password, theme, demo reset |
 
 ## Biometrics and the Daily Time Record (DTR)
@@ -56,7 +55,7 @@ Time in and out comes from the office biometric device:
 2. Export the attendance log from the device or its software (the `attlog` .dat/.txt file, or a CSV/text export). Each line needs the user number and the date and time of the punch; `YYYY-MM-DD HH:MM[:SS]` and `MM/DD/YYYY h:mm AM/PM` are both read.
 3. **Attendance → Import biometrics** and upload the file. Punches already imported are skipped, so overlapping exports are safe. Unknown user numbers are listed so HR can add them to the right employee and import again.
 
-The **DTR** (`/dtr`) lays the punches out like the printed time card: Morning IN/OUT, Afternoon IN/OUT, Overtime IN/OUT and Daily Total, for days 1–15, 16–end, or the whole month (front and back of the card side by side), with the certification line and signatures. Punches are placed in order: the first morning punch is Morning IN, the lunch punches are Morning OUT and Afternoon IN, the next is Afternoon OUT, and any later ones are Overtime. Scans within 2 minutes count once; an in/out-only day has the lunch hour deducted. Hours are filled in; Rate, Amount and Deductions are left for payroll, as on the paper card.
+The **DTR** (`/dtr`) lays the punches out like the printed time card: Morning IN/OUT, Afternoon IN/OUT, Overtime IN/OUT and Daily Total, for days 1–15, 16–end, or the whole month (front and back of the card side by side), with the certification line and signatures. Punches are placed in order: the first morning punch is Morning IN, the lunch punches are Morning OUT and Afternoon IN, the next is Afternoon OUT, and any later ones are Overtime. Scans within 2 minutes count once; an in/out-only day has the lunch hour deducted. Hours are filled in automatically.
 
 * Employees: **My workspace → Daily Time Record → View DTR** (their own only), then **Print**.
 * HR: an employee's profile, or **Attendance → Print DTRs** for everyone (one sheet per pair of cards).
@@ -73,7 +72,6 @@ There are two kinds of sign-in:
   * **My time off** — balances, request history with a status filter, leave breakdown, Special/Travel Orders, and teammates out of office.
   * **Request leave** — leave type, dates, full or half day (morning/afternoon), a required reason and an optional supporting document (PDF/JPG/PNG, up to 5 MB, viewable only by HR and the employee). **Check days & balance** recalculates working days and the balance on the server; requests go to HR, and the employee's bell shows when HR approves or declines.
   * **My attendance** — today's check-in, hours this month, on-time rate (arrival at or before office start) and days present; a weekly attendance log (check-in, check-out, break, total, status); this week's days; the printable DTR; and **Request correction** for a missing or wrong time. Corrections go to HR (**Attendance → Attendance corrections to review**); an approved correction replaces that day's times on the attendance record and the DTR.
-  * **My payslips** — latest and year-to-date net pay, next pay date, payslip history by year, a month's breakdown (base, bonus, withholding tax, SSS/PhilHealth/Pag-IBIG) and **Download**, which opens a printable payslip (`/payslip`) to save as PDF. Amounts are the payslips saved when HR approved each pay run. Bank details are not stored or shown.
   * **My profile** — work details from HR (read-only: employee ID, title, department, work email, location, employment type, start date, manager), **personal information** and an **emergency contact** the employee keeps up to date, and **My documents** shared by HR (view, and acknowledge when asked). Personal and emergency details are visible only to the employee and HR. HR shares documents with one employee from their profile, or with everyone under **Settings → Company documents**, and sees who has acknowledged them.
   * **Supervisor workspace** — only if they supervise someone (someone's "Reports to" is them): their direct reports' attendance today, and approve/decline their Special/Travel Order requests.
 
@@ -84,7 +82,7 @@ HR posts **company updates** and sets **office hours** in **Settings**. The next
 **Team out of office.** Once HR approves someone's leave or a supervisor approves a Special/Travel Order, their team sees it on **My workspace → Team out of office** (and on **My team → Team today**) as "On leave", "On travel order" or "On special order" with the dates, today and upcoming. The team is the people who share the same supervisor, the supervisor, and the person's direct reports. The leave type and reason, and an order's purpose and destination, are never shown.
   * **Settings** (profile photo and password only) and **Help**.
 
-The rules are enforced on the server (`authorize_action()` in `api/lib/dispatch.php` and `scope_state_to_employee()` in `api/lib/state.php`), not only hidden in the menus: employee accounts never receive other people's salaries, payslips, recruitment data or payroll settings, and any form an employee submits is forced onto their own record. Offboarding or deleting an employee stops their sign-in immediately. **Reset demo data** removes employee accounts and keeps administrator accounts.
+The rules are enforced on the server (`authorize_action()` in `api/lib/dispatch.php` and `scope_state_to_employee()` in `api/lib/state.php`), not only hidden in the menus: employee accounts never receive other people's salaries or recruitment data, and any form an employee submits is forced onto their own record. Offboarding or deleting an employee stops their sign-in immediately. **Reset demo data** removes employee accounts and keeps administrator accounts.
 
 ## Structure
 
@@ -104,6 +102,6 @@ HRMS/
 ## Database
 
 * Database `horizon_hrms`, user `hrms_app` (access to this database only). Credentials are in `api/config.php`.
-* Tables: users, settings, employees, leave_requests, employee_requests, attendance, events, positions, candidates, pay_runs, pay_bonuses, payslips.
+* Tables: users, settings, employees, leave_requests, employee_requests, attendance, events, positions, candidates.
 * Back up with phpMyAdmin (<http://localhost/us_opt1/>) or UniServer's `db_backup_restore` folder.
 * **Settings → Reset demo data** replaces every record with sample data (the login is kept).

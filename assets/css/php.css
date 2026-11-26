@@ -266,11 +266,9 @@
 .employee-metric:last-child > strong { font-size: 16px; overflow-wrap: anywhere; }
 .employee-overview-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 20px; min-width: 0; }
 .employee-attendance-card,
-.employee-payslips-card,
 .employee-timeoff-card,
 .employee-orders-card { grid-template-columns: minmax(0, 1fr); min-width: 0; }
 .employee-attendance-card > *,
-.employee-payslips-card > *,
 .employee-timeoff-card > *,
 .employee-orders-card > * { min-width: 0; }
 .employee-attendance-state { display: grid; justify-items: start; gap: 10px; padding: 18px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); }
@@ -278,18 +276,6 @@
 .employee-clock-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .employee-clock-actions .web-inline { margin: 0; }
 .employee-timeoff-card .table-wrap { min-width: 0; max-width: 100%; overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); }
-.employee-payslip-list { display: grid; gap: 12px; min-width: 0; }
-.employee-payslip-item { display: grid; gap: 14px; min-width: 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); }
-.employee-payslip-head { display: grid; grid-template-columns: minmax(0, .7fr) minmax(0, 1fr); align-items: start; gap: 12px; }
-.employee-payslip-head > div { display: grid; gap: 4px; min-width: 0; }
-.employee-payslip-head > div > span,
-.employee-payslip-details > div > span { color: var(--fg-3); font-size: 11.5px; }
-.employee-payslip-head > div > strong { font-size: 13px; overflow-wrap: anywhere; }
-.employee-payslip-net { text-align: right; }
-.employee-payslip-head .employee-payslip-net > strong { font-size: 16px; }
-.employee-payslip-details { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding-top: 12px; border-top: 1px solid var(--line); }
-.employee-payslip-details > div { display: grid; gap: 4px; min-width: 0; }
-.employee-payslip-details > div > strong { font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .employee-timeoff-overview { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(300px, 1fr); align-items: start; gap: 16px; min-width: 0; }
 .employee-balance-panel,
 .employee-timeoff-action { min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); }
@@ -384,7 +370,6 @@
   .employee-metric { padding: 14px; }
   .employee-order-intro { align-items: flex-start; flex-direction: column; }
   .employee-subsection-heading { align-items: flex-start; flex-direction: column; gap: 4px; }
-  .employee-payslip-details { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 #web-theme-form .theme-to-light,
 :root[data-theme="dark"] #web-theme-form .theme-to-dark { display: none; }
@@ -1395,15 +1380,6 @@ html.sidebar-collapsed .web-app .sidebar .nav .count { display: block; position:
 .self-correction > span:first-child { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .self-correction small { color: var(--fg-3); font-size: 11.5px; }
 @media (max-width: 700px) { .self-week { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-
-/* ---------- My payslips ---------- */
-.self-pay-cards .kpi-value { font-size: 26px; }
-.data tr.is-selected td { background: var(--surface-2); }
-.data tr.is-selected td:first-child a { font-weight: 600; }
-.self-breakdown { display: grid; grid-template-columns: 1fr auto; gap: 10px 16px; margin: 0; font-size: 13px; }
-.self-breakdown dt { color: var(--fg-2); }
-.self-breakdown dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
-.self-breakdown .total { padding-top: 10px; border-top: 1px solid var(--line); font-weight: 700; color: var(--fg); }
 
 /* ---------- My profile ---------- */
 .self-id-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }

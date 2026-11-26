@@ -90,7 +90,7 @@ function q(string $sql, array $params = []): PDOStatement
 
 function installed(): bool
 {
-    return (bool) q("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = ? AND table_name = 'pay_runs'", [DB_NAME])->fetchColumn();
+    return (bool) q("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = ? AND table_name = 'candidates'", [DB_NAME])->fetchColumn();
 }
 
 /* Optional SETUP_KEY in config.php: when set, creating tables and the first
@@ -417,8 +417,6 @@ function default_settings(): array
         'workspace' => 'People workspace',
         'currency' => 'PHP',
         'allowances' => ['Annual leave' => 20, 'Personal leave' => 5, 'Sick leave' => 10, 'Parental leave' => 60, 'Unpaid leave' => 30],
-        'taxRate' => 20,
-        'benefits' => 2000,
         'selfEmpId' => null,
         'supervisorId' => null,
         'workStart' => '08:00', // office hours, shown as each employee's schedule
@@ -430,6 +428,7 @@ function settings(): array
 {
     $s = default_settings();
     foreach (q('SELECT k, v FROM settings')->fetchAll() as $row) {
+        if (!array_key_exists($row['k'], $s)) continue;
         $s[$row['k']] = json_decode($row['v'], true);
     }
     return $s;
@@ -528,35 +527,4 @@ function today(): string
 function period_end(string $period): string
 {
     return (new DateTime($period . '-01'))->format('Y-m-t');
-}
-
-/* Pay calculation — the single source of truth for payslips. */
-function compute_lines(int $runId, string $period): array
-{
-    $s = settings();
-    $start = $period . '-01';
-    $end = period_end($period);
-    $bonuses = [];
-    foreach (q('SELECT emp_id, amount FROM pay_bonuses WHERE run_id = ?', [$runId])->fetchAll() as $b) {
-        $bonuses[(int) $b['emp_id']] = (float) $b['amount'];
-    }
-    $rows = q(
-        'SELECT id, first_name, last_name, department, salary FROM employees
-         WHERE start_date <= ? AND (end_date IS NULL OR end_date >= ?) ORDER BY first_name, last_name',
-        [$end, $start]
-    )->fetchAll();
-    $lines = [];
-    foreach ($rows as $e) {
-        $base = round((float) $e['salary'] / 12, 2);
-        $bonus = $bonuses[(int) $e['id']] ?? 0.0;
-        $gross = $base + $bonus;
-        $tax = round($gross * (float) $s['taxRate'] / 100, 2);
-        $benefits = (float) $s['benefits'];
-        $lines[] = [
-            'empId' => (int) $e['id'], 'name' => $e['first_name'] . ' ' . $e['last_name'], 'department' => $e['department'],
-            'base' => $base, 'bonus' => $bonus, 'gross' => round($gross, 2), 'tax' => $tax, 'benefits' => $benefits,
-            'net' => round($gross - $tax - $benefits, 2),
-        ];
-    }
-    return $lines;
 }

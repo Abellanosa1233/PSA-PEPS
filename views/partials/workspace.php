@@ -86,7 +86,7 @@ function workspace_view(array $state, bool $supervisor): void
         if ($supervisor) {
             echo '<section class="card web-card supervisor-selector"><div class="supervisor-selector-copy"><h2>Select supervisor</h2><p>Choose a profile to review their team and requests.</p></div>';
         } else {
-            echo '<section class="card web-card employee-selector"><div class="employee-selector-copy"><h2>Select employee</h2><p>View attendance, leave, requests, and payslips for a profile.</p></div>';
+            echo '<section class="card web-card employee-selector"><div class="employee-selector-copy"><h2>Select employee</h2><p>View attendance, leave, and requests for a profile.</p></div>';
         }
         post_form('workspace.view');
         choice($key, 'Profile', ['' => 'Select a profile'] + employee_options($selectable), $profileId);
@@ -181,6 +181,5 @@ function workspace_view(array $state, bool $supervisor): void
     self_clock_card($state, $profileId);
     self_time_off_section($state, $profileId, 'self-service');
     self_orders_section($state, $profileId);
-    self_payslips_section($state, $profileId, 'self-service');
 }
 

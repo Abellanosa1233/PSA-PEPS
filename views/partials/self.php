@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /* Sections of an employee's own workspace: used by the employee pages (Overview, My time off,
-   My attendance, My payslips, My profile) and by HR's "Employee workspace" view. */
+   My attendance, My profile) and by HR's "Employee workspace" view. */
 
 function self_leave_status(array $leave, string $today): array
 {
@@ -107,10 +107,6 @@ function self_schedule_card(array $state): void
 function self_company_updates_card(array $state): void
 {
     $items = [];
-    if (!empty($state['nextPayday'])) {
-        $date = new DateTimeImmutable($state['nextPayday']['date']);
-        $items[] = [$date->format('F') . ' payslip is coming soon', 'Your next pay date is ' . $date->format('F j, Y') . '.'];
-    }
     foreach ($state['announcements'] ?? [] as $a) $items[] = [$a['title'], $a['body']];
     echo '<section class="card"><div class="card-head"><h3>Company updates</h3></div>';
     if (!$items) {
@@ -122,7 +118,7 @@ function self_company_updates_card(array $state): void
     echo '</div></section>';
 }
 
-/* ---------- Sections reused by My time off / My attendance / My payslips and HR's employee view ---------- */
+/* ---------- Sections reused by My time off / My attendance and HR's employee view ---------- */
 
 function self_clock_actions(int $id, string $day, array $record): void
 {
@@ -205,23 +201,6 @@ function self_orders_section(array $state, int $id): void
         ];
     }, $myRequests));
     echo '</div></section>';
-}
-
-function self_payslips_section(array $state, int $id, string $page): void
-{
-    card('Payslips');
-    $rows = [];
-    foreach (array_reverse($state['payRuns']) as $run) {
-        foreach ($run['lines'] ?? [] as $line) {
-            if ($line['empId'] === $id) {
-                $rows[] = [(new DateTimeImmutable($run['period'] . '-01'))->format('F Y'), money($line['gross'], $state), money($line['tax'], $state), money($line['benefits'], $state), money($line['net'], $state)];
-            }
-        }
-    }
-    $slips = paginate($rows, 'slipsPage');
-    web_table(['Period', 'Gross', 'Tax', 'Contributions', 'Net pay'], $slips['rows']);
-    pagination($slips, $page, array_intersect_key($_GET, ['leavePage' => true]), 'payslips', 'slipsPage');
-    echo '</section>';
 }
 
 function self_recent_attendance(array $state, int $id, int $days = 14): void

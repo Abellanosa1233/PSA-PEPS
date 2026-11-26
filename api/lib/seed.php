@@ -24,7 +24,7 @@ function seed_demo(): void
     ensure_profile_details();
     $pdo->exec("DELETE FROM users WHERE account_role = 'employee'");
     $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
-    foreach (['document_acknowledgements', 'employee_documents', 'attendance_corrections', 'announcements', 'payslips', 'pay_bonuses', 'pay_runs', 'candidates', 'positions', 'events', 'attendance_punches', 'attendance', 'employee_requests', 'leave_requests', 'employees', 'settings'] as $t) {
+    foreach (['document_acknowledgements', 'employee_documents', 'attendance_corrections', 'announcements', 'candidates', 'positions', 'events', 'attendance_punches', 'attendance', 'employee_requests', 'leave_requests', 'employees', 'settings'] as $t) {
         $pdo->exec("TRUNCATE TABLE $t");
     }
     $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
@@ -42,7 +42,7 @@ function seed_demo(): void
         'Product' => ['Product manager', 'Product analyst'],
         'Marketing' => ['Content strategist', 'Growth marketer'],
         'Sales' => ['Account executive', 'Sales development rep'],
-        'Finance' => ['Accountant', 'Payroll specialist'],
+        'Finance' => ['Accountant', 'Finance specialist'],
         'Operations' => ['Customer success lead', 'Office coordinator', 'Support specialist'],
     ];
     // Annual base salaries in PHP
@@ -144,13 +144,12 @@ function seed_demo(): void
     $pdo->commit();
 
     /* Schedule */
-    // Last value: 1 = also on employees' Today's schedule (interviews and payroll stay HR-only).
+    // Last value: 1 = also on employees' Today's schedule (interviews stay HR-only).
     $insEv = $pdo->prepare('INSERT INTO events (event_date,start_time,end_time,title,detail,for_employees) VALUES (?,?,?,?,?,?)');
     foreach ([
         [0, '09:30', '10:00', 'People team sync', 'Weekly check-in · 6 people', 1],
         [0, '11:00', '11:45', 'Product designer interview', 'With Jamie Chen · Interview', 0],
         [0, '14:30', '15:00', 'New hire orientation', '2 new teammates · Onboarding', 1],
-        [1, '10:00', '11:00', 'Payroll review', 'Finance · Monthly close', 0],
         [2, '13:00', '14:00', 'Quarterly all-hands', 'Whole company · Main hall', 1],
     ] as $ev) $insEv->execute([$d($ev[0]), $ev[1], $ev[2], $ev[3], $ev[4], $ev[5]]);
 
@@ -177,32 +176,6 @@ function seed_demo(): void
         }
     }
 
-    /* Payroll: three paid months plus the current month as a draft */
-    $first = $T->modify('first day of this month');
-    $insBonus = $pdo->prepare('INSERT INTO pay_bonuses (run_id, emp_id, amount) VALUES (?,?,?)');
-    for ($m = 3; $m >= 0; $m--) {
-        $period = $first->modify("-$m months")->format('Y-m');
-        q('INSERT INTO pay_runs (period, status) VALUES (?, ?)', [$period, 'draft']);
-        $runId = (int) $pdo->lastInsertId();
-        foreach ($ids as $eid) if ($rnd() < 0.12) $insBonus->execute([$runId, $eid, mt_rand(4, 30) * 500]);
-        if ($m > 0) pay_run($runId, period_end($period) . ' 17:00:00');
-    }
-
     set_setting('selfEmpId', $namedIds[0]);
     set_setting('supervisorId', $headOf['Design']);
-}
-
-function pay_run(int $runId, ?string $paidAt = null): void
-{
-    $run = q('SELECT * FROM pay_runs WHERE id = ?', [$runId])->fetch();
-    if (!$run) fail('That pay run no longer exists.', 404);
-    if ($run['status'] === 'paid') fail('This pay run has already been paid.');
-    $lines = compute_lines($runId, $run['period']);
-    if (!$lines) fail('There is nobody to pay in this period.');
-    $ins = db()->prepare('INSERT INTO payslips (run_id,emp_id,emp_name,department,base,bonus,gross,tax,benefits,net) VALUES (?,?,?,?,?,?,?,?,?,?)');
-    $own = !db()->inTransaction();
-    if ($own) db()->beginTransaction();
-    foreach ($lines as $l) $ins->execute([$runId, $l['empId'], $l['name'], $l['department'], $l['base'], $l['bonus'], $l['gross'], $l['tax'], $l['benefits'], $l['net']]);
-    q("UPDATE pay_runs SET status = 'paid', paid_at = ? WHERE id = ?", [$paidAt ?? date('Y-m-d H:i:s'), $runId]);
-    if ($own) db()->commit();
 }

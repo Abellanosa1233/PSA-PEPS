@@ -63,7 +63,7 @@ function employee_login_fields(array $state, array $employee, array $errors = []
     $account = isset($employee['id']) ? (((array) ($state['accounts'] ?? []))[$employee['id']] ?? null) : null;
     $username = $employee['loginUsername'] ?? ($account['username'] ?? '');
     echo '<fieldset class="form-grid employee-login full"><legend>Sign-in access <span class="muted">(optional)</span></legend>';
-    echo '<p class="full muted employee-login-help">Give this person a login to their own workspace: attendance, time off, Special and Travel Orders, and payslips. '
+    echo '<p class="full muted employee-login-help">Give this person a login to their own workspace: attendance, time off, and Special and Travel Orders. '
         . 'Leave both boxes empty if they don’t need one. To reset a forgotten password, enter a new temporary password.</p>';
     field('loginUsername', 'Username', $username, 'text', false, $errors['loginUsername'] ?? '', ['maxlength' => '60', 'pattern' => '[A-Za-z0-9._-]+', 'autocomplete' => 'off']);
     field('loginPassword', $account ? 'New temporary password' : 'Temporary password', '', 'password', false, $errors['loginPassword'] ?? '', ['minlength' => '8', 'maxlength' => '72', 'autocomplete' => 'new-password']);

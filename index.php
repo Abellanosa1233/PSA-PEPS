@@ -25,13 +25,12 @@ $pages = [
     'self-service' => 'Employee workspace', 'preferences' => 'Settings', 'help' => 'Help & resources',
     'dtr' => 'Daily Time Record',
     // Employee-account pages
-    'my-time-off' => 'My time off', 'my-attendance' => 'My attendance', 'my-payslips' => 'My payslips', 'my-profile' => 'My profile',
+    'my-time-off' => 'My time off', 'my-attendance' => 'My attendance', 'my-profile' => 'My profile',
     'request-leave' => 'Request leave',
-    'payslip' => 'Payslip', // printable payslip (employees: their own only)
     'document' => 'Document', // a document HR shared (My profile)
     'leave-file' => 'Leave attachment', // download of a supporting document (HR, or the employee who sent it)
 ];
-$employeeOnlyPages = ['my-time-off', 'my-attendance', 'my-payslips', 'my-profile', 'request-leave'];
+$employeeOnlyPages = ['my-time-off', 'my-attendance', 'my-profile', 'request-leave'];
 $path = rawurldecode(explode('?', $_SERVER['REQUEST_URI'] ?? '', 2)[0]);
 $route = basename($path);
 $entry = $path === '' || substr($path, -1) === '/' || $route === 'index.php';
@@ -53,7 +52,7 @@ $errorLevel = 'failure';
 $errorField = null;
 $formError = [];
 $isPost = $method === 'POST';
-$query = array_intersect_key($_GET, array_flip(['id', 'date', 'q', 'department', 'status', 'month', 'type', 'todayStatus', 'week', 'p', 'candidate', 'candidates', 'rolesPage', 'leavePage', 'slipsPage', 'requestPage', 'orderRequestPage']));
+$query = array_intersect_key($_GET, array_flip(['id', 'date', 'q', 'department', 'status', 'month', 'type', 'todayStatus', 'week', 'p', 'candidate', 'candidates', 'rolesPage', 'leavePage', 'requestPage', 'orderRequestPage']));
 $screen = 'Sign in';
 $theme = 'light';
 try {
@@ -72,7 +71,7 @@ try {
     if ($user && !is_admin($user)) {
         // Employee accounts only see their own pages (and their team, if they supervise anyone).
         $pages['supervisor'] = 'Supervisor workspace';
-        $allowedPages = array_merge(['overview', 'preferences', 'help', 'dtr', 'leave-file', 'payslip', 'document'], $employeeOnlyPages);
+        $allowedPages = array_merge(['overview', 'preferences', 'help', 'dtr', 'leave-file', 'document'], $employeeOnlyPages);
         if ($user['hasTeam']) $allowedPages[] = 'supervisor';
         if (!in_array($page, $allowedPages, true)) {
             if (!$isPost) {
@@ -264,11 +263,6 @@ if ($user && in_array($page, ['leave-file', 'document'], true)) {
     header('Cache-Control: private, no-store');
     header("Content-Security-Policy: default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox");
     echo $file['bytes'];
-    exit;
-}
-if ($user && $state && $page === 'payslip') {
-    // Standalone printable payslip, like the DTR.
-    require __DIR__ . '/views/pages/payslip.php';
     exit;
 }
 if ($user && $state && $page === 'dtr') {

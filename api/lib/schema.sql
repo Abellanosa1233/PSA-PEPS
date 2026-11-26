@@ -153,40 +153,6 @@ CREATE TABLE IF NOT EXISTS candidates (
   CONSTRAINT fk_cand_emp FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS pay_runs (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  period CHAR(7) NOT NULL UNIQUE,
-  status VARCHAR(10) NOT NULL DEFAULT 'draft',
-  paid_at DATETIME NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS pay_bonuses (
-  run_id INT NOT NULL,
-  emp_id INT NOT NULL,
-  amount DECIMAL(12,2) NOT NULL,
-  PRIMARY KEY (run_id, emp_id),
-  CONSTRAINT fk_bonus_run FOREIGN KEY (run_id) REFERENCES pay_runs(id) ON DELETE CASCADE,
-  CONSTRAINT fk_bonus_emp FOREIGN KEY (emp_id) REFERENCES employees(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Payslips are a snapshot taken when a pay run is approved, so history
--- survives later salary changes or deleted employees.
-CREATE TABLE IF NOT EXISTS payslips (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  run_id INT NOT NULL,
-  emp_id INT NULL,
-  emp_name VARCHAR(170) NOT NULL,
-  department VARCHAR(60) NOT NULL,
-  base DECIMAL(12,2) NOT NULL,
-  bonus DECIMAL(12,2) NOT NULL,
-  gross DECIMAL(12,2) NOT NULL,
-  tax DECIMAL(12,2) NOT NULL,
-  benefits DECIMAL(12,2) NOT NULL,
-  net DECIMAL(12,2) NOT NULL,
-  CONSTRAINT fk_slip_run FOREIGN KEY (run_id) REFERENCES pay_runs(id) ON DELETE CASCADE,
-  CONSTRAINT fk_slip_emp FOREIGN KEY (emp_id) REFERENCES employees(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 -- Company updates posted by HR; shown on every employee's Overview.
 CREATE TABLE IF NOT EXISTS announcements (
   id INT AUTO_INCREMENT PRIMARY KEY,
