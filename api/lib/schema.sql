@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS users (
   account_role VARCHAR(20) NOT NULL DEFAULT 'admin',
   employee_id INT NULL,
   must_change_password TINYINT(1) NOT NULL DEFAULT 0,
+  session_token_hash CHAR(64) NULL,
+  session_expires_at DATETIME(6) NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_users_employee (employee_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

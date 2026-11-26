@@ -113,9 +113,12 @@ function has_users(): bool
 }
 
 /* ---------- Session / auth ---------- */
+const ACCOUNT_SESSION_IDLE_SECONDS = 1800;
+
 function start_session(): void
 {
     if (session_status() === PHP_SESSION_ACTIVE) return;
+    ini_set('session.gc_maxlifetime', (string) ACCOUNT_SESSION_IDLE_SECONDS);
     session_name('horizon_hrms');
     if (PHP_VERSION_ID >= 70300) {
         session_set_cookie_params(['httponly' => true, 'samesite' => 'Strict', 'path' => '/']);
@@ -126,13 +129,62 @@ function start_session(): void
     session_start();
 }
 
+function account_session_hash(): ?string
+{
+    $token = $_SESSION['account_session_token'] ?? null;
+    return is_string($token) ? hash('sha256', $token) : null;
+}
+
+function release_account_session(): void
+{
+    $hash = account_session_hash();
+    if (empty($_SESSION['uid']) || $hash === null) return;
+    ensure_account_columns();
+    q('UPDATE users SET session_token_hash = NULL, session_expires_at = NULL
+       WHERE id = ? AND session_token_hash = ?', [$_SESSION['uid'], $hash]);
+}
+
+function sign_in_account(int $id): void
+{
+    start_session();
+    ensure_account_columns();
+    $token = bin2hex(random_bytes(32));
+    $hash = hash('sha256', $token);
+    $previousId = (int) ($_SESSION['uid'] ?? 0);
+    $previousHash = $previousId === $id ? account_session_hash() : null;
+    if (!session_regenerate_id(true)) fail('Sign-in could not be started. Please try again.', 500);
+
+    // One conditional update makes competing sign-ins serialize on the account row.
+    $claimed = q('UPDATE users SET session_token_hash = ?,
+                  session_expires_at = TIMESTAMPADD(SECOND, ?, UTC_TIMESTAMP(6))
+                  WHERE id = ? AND (session_expires_at IS NULL OR session_expires_at <= UTC_TIMESTAMP(6)
+                  OR session_token_hash = ?)', [$hash, ACCOUNT_SESSION_IDLE_SECONDS, $id, $previousHash]);
+    if (!$claimed->rowCount()) {
+        fail('This account is already signed in on another browser or device. Sign out there or wait 30 minutes after its last activity and try again.', 409);
+    }
+
+    if ($previousId !== $id) release_account_session();
+    $_SESSION['uid'] = $id;
+    $_SESSION['account_session_token'] = $token;
+}
+
 function current_user(): ?array
 {
     start_session();
-    if (empty($_SESSION['uid']) || !installed()) return null;
+    $hash = account_session_hash();
+    if (empty($_SESSION['uid']) || $hash === null || !installed()) return null;
+    ensure_account_columns();
+    $refreshed = q('UPDATE users SET session_expires_at = GREATEST(
+                        TIMESTAMPADD(SECOND, ?, UTC_TIMESTAMP(6)),
+                        TIMESTAMPADD(MICROSECOND, 1, session_expires_at))
+                    WHERE id = ? AND session_token_hash = ? AND session_expires_at > UTC_TIMESTAMP(6)',
+        [ACCOUNT_SESSION_IDLE_SECONDS, $_SESSION['uid'], $hash]);
+    if (!$refreshed->rowCount()) {
+        unset($_SESSION['uid'], $_SESSION['account_session_token']);
+        return null;
+    }
     ensure_profile_image_columns();
     ensure_employee_requests_table();
-    ensure_account_columns();
     ensure_biometrics();
     ensure_announcements();
     ensure_leave_extras();
@@ -288,6 +340,15 @@ function ensure_account_columns(): void
     if (!isset($columns['account_role'])) q("ALTER TABLE users ADD COLUMN account_role VARCHAR(20) NOT NULL DEFAULT 'admin'");
     if (!isset($columns['must_change_password'])) q('ALTER TABLE users ADD COLUMN must_change_password TINYINT(1) NOT NULL DEFAULT 0');
     if (!isset($columns['employee_id'])) q('ALTER TABLE users ADD COLUMN employee_id INT NULL, ADD UNIQUE KEY uq_users_employee (employee_id)');
+    foreach (['session_token_hash' => 'CHAR(64) NULL', 'session_expires_at' => 'DATETIME(6) NULL'] as $column => $definition) {
+        if (isset($columns[$column])) continue;
+        try {
+            q("ALTER TABLE users ADD COLUMN $column $definition");
+        } catch (PDOException $e) {
+            // Another request can add the column between the metadata query and ALTER.
+            if ((int) ($e->errorInfo[1] ?? 0) !== 1060) throw $e;
+        }
+    }
     $hasFk = (int) q("SELECT COUNT(*) FROM information_schema.table_constraints WHERE table_schema = ? AND table_name = 'users' AND constraint_name = 'fk_users_employee'", [DB_NAME])->fetchColumn();
     if (!$hasFk) {
         q("DELETE FROM users WHERE account_role = 'employee' AND (employee_id IS NULL OR employee_id NOT IN (SELECT id FROM employees))");

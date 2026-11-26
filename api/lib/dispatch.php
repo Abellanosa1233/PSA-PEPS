@@ -96,9 +96,7 @@ function account_action(string $action, array $in): array
             q('INSERT INTO users (username, display_name, role_title, password_hash) VALUES (?,?,?,?)', [
                 $username, str_in($in, 'name', 120, true, 'Your name'), str_in($in, 'role', 120, false) ?: 'HR administrator', password_hash($pw, PASSWORD_DEFAULT),
             ]);
-            start_session();
-            session_regenerate_id(true);
-            $_SESSION['uid'] = (int) db()->lastInsertId();
+            sign_in_account((int) db()->lastInsertId());
             return build_state(require_user());
 
         case 'login':
@@ -119,13 +117,12 @@ function account_action(string $action, array $in): array
             if ($u['account_role'] === 'employee' && $u['employee_status'] !== 'Active') {
                 fail('This account is no longer active. Contact your HR administrator.', 403);
             }
-            start_session();
-            session_regenerate_id(true);
-            $_SESSION['uid'] = (int) $u['id'];
+            sign_in_account((int) $u['id']);
             return build_state(require_user());
 
         case 'logout':
             start_session();
+            release_account_session();
             $_SESSION = [];
             session_destroy();
             return ['ok' => true];
