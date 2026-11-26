@@ -41,9 +41,9 @@ Philippine defaults: pesos (₱), Asia/Manila time, phone numbers saved as `+63 
 | Employees | Search/filter, add, edit, offboard, delete, CSV import, formatted Excel export, profile with leave balance and history; sign-in access is set in the Add/Edit employee form |
 | Attendance | Per-day status (office / remote / away), clock-in/out times, bulk fill, CSV import/export |
 | Time off | Requests with approve/decline/cancel, weekday counting, balance and overlap checks; Special and Travel Order review |
-| Payroll | Monthly pay runs, bonuses, tax and benefits, approve and lock, payslips, CSV export |
+| My payslips | View previously issued payslips |
 | Recruitment | Roles, candidate pipeline (Applied → Hired), convert a hire into an employee |
-| Reports | Headcount, turnover, attendance rate, leave by type, payroll cost, salary by department |
+| Reports | Headcount, turnover, attendance rate, leave by type, salary by department |
 | Supervisor workspace | A manager's team today, leave and Special/Travel Order approvals, and who's out |
 | Employee workspace | Self-service: clock in/out, request time off, Special/Travel Orders, view payslips |
 | Settings | Company, currency, tax, benefits, leave allowances, profile photo, account password, theme, demo reset |

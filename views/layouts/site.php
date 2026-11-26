@@ -132,7 +132,7 @@
 <?php else:
     $navIcons = [
         'overview' => 'grid', 'employees' => 'users', 'attendance' => 'clock', 'time-off' => 'calendar',
-        'payroll' => 'wallet', 'recruitment' => 'briefcase', 'reports' => 'chart',
+        'recruitment' => 'briefcase', 'reports' => 'chart',
     ];
     $isAdmin = is_admin($user);
     // HR is notified of every pending request; a supervising employee only of their direct reports' requests.

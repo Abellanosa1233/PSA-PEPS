@@ -33,16 +33,6 @@ function settings_view(array $state): void
             ?>
         </div>
     </fieldset>
-    <fieldset class="settings-fields">
-        <legend>Payroll</legend>
-        <div class="settings-fields-grid">
-            <?php
-            choice('currency', 'Currency', options(['PHP', 'USD', 'EUR', 'GBP', 'SGD', 'AUD', 'CAD', 'JPY', 'INR']), $settings['currency']);
-            field('taxRate', 'Tax rate (%)', $settings['taxRate'], 'number');
-            field('benefits', 'Benefits deduction', $settings['benefits'], 'number');
-            ?>
-        </div>
-    </fieldset>
     <fieldset class="settings-fields settings-leave">
         <legend>Leave allowances (days)</legend>
         <div class="settings-fields-grid settings-leave-grid">
@@ -151,7 +141,7 @@ function settings_view(array $state): void
     <?php
     if ($isAdmin) {
         card('Company updates');
-        echo '<p class="settings-card-description">Short notices shown to every employee on their Overview, newest first. The next pay date is added automatically while a pay run is in progress.</p>';
+        echo '<p class="settings-card-description">Short notices shown to every employee on their Overview, newest first.</p>';
         echo '<details class="form-disclosure" data-form-dialog="form"><summary class="btn primary">Post an update</summary>';
         post_form('announcement.save');
         field('title', 'Headline', '', 'text', true, '', ['maxlength' => '120']);

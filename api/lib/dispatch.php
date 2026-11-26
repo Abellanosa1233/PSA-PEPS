@@ -12,7 +12,6 @@ function action_handler(string $action): string
         'event.save' => 'act_event_save', 'event.delete' => 'act_event_delete',
         'position.save' => 'act_position_save', 'position.status' => 'act_position_status', 'position.delete' => 'act_position_delete',
         'candidate.save' => 'act_candidate_save', 'candidate.move' => 'act_candidate_move',
-        'payroll.bonus' => 'act_payroll_bonus', 'payroll.pay' => 'act_payroll_pay', 'payroll.create' => 'act_payroll_create',
         'settings.save' => 'act_settings_save', 'workspace.view' => 'act_workspace_view', 'profile.save' => 'act_profile_save',
         'password.change' => 'act_password_change', 'demo.reset' => 'act_demo_reset',
         'account.create' => 'act_account_create', 'account.password' => 'act_account_password', 'account.remove' => 'act_account_remove',

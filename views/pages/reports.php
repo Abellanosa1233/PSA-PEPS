@@ -28,7 +28,7 @@ function reports_view(array $state): void
     </header>
 
     <div class="page-head report-page-head">
-        <div><h1>Reports</h1><p>Explore workforce, attendance, time off, and payroll trends.</p></div>
+        <div><h1>Reports</h1><p>Explore workforce, attendance, and time off trends.</p></div>
         <div class="actions report-actions">
             <a class="btn" href="<?= h($exportUrl) ?>"><?= icon('download') ?> Export CSV</a>
             <button class="btn primary" type="button" id="print-report">Print report</button>
@@ -203,7 +203,7 @@ function reports_view(array $state): void
                         <tr>
                             <?php foreach ($row as $index => $value):
                                 if ($value === null) $display = '—';
-                                elseif (($type === 'headcount' && $index === 2) || ($type === 'payroll' && $index >= 3)) $display = money($value, $state);
+                                elseif ($type === 'headcount' && $index === 2) $display = money($value, $state);
                                 elseif ($type === 'attendance' && $index === 5) $display = number_format((float) $value, 1) . '%';
                                 elseif ($type === 'leave' && $index === 2) $display = number_format((float) $value, 0) . ((float) $value === 1.0 ? ' day' : ' days');
                                 else $display = (string) $value;

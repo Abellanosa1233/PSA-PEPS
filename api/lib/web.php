@@ -67,9 +67,6 @@ function action_success_message(string $action, array $input): string
         'position.delete' => 'Recruitment role deleted.',
         'candidate.save' => 'Candidate added.',
         'candidate.move' => 'Candidate stage updated.',
-        'payroll.bonus' => 'Bonus saved.',
-        'payroll.pay' => 'Payroll finalized.',
-        'payroll.create' => 'Pay run created.',
         'settings.save' => 'Organization settings saved.',
         'workspace.view' => 'Workspace selection updated.',
         'profile.save' => 'Profile saved.',
@@ -321,15 +318,6 @@ function attendance_records(array $state, string $date): array
     return $records;
 }
 
-function pay_selection(array $state): array
-{
-    $runs = array_reverse($state['payRuns']);
-    $byId = array_column($runs, null, 'id');
-    $byStatus = array_column($runs, null, 'status');
-    $run = $byId[(int) ($_GET['id'] ?? 0)] ?? $byStatus['draft'] ?? $runs[0] ?? null;
-    return [$runs, $run, $run ? ($run['lines'] ?? compute_lines($run['id'], $run['period'])) : []];
-}
-
 function department_report(array $state, string $month): array
 {
     $end = period_end($month);
@@ -360,7 +348,6 @@ function report_types(): array
         'hiring' => 'Hiring and departures',
         'attendance' => 'Attendance summary',
         'leave' => 'Approved time off',
-        'payroll' => 'Payroll by pay period',
     ];
 }
 
@@ -542,40 +529,7 @@ function descriptive_report_data(array $state, string $type, string $from, strin
         ];
     }
 
-    $rows = [];
-    $chart = [];
-    $runs = $paidRuns = 0;
-    $grossTotal = $netTotal = 0;
-    foreach ($state['payRuns'] as $run) {
-        $periodStart = $run['period'] . '-01';
-        if (period_end($run['period']) < $from || $periodStart > $to) continue;
-        $runs++;
-        if ($run['status'] !== 'paid') {
-            $rows[] = [$run['period'], 'Draft', 0, null, null, null, null];
-            continue;
-        }
-        $paidRuns++;
-        $lines = $run['lines'] ?? [];
-        $gross = array_sum(array_column($lines, 'gross'));
-        $tax = array_sum(array_column($lines, 'tax'));
-        $benefits = array_sum(array_column($lines, 'benefits'));
-        $net = array_sum(array_column($lines, 'net'));
-        $rows[] = [$run['period'], 'Paid', count($lines), $gross, $tax, $benefits, $net];
-        $chart[] = [$run['period'], $gross];
-        $grossTotal += $gross;
-        $netTotal += $net;
-    }
-    return [
-        'title' => 'Payroll by pay period',
-        'description' => 'Pay runs whose payroll month overlaps ' . $from . ' through ' . $to . '. Draft runs are listed, but only finalized paid runs are included in totals.',
-        'headers' => ['Pay period', 'Status', 'Employees', 'Gross pay', 'Tax', 'Benefits', 'Net pay'],
-        'rows' => $rows, 'chartTitle' => 'Finalized gross payroll by period', 'chart' => $chart, 'chartType' => 'line', 'chartFormat' => 'money',
-        'metrics' => [
-            ['Pay runs', $runs, 'Overlapping the selected range'],
-            ['Finalized gross pay', $money($grossTotal), $paidRuns . ' paid runs'],
-            ['Finalized net pay', $money($netTotal), 'After tax and benefits'],
-        ],
-    ];
+    throw new InvalidArgumentException('Unknown report type.');
 }
 
 function export_page(string $page, array $state): void
@@ -601,13 +555,6 @@ function export_page(string $page, array $state): void
             if (($_GET['export'] ?? '') === 'xlsx') {
                 require_once __DIR__ . '/attendance-workbook.php';
                 download_attendance_workbook($date, $rows);
-            }
-            break;
-        case 'payroll':
-            [, $run, $lines] = pay_selection($state);
-            $rows = [['Period', 'Employee', 'Department', 'Base', 'Bonus', 'Gross', 'Tax', 'Benefits', 'Net', 'Status']];
-            foreach ($lines as $line) {
-                $rows[] = [$run['period'], $line['name'], $line['department'], $line['base'], $line['bonus'], $line['gross'], $line['tax'], $line['benefits'], $line['net'], $run['status']];
             }
             break;
         case 'reports':

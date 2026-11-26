@@ -20,7 +20,7 @@ require __DIR__ . '/api/lib/web.php';
 
 $pages = [
     'overview' => 'Overview', 'employees' => 'Employees', 'attendance' => 'Attendance',
-    'time-off' => 'Time off', 'payroll' => 'Payroll', 'recruitment' => 'Recruitment',
+    'time-off' => 'Time off', 'recruitment' => 'Recruitment',
     'reports' => 'Reports', 'supervisor' => 'Supervisor workspace',
     'self-service' => 'Employee workspace', 'preferences' => 'Settings', 'help' => 'Help & resources',
     'dtr' => 'Daily Time Record',
@@ -149,7 +149,7 @@ try {
             else $_SESSION['web_notice'] = action_success_message($action, $_POST);
         }
         unset($query['candidate']);
-        if (in_array($action, ['employee.save', 'position.save', 'payroll.create'], true)) {
+        if (in_array($action, ['employee.save', 'position.save'], true)) {
             $query['id'] = $result['id'];
         } elseif (in_array($action, ['employee.delete', 'position.delete'], true)) {
             unset($query['id']);

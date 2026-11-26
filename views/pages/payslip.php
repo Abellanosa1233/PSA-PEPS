@@ -18,7 +18,7 @@ foreach ($state['payRuns'] as $r) {
 $people = array_column($state['employees'], null, 'id');
 $person = $people[$empId] ?? null;
 $company = $state['settings']['company'] ?? 'HRMS';
-$back = $isAdmin ? ($empId ? page_url('employees', ['id' => $empId]) : page_url('payroll')) : page_url('my-payslips', ['period' => $period]);
+$back = $isAdmin ? page_url('employees', $empId ? ['id' => $empId] : []) : page_url('my-payslips', ['period' => $period]);
 if (!$slip) http_response_code(404);
 $paidOn = $run ? new DateTimeImmutable(substr((string) ($run['paidAt'] ?: period_end($run['period'])), 0, 10)) : null;
 $monthLabel = $slip ? (new DateTimeImmutable($period . '-01'))->format('F Y') : '';

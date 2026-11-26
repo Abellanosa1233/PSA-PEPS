@@ -561,54 +561,11 @@ function act_candidate_move(array $in): array
     return [];
 }
 
-/* ---------- Payroll ---------- */
-function draft_run(int $id): array
-{
-    $run = q('SELECT * FROM pay_runs WHERE id = ?', [$id])->fetch();
-    if (!$run) fail('That pay run no longer exists.', 404);
-    if ($run['status'] !== 'draft') fail('Paid runs are locked and cannot be changed.');
-    return $run;
-}
-
-function act_payroll_bonus(array $in): array
-{
-    $run = draft_run(int_in($in, 'runId'));
-    $emp = employee_exists(int_in($in, 'empId'));
-    $amount = (float) ($in['amount'] ?? 0);
-    if ($amount < 0 || $amount > 1000000) fail('Bonus must be between 0 and 1,000,000.');
-    if ($amount == 0) q('DELETE FROM pay_bonuses WHERE run_id = ? AND emp_id = ?', [$run['id'], $emp['id']]);
-    else q('INSERT INTO pay_bonuses (run_id, emp_id, amount) VALUES (?,?,?) ON DUPLICATE KEY UPDATE amount = VALUES(amount)', [$run['id'], $emp['id'], $amount]);
-    return [];
-}
-
-function act_payroll_pay(array $in): array
-{
-    $run = draft_run(int_in($in, 'runId'));
-    pay_run((int) $run['id']);
-    return [];
-}
-
-function act_payroll_create(array $in): array
-{
-    $last = q('SELECT period FROM pay_runs ORDER BY period DESC LIMIT 1')->fetchColumn();
-    if ($last && q("SELECT COUNT(*) FROM pay_runs WHERE status = 'draft'")->fetchColumn()) fail('Finish the open draft pay run first.');
-    $period = $last ? (new DateTime($last . '-01'))->modify('+1 month')->format('Y-m') : date('Y-m');
-    q("INSERT INTO pay_runs (period, status) VALUES (?, 'draft')", [$period]);
-    return ['id' => (int) db()->lastInsertId()];
-}
-
 /* ---------- Settings & account ---------- */
 function act_settings_save(array $in): array
 {
     set_setting('company', str_in($in, 'company', 80, true, 'Company name'));
     set_setting('workspace', str_in($in, 'workspace', 80, true, 'Workspace name'));
-    set_setting('currency', one_of((string) ($in['currency'] ?? 'PHP'), ['PHP', 'USD', 'EUR', 'GBP', 'SGD', 'AUD', 'CAD', 'JPY', 'INR'], 'Currency'));
-    $tax = (float) ($in['taxRate'] ?? 0);
-    if ($tax < 0 || $tax > 60) fail('Tax rate must be between 0 and 60%.');
-    set_setting('taxRate', $tax);
-    $ben = (float) ($in['benefits'] ?? 0);
-    if ($ben < 0 || $ben > 100000) fail('Benefits deduction must be 0 or more.');
-    set_setting('benefits', $ben);
     $allow = [];
     foreach (LEAVE_TYPES as $t) {
         $v = (int) ($in['allowances'][$t] ?? 0);
