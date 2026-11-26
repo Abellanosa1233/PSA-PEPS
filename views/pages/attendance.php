@@ -24,7 +24,7 @@ $now = new DateTimeImmutable();
 <div class="page-head">
     <div>
         <h1>Attendance</h1>
-        <p>Record where people worked and when they clocked in and out.</p>
+        <p>Review where people worked and when they clocked in and out.</p>
         <div class="attendance-clock">
             <span class="attendance-clock-icon"><?= icon('clock', 16) ?></span>
             <div>
@@ -95,7 +95,7 @@ $now = new DateTimeImmutable();
     <span class="muted web-push"><?= h($day->format('l, M j')) ?></span>
 </div>
 <section class="card web-directory" id="attendance-directory">
-    <div class="card-head"><h3>Daily register</h3><?php if ($past): ?><p>Read-only</p><?php endif; ?></div>
+    <div class="card-head"><h3>Daily register</h3><p>Read-only</p></div>
     <form class="card-body toolbar" method="get" action="<?= h(page_url('attendance')) ?>">
         <input type="hidden" name="date" value="<?= h($date) ?>">
         <div class="grow employee-search">
@@ -118,51 +118,37 @@ $now = new DateTimeImmutable();
     <?php else: ?>
         <div class="table-wrap">
             <table class="data">
-                <thead><tr><th>Employee</th><th>Status</th><th>Clock in</th><th>Clock out</th><th>Hours</th><?php if (!$past): ?><th>Actions</th><?php endif; ?></tr></thead>
+                <thead>
+                    <tr><th rowspan="2" scope="col">Employee</th><th rowspan="2" scope="col">Status</th><th colspan="2" scope="colgroup">Morning</th><th colspan="2" scope="colgroup">Afternoon</th><th rowspan="2" scope="col">Hours</th></tr>
+                    <tr><th scope="col">Time in</th><th scope="col">Time out</th><th scope="col">Time in</th><th scope="col">Time out</th></tr>
+                </thead>
                 <tbody>
                 <?php foreach ($pageRows['rows'] as [$person, $record, $onLeave]):
                     $name = employee_name($person);
-                    $id = 'attendance-' . $person['id'];
-                    $minutes = $record['in'] && $record['out'] ? (strtotime($record['out']) - strtotime($record['in'])) / 60 : 0;
-                    $clockIn = substr((string) $record['in'], 0, 5);
-                    $late = $clockIn >= ($clockIn >= '13:00' ? ATTENDANCE_PM_LATE : ATTENDANCE_AM_LATE);
+                    $slots = attendance_day_slots((int) $person['id'], $date, $record);
+                    [$regular, $overtime] = dtr_worked($slots);
+                    $minutes = $regular + $overtime;
                 ?>
                     <tr>
-                        <td><a class="who" href="<?= h(page_url('employees', ['id' => $person['id']])) ?>"><span class="avatar"><?= h(initials($name)) ?></span><span><strong><?= h($name) ?></strong><small><?= h($person['department']) ?></small></span></a></td>
+                        <td><div class="who"><span class="avatar"><?= h(initials($name)) ?></span><span><strong><?= h($name) ?></strong><small><?= h($person['department']) ?></small></span></div></td>
                         <td>
                             <?php if ($onLeave): ?><?php status_badge('leave'); ?>
-                            <?php elseif ($past): ?><?= h($labels[$record['status']] ?? $labels['']) ?>
-                            <?php else: ?>
-                                <select class="input sm" name="status" form="<?= h($id) ?>" aria-label="<?= h("Status for $name") ?>">
-                                    <?php foreach (['' => 'Not recorded'] + array_intersect_key($labels, options(ATT_STATUSES)) as $value => $label): ?>
-                                        <option value="<?= h($value) ?>"<?= $value === $record['status'] ? ' selected' : '' ?>><?= h($label) ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            <?php endif; ?>
+                            <?php else: ?><?= h($labels[$record['status']] ?? $labels['']) ?><?php endif; ?>
                         </td>
-                        <?php foreach (['in' => 'Clock in', 'out' => 'Clock out'] as $key => $label): ?>
+                        <?php foreach (['amIn' => ATTENDANCE_AM_LATE, 'amOut' => null, 'pmIn' => ATTENDANCE_PM_LATE, 'pmOut' => null] as $key => $lateFrom): ?>
                             <td>
-                                <?php if (!$past): ?>
-                                    <input class="input sm" type="time" name="<?= h($key) ?>" value="<?= h($record[$key]) ?>" form="<?= h($id) ?>" aria-label="<?= h("$label for $name") ?>"<?= $onLeave ? ' disabled' : '' ?>>
-                                <?php elseif ($record[$key]): ?>
-                                    <time datetime="<?= h($record[$key]) ?>"><?= h(date('g:i A', strtotime($record[$key]))) ?></time>
+                                <?php if ($slots[$key]): ?>
+                                    <time datetime="<?= h($slots[$key]) ?>"><?= h(date('g:i A', strtotime($slots[$key]))) ?></time>
+                                    <?php if ($lateFrom !== null && !$onLeave): ?>
+                                        <?php $late = $slots[$key] >= $lateFrom; ?>
+                                        <div class="attendance-punctuality"><span class="badge <?= $late ? 'bad' : 'ok' ?>"><?= $late ? 'Late' : 'On time' ?></span></div>
+                                    <?php endif; ?>
                                 <?php else: ?>
-                                    <span class="muted">Did not clock <?= h($key) ?></span>
-                                <?php endif; ?>
-                                <?php if ($key === 'in' && $clockIn !== '' && !$onLeave): ?>
-                                    <div class="attendance-punctuality"><span class="badge <?= $late ? 'bad' : 'ok' ?>"><?= $late ? 'Late' : 'On time' ?></span></div>
+                                    <span class="muted">—</span>
                                 <?php endif; ?>
                             </td>
                         <?php endforeach; ?>
                         <td><?= $minutes > 0 ? h(sprintf('%dh %02dm', intdiv((int) $minutes, 60), $minutes % 60)) : '—' ?></td>
-                        <?php if (!$past): ?><td class="actions">
-                            <?php if (!$onLeave): ?>
-                                <form method="post" id="<?= h($id) ?>">
-                                    <?php hidden_inputs(['_action' => 'attendance.set', '_token' => $_SESSION['web_csrf'], 'date' => $date, 'empId' => $person['id']]); ?>
-                                    <button class="btn sm">Save</button>
-                                </form>
-                            <?php endif; ?>
-                        </td><?php endif; ?>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>
