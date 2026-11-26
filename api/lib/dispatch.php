@@ -13,7 +13,7 @@ function action_handler(string $action): string
         'position.save' => 'act_position_save', 'position.status' => 'act_position_status', 'position.delete' => 'act_position_delete',
         'candidate.save' => 'act_candidate_save', 'candidate.move' => 'act_candidate_move',
         'settings.save' => 'act_settings_save', 'workspace.view' => 'act_workspace_view', 'profile.save' => 'act_profile_save',
-        'password.change' => 'act_password_change', 'demo.reset' => 'act_demo_reset',
+        'password.change' => 'act_password_change',
         'account.create' => 'act_account_create', 'account.password' => 'act_account_password', 'account.remove' => 'act_account_remove',
         'admin.create' => 'act_admin_create',
         'announcement.save' => 'act_announcement_save', 'announcement.delete' => 'act_announcement_delete',
@@ -81,7 +81,6 @@ function account_action(string $action, array $in): array
             if (installed() && has_users()) fail('Horizon HRMS is already set up.', 403);
             check_setup_key($in);
             install_schema();
-            if (!empty($in['demo'])) seed_demo();
             return ['ok' => true];
 
         case 'setup':

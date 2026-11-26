@@ -16,14 +16,14 @@ Requires PHP 7.2 or newer with PDO MySQL and mbstring, plus a MySQL-compatible d
    GRANT ALL PRIVILEGES ON horizon_hrms.* TO 'hrms_app'@'localhost', 'hrms_app'@'127.0.0.1';
    ```
 3. Copy `api/config.example.php` to `api/config.php` and put that password in `DB_PASS`.
-4. Visit <http://localhost/HRMS/> (not the file itself — PHP must serve it). The first visit creates the tables, optionally loads sample data, and asks you to create the administrator account.
+4. Visit <http://localhost/HRMS/> (not the file itself — PHP must serve it). The first visit creates the empty tables and asks you to create the administrator account. The system starts with no records; add employees in **Employees** (one by one or with **Import CSV**).
 
 ### Set up a fresh GitHub checkout on XAMPP
 
 1. Put the checkout in `C:\xampp\htdocs\PSA-PEPS-main` and start **Apache** and **MySQL** in the XAMPP Control Panel. XAMPP 8.2.12 (64-bit) matches the tested local setup. PHP 7.2.0 also works with this project.
 2. Open phpMyAdmin at `http://localhost/phpmyadmin/` and create an empty database named `horizon_hrms` if it does not exist. Use port `8080` in the browser URL if Apache is configured for it.
 3. When opened from localhost without an `api/config.php` file, HRMS uses MySQL user `root` with a blank password on port `3306`. If your MySQL credentials or port differ, copy `api/config.example.php` to `api/config.php` and update the connection settings.
-4. Open `http://localhost/PSA-PEPS-main/index.php` (or use port `8080` if configured). Click **Install** to create the tables, choose whether to load sample data, and create your administrator account.
+4. Open `http://localhost/PSA-PEPS-main/index.php` (or use port `8080` if configured). Click **Install** to create the tables, then create your administrator account.
 
 The installer uses the tracked schema at `api/lib/schema.sql`. The tracked `horizon_hrms.sql` is a database dump for restoring an existing snapshot. For a fresh installation, start with an empty database and let HRMS create the tables. Each machine uses its own database credentials. Keep local passwords out of Git commits.
 
@@ -45,7 +45,7 @@ Philippine defaults: pesos (₱), Asia/Manila time, phone numbers saved as `+63 
 | Reports | Headcount, turnover, attendance rate, leave by type, salary by department |
 | Supervisor workspace | A manager's team today, leave and Special/Travel Order approvals, and who's out |
 | Employee workspace | Self-service: clock in/out, request time off, Special/Travel Orders |
-| Settings | Company, currency, tax, benefits, leave allowances, profile photo, account password, theme, demo reset |
+| Settings | Company, currency, tax, benefits, leave allowances, profile photo, account password, theme |
 
 ## Biometrics and the Daily Time Record (DTR)
 
@@ -82,7 +82,7 @@ HR posts **company updates** and sets **office hours** in **Settings**. The next
 **Team out of office.** Once HR approves someone's leave or a supervisor approves a Special/Travel Order, their team sees it on **My workspace → Team out of office** (and on **My team → Team today**) as "On leave", "On travel order" or "On special order" with the dates, today and upcoming. The team is the people who share the same supervisor, the supervisor, and the person's direct reports. The leave type and reason, and an order's purpose and destination, are never shown.
   * **Settings** (profile photo and password only) and **Help**.
 
-The rules are enforced on the server (`authorize_action()` in `api/lib/dispatch.php` and `scope_state_to_employee()` in `api/lib/state.php`), not only hidden in the menus: employee accounts never receive other people's salaries or recruitment data, and any form an employee submits is forced onto their own record. Offboarding or deleting an employee stops their sign-in immediately. **Reset demo data** removes employee accounts and keeps administrator accounts.
+The rules are enforced on the server (`authorize_action()` in `api/lib/dispatch.php` and `scope_state_to_employee()` in `api/lib/state.php`), not only hidden in the menus: employee accounts never receive other people's salaries or recruitment data, and any form an employee submits is forced onto their own record. Offboarding or deleting an employee stops their sign-in immediately.
 
 ## Structure
 
@@ -104,4 +104,3 @@ HRMS/
 * Database `horizon_hrms`, user `hrms_app` (access to this database only). Credentials are in `api/config.php`.
 * Tables: users, settings, employees, leave_requests, employee_requests, attendance, events, positions, candidates.
 * Back up with phpMyAdmin (<http://localhost/us_opt1/>) or UniServer's `db_backup_restore` folder.
-* **Settings → Reset demo data** replaces every record with sample data (the login is kept).

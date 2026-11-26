@@ -157,10 +157,6 @@ function settings_view(array $state): void
         }, $state['announcements'] ?? []));
         echo '</section>';
         hr_company_documents_card($state);
-        card('Demo data', 'settings-danger-zone');
-        echo '<p class="settings-card-description">Replace workspace records with sample data for demonstrations.</p>';
-        confirm_action('demo.reset', 'Reset demo data', 'This replaces existing workspace records with sample data. Employee sign-in accounts are removed; administrator accounts are kept.');
-        echo '</section>';
     }
     echo '</div>';
     echo '</div></div>';

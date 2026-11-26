@@ -750,11 +750,5 @@ function account_password_hashes(array $in, int $userId, bool $requireConfirmati
     return [$oldHash, password_hash($new, PASSWORD_DEFAULT)];
 }
 
-function act_demo_reset(array $in): array
-{
-    seed_demo();
-    return [];
-}
-
 require_once __DIR__ . '/dtr.php';
 require_once __DIR__ . '/profile.php';
