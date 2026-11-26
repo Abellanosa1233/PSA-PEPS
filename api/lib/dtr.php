@@ -16,6 +16,8 @@ const DTR_PM_IN_FROM = '11:30';    // Earliest afternoon arrival (lunch-back)
 const DTR_PM_IN_UNTIL = '14:00';   // Latest punch treated as afternoon arrival
 const DTR_LUNCH_MINUTES = 60;      // Deducted when someone punches only in and out
 const DTR_DUPLICATE_MINUTES = 2;   // Repeated scans this close together count once
+const ATTENDANCE_AM_LATE = '08:01';
+const ATTENDANCE_PM_LATE = '13:01';
 
 /* Device user numbers are often zero-padded ("0007") in one export and not in another. */
 function normalize_biometric_id(string $id): string
@@ -215,13 +217,13 @@ function attendance_clock_windows(array $slots): array
 {
     $windows = [];
     if (!$slots['amIn'] && !$slots['pmIn'] && !$slots['pmOut']) {
-        $windows['amIn'] = ['00:00', '12:01', '08:01', 'Clock in'];
+        $windows['amIn'] = ['00:00', '12:01', ATTENDANCE_AM_LATE, 'Clock in'];
     }
     if ($slots['amIn'] && !$slots['amOut'] && !$slots['pmIn'] && !$slots['pmOut']) {
         $windows['amOut'] = ['12:01', '13:00', null, 'Clock out for lunch'];
     }
     if (!$slots['pmIn'] && !$slots['pmOut']) {
-        $windows['pmIn'] = ['13:00', '17:01', '13:01', 'Clock in'];
+        $windows['pmIn'] = ['13:00', '17:01', ATTENDANCE_PM_LATE, 'Clock in'];
     }
     if (($slots['pmIn'] || ($slots['amIn'] && !$slots['amOut'])) && !$slots['pmOut']) {
         $windows['pmOut'] = ['17:01', '24:00', null, 'Clock out'];

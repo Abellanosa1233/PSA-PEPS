@@ -124,6 +124,8 @@ $now = new DateTimeImmutable();
                     $name = employee_name($person);
                     $id = 'attendance-' . $person['id'];
                     $minutes = $record['in'] && $record['out'] ? (strtotime($record['out']) - strtotime($record['in'])) / 60 : 0;
+                    $clockIn = substr((string) $record['in'], 0, 5);
+                    $late = $clockIn >= ($clockIn >= '13:00' ? ATTENDANCE_PM_LATE : ATTENDANCE_AM_LATE);
                 ?>
                     <tr>
                         <td><a class="who" href="<?= h(page_url('employees', ['id' => $person['id']])) ?>"><span class="avatar"><?= h(initials($name)) ?></span><span><strong><?= h($name) ?></strong><small><?= h($person['department']) ?></small></span></a></td>
@@ -146,6 +148,9 @@ $now = new DateTimeImmutable();
                                     <time datetime="<?= h($record[$key]) ?>"><?= h(date('g:i A', strtotime($record[$key]))) ?></time>
                                 <?php else: ?>
                                     <span class="muted">Did not clock <?= h($key) ?></span>
+                                <?php endif; ?>
+                                <?php if ($key === 'in' && $clockIn !== '' && !$onLeave): ?>
+                                    <div class="attendance-punctuality"><span class="badge <?= $late ? 'bad' : 'ok' ?>"><?= $late ? 'Late' : 'On time' ?></span></div>
                                 <?php endif; ?>
                             </td>
                         <?php endforeach; ?>

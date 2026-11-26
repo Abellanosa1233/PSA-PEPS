@@ -554,6 +554,7 @@
 .employee-dashboard .self-today-facts dd { margin: 0; text-align: end; }
 .attendance-clock-actions:has([data-available]) { margin-bottom: 10px; }
 .attendance-clock-actions [hidden] { display: none; }
+.attendance-punctuality { margin-top: 4px; }
 .attendance-clock-button.btn.is-late,
 .attendance-clock-button.btn.is-late:hover {
   background: #b91c1c;
