@@ -30,7 +30,9 @@
         window.addEventListener('pageshow', function () { pageLoader.hidden = true; }, { once: true });
     }
 </script>
-<?php if (!$user): ?>
+<?php if (!empty($sessionReplaced)): ?>
+    <noscript><p role="alert">This account was signed in on another device. <a href="<?= h(page_url('overview')) ?>">Return to sign-in</a></p></noscript>
+<?php elseif (!$user): ?>
     <main class="auth web-auth<?= $screen === 'Sign in' ? ' web-auth-signin' : '' ?>">
         <button class="btn desktop-full-screen desktop-full-screen-auth" type="button" hidden>Full screen</button>
         <section class="auth-card<?= $screen === 'Sign in' ? ' auth-card-signin' : '' ?>">
@@ -307,6 +309,15 @@
         }());
     </script>
     <script src="<?= h(versioned_asset('assets/js/form-dialog.js')) ?>" defer></script>
+<?php endif; ?>
+<?php if ($user || !empty($sessionReplaced)): ?>
+    <dialog id="session-replaced-dialog" class="modal sign-out-dialog"
+        aria-labelledby="session-replaced-title" aria-describedby="session-replaced-description"
+        data-sign-in="<?= h(page_url('overview', ['sessionEnded' => 1])) ?>"<?= !empty($sessionReplaced) ? ' data-replaced' : '' ?>>
+        <div class="modal-head"><h2 id="session-replaced-title">Signed in on another device</h2></div>
+        <div class="modal-body"><p id="session-replaced-description">This account was signed in on another device. This device will return to sign-in in 3 seconds.</p></div>
+    </dialog>
+    <script src="<?= h(versioned_asset('assets/js/session-status.js')) ?>" defer></script>
 <?php endif; ?>
 <?php if ($error !== '' || $notice !== '') require __DIR__ . '/../partials/notifications.php'; ?>
 <?php if ($user): ?>

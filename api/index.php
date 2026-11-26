@@ -34,6 +34,17 @@ try {
     }
 
     switch ($action) {
+        case 'session.status':
+            if ($method !== 'GET') fail('Use GET.', 405);
+            start_session();
+            $sessionStatus = !empty($_SESSION['account_session_replaced']) ? 'replaced' : account_session_status();
+            if ($sessionStatus !== 'active') {
+                unset($_SESSION['uid'], $_SESSION['account_session_token']);
+                if ($sessionStatus === 'replaced') $_SESSION['account_session_replaced'] = true;
+            }
+            session_write_close();
+            respond(['status' => $sessionStatus]);
+
         case 'status':
             $ok = installed();
             respond(['installed' => $ok, 'hasUsers' => $ok && has_users(), 'user' => $ok ? current_user() : null, 'needsSetupKey' => setup_key_required()]);

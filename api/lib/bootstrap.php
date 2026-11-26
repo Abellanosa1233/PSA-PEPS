@@ -144,6 +144,17 @@ function release_account_session(): void
        WHERE id = ? AND session_token_hash = ?', [$_SESSION['uid'], $hash]);
 }
 
+function account_session_status(): string
+{
+    $hash = account_session_hash();
+    if (empty($_SESSION['uid']) || $hash === null) return 'ended';
+    $account = q('SELECT session_token_hash, session_expires_at > UTC_TIMESTAMP(6) AS active
+                  FROM users WHERE id = ?', [$_SESSION['uid']])->fetch();
+    if (!$account || $account['session_token_hash'] === null) return 'ended';
+    if (!hash_equals($account['session_token_hash'], $hash)) return 'replaced';
+    return $account['active'] ? 'active' : 'ended';
+}
+
 function sign_in_account(int $id): void
 {
     start_session();
@@ -151,21 +162,20 @@ function sign_in_account(int $id): void
     $token = bin2hex(random_bytes(32));
     $hash = hash('sha256', $token);
     $previousId = (int) ($_SESSION['uid'] ?? 0);
-    $previousHash = $previousId === $id ? account_session_hash() : null;
     if (!session_regenerate_id(true)) fail('Sign-in could not be started. Please try again.', 500);
 
-    // One conditional update makes competing sign-ins serialize on the account row.
+    // The most recent successful sign-in replaces the token on the account row.
     $claimed = q('UPDATE users SET session_token_hash = ?,
                   session_expires_at = TIMESTAMPADD(SECOND, ?, UTC_TIMESTAMP(6))
-                  WHERE id = ? AND (session_expires_at IS NULL OR session_expires_at <= UTC_TIMESTAMP(6)
-                  OR session_token_hash = ?)', [$hash, ACCOUNT_SESSION_IDLE_SECONDS, $id, $previousHash]);
+                  WHERE id = ?', [$hash, ACCOUNT_SESSION_IDLE_SECONDS, $id]);
     if (!$claimed->rowCount()) {
-        fail('This account is already signed in on another browser or device. Sign out there or wait 30 minutes after its last activity and try again.', 409);
+        fail('This account is no longer available.', 401);
     }
 
     if ($previousId !== $id) release_account_session();
     $_SESSION['uid'] = $id;
     $_SESSION['account_session_token'] = $token;
+    unset($_SESSION['account_session_replaced']);
 }
 
 function current_user(): ?array
@@ -180,6 +190,7 @@ function current_user(): ?array
                     WHERE id = ? AND session_token_hash = ? AND session_expires_at > UTC_TIMESTAMP(6)',
         [ACCOUNT_SESSION_IDLE_SECONDS, $_SESSION['uid'], $hash]);
     if (!$refreshed->rowCount()) {
+        if (account_session_status() === 'replaced') $_SESSION['account_session_replaced'] = true;
         unset($_SESSION['uid'], $_SESSION['account_session_token']);
         return null;
     }

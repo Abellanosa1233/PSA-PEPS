@@ -61,6 +61,14 @@ try {
     if (!isset($_SESSION['web_csrf'])) $_SESSION['web_csrf'] = bin2hex(random_bytes(32));
     $theme = $_SESSION['web_theme'] ?? 'light';
     $user = current_user();
+    if (!$user && !empty($_SESSION['account_session_replaced'])) {
+        unset($_SESSION['account_session_replaced']);
+        if (!isset($_GET['sessionEnded'])) {
+            $sessionReplaced = true;
+            require __DIR__ . '/views/layouts/site.php';
+            exit;
+        }
+    }
     if ($user && !is_admin($user)) {
         // Employee accounts only see their own pages (and their team, if they supervise anyone).
         $pages['supervisor'] = 'Supervisor workspace';
