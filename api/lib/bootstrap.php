@@ -29,6 +29,7 @@ const LEAVE_TYPES = ['Annual leave', 'Personal leave', 'Sick leave', 'Parental l
 const DEPARTMENTS = ['Design', 'Engineering', 'People', 'Product', 'Marketing', 'Sales', 'Finance', 'Operations'];
 const STAGES = ['Applied', 'Screening', 'Interview', 'Offer', 'Hired'];
 const EMP_TYPES = ['Full-time', 'Part-time', 'Contract'];
+const EMPLOYEE_TYPES = ['Regular', 'Job Order', 'Contract of Service Worker', 'Co-Term'];
 const ATT_STATUSES = ['office', 'remote', 'away'];
 
 final class ApiError extends Exception

@@ -6,7 +6,8 @@ if (employeeDialog && typeof employeeDialog.showModal === 'function') {
   const saveButton = form.querySelector('button[type="submit"]');
   const cancelButton = form.querySelector('[data-employee-cancel]');
   const closeButton = form.querySelector('[data-employee-unchanged]');
-  const editableFields = ['firstName', 'lastName', 'email', 'phone', 'title', 'department', 'type', 'location', 'startDate', 'salary', 'managerId', 'biometricId', 'loginUsername', 'loginPassword'];
+  const editableFields = ['firstName', 'lastName', 'email', 'phone', 'title', 'department', 'type', 'location', 'startDate', 'salary', 'managerId', 'biometricId', 'loginUsername', 'loginPassword']
+    .filter((name) => form.elements.namedItem(name));
   const lengthLimits = { firstName: 80, lastName: 80, email: 160, phone: 40, title: 120, location: 80, loginUsername: 60, loginPassword: 72 };
   const locationPicker = typeof employeeLocationPicker === 'function' ? employeeLocationPicker(form, syncEmployeeButtons) : null;
   const validatedFields = Array.from(form.querySelectorAll('.field:not([hidden]) input'));
@@ -63,26 +64,19 @@ if (employeeDialog && typeof employeeDialog.showModal === 'function') {
   }
 
   document.addEventListener('click', (event) => {
-    const button = event.target.closest('[data-add-employee], [data-edit-employee]');
+    const button = event.target.closest('[data-add-employee]');
     if (!button || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-    const employee = button.dataset.editEmployee ? JSON.parse(button.dataset.editEmployee) : {};
+    if (original !== null) return;
     const defaults = {
       startDate: form.querySelector('[data-new-employee-date]').value,
-      department: form.elements.department.options[0].value,
       type: form.elements.type.options[0].value,
     };
-    const manager = form.elements.managerId;
-    for (const option of manager.options) {
-      option.disabled = Boolean(employee.id && option.value === String(employee.id));
-    }
     for (const name of ['id', ...editableFields]) {
-      form.elements[name].value = employee[name] ?? defaults[name] ?? '';
+      form.elements[name].value = defaults[name] ?? '';
     }
-    if (form.elements.removeAccess) form.elements.removeAccess.checked = false;
-    original = employee.id ? employee : null;
     locationPicker?.reset();
     syncEmployeeButtons();
-    title.textContent = employee.id ? 'Edit employee' : 'Add employee';
+    title.textContent = 'Add employee';
     form.querySelector('[role="alert"]')?.remove();
     validatedFields.forEach((field) => setEmployeeError(field, ''));
     event.preventDefault();
@@ -118,6 +112,8 @@ if (employeeDialog && typeof employeeDialog.showModal === 'function') {
     const value = field.value.trim();
     const label = field.closest('.field').firstElementChild.textContent;
     const limit = lengthLimits[field.name];
+    const email = field.name === 'email' && field.type === 'text' && !value.includes('@')
+      ? value + '@gmail.com' : value;
     let message = '';
 
     if (field.validity.badInput) {
@@ -126,15 +122,15 @@ if (employeeDialog && typeof employeeDialog.showModal === 'function') {
       message = `${label} is required.`;
     } else if (limit && Array.from(value).length > limit) {
       message = `${label} must be ${limit} characters or fewer.`;
-    } else if (field.name === 'email' && (field.validity.typeMismatch || !value.split('@')[1]?.includes('.'))) {
+    } else if (field.name === 'email' && (email.length > limit || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
       message = 'Enter a valid email address, like name@company.com.';
     } else if (field.name === 'phone' && value &&
         !/^(?:(?:\+?63|0)?9\d{9}|(?:\+?63|0)[2-8]\d{8})$/.test(value.replace(/[\s().-]/g, ''))) {
       message = 'Enter a Philippine number, like 0917 123 4567 or (02) 8123 4567.';
     } else if (field.name === 'startDate' && !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
       message = 'Enter a valid start date.';
-    } else if (field.name === 'salary' && (Number(value) < 0.01 || Number(value) > 10000000)) {
-      message = 'Annual salary must be between 0.01 and 10,000,000.';
+    } else if (field.name === 'salary' && (Number(value) < 0 || Number(value) > 10000000)) {
+      message = 'Annual salary must be between 0 and 10,000,000.';
     } else if (field.name === 'loginUsername' && value && !/^[A-Za-z0-9._-]+$/.test(value)) {
       message = 'Use letters, numbers, dots, dashes or underscores only.';
     } else if (field.name === 'loginPassword' && field.value && Array.from(field.value).length < 8) {

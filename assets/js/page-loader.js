@@ -7,10 +7,10 @@
     loader.hidden = true;
   }
 
-  function showLoader() {
+  function showLoader(timeout = 15000) {
     window.clearTimeout(resetTimer);
     loader.hidden = false;
-    resetTimer = window.setTimeout(hideLoader, 15000);
+    resetTimer = window.setTimeout(hideLoader, timeout);
   }
 
   window.addEventListener('click', (event) => {
@@ -40,12 +40,15 @@
       return;
     }
 
-    if (action === 'login' || action === 'admin.create' || action === 'password.change' ||
-        (action === 'employee.save' && form.closest('.employee-profile-details-card'))) {
+    if (action === 'employee.save') {
+      const dialog = form.closest('#add-employee');
+      if (dialog?.open && typeof dialog.close === 'function') dialog.close();
+      showLoader(30000);
+    } else if (action === 'login' || action === 'admin.create' || action === 'password.change') {
       showLoader();
     }
   });
 
-  window.addEventListener('page-loading', showLoader);
+  window.addEventListener('page-loading', () => showLoader());
   window.addEventListener('pageshow', hideLoader);
 })();

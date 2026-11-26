@@ -14,7 +14,8 @@ function employee_form(array $state, array $employee = [], ?array $candidate = n
     card($hidden && !$candidate ? 'Employee details' : 'Add employee', $hidden && !$candidate ? 'employee-profile-details-card' : '');
     post_form('employee.save', $hidden);
     employee_fields($state, $employee, $hidden['id'] ?? null);
-    employee_login_fields($state, $employee, [], isset($employee['id']) ? isset(((array) ($state['accounts'] ?? []))[$employee['id']]) : false);
+    if (isset($employee['id'])) employee_login_fields($state, $employee, [], isset(((array) ($state['accounts'] ?? []))[$employee['id']]));
+    else echo '<p class="full muted">A temporary HRMS login will be emailed to the address entered above.</p>';
     if ($hidden && !$candidate) {
         echo '<a class="btn" data-employee-profile-close href="' . h(page_url('employees')) . '">Close</a>';
         echo '<button class="btn primary" type="submit" data-employee-profile-save data-original-employee="' . html_json($employee + ['loginUsername' => ((array) ($state['accounts'] ?? []))[$employee['id']]['username'] ?? '']) . '" hidden>Save Changes</button></form>';
@@ -42,17 +43,28 @@ function employee_fields(array $state, array $employee, ?int $employeeId = null,
 {
     field('firstName', 'First name', $employee['firstName'] ?? '', 'text', true, $errors['firstName'] ?? '');
     field('lastName', 'Last name', $employee['lastName'] ?? '', 'text', true, $errors['lastName'] ?? '');
-    field('email', 'Email', $employee['email'] ?? '', 'email', true, $errors['email'] ?? '');
+    $emailAttributes = $employeeId === null ? [
+        'placeholder' => 'name@gmail.com', 'inputmode' => 'email', 'autocomplete' => 'email',
+    ] : [];
+    field('email', $employeeId === null ? 'Email (@gmail.com by default)' : 'Email',
+        $employee['email'] ?? '', $employeeId === null ? 'text' : 'email', true, $errors['email'] ?? '', $emailAttributes);
     field('phone', 'Phone', $employee['phone'] ?? '', 'tel', false, $errors['phone'] ?? '');
-    field('title', 'Job title', $employee['title'] ?? '', 'text', true, $errors['title'] ?? '');
-    choice('department', 'Department', options(DEPARTMENTS), $employee['department'] ?? '');
-    choice('type', 'Employment type', options(EMP_TYPES), $employee['type'] ?? '');
+    if ($employeeId !== null) {
+        field('title', 'Job title', $employee['title'] ?? '', 'text', true, $errors['title'] ?? '');
+        choice('department', 'Department', options(array_merge(DEPARTMENTS, ['Unassigned'])), $employee['department'] ?? '');
+    }
+    $types = EMPLOYEE_TYPES;
+    if ($employeeId !== null && !empty($employee['type']) && !in_array($employee['type'], $types, true)) $types[] = $employee['type'];
+    choice('type', 'Employment type', options($types), $employee['type'] ?? '');
     field('location', 'Location', $employee['location'] ?? '', 'text', false, $errors['location'] ?? '');
     field('startDate', 'Start date', $employee['startDate'] ?? $state['today'], 'date', true, $errors['startDate'] ?? '');
-    field('salary', 'Annual salary', $employee['salary'] ?? '', 'number', true, $errors['salary'] ?? '');
-    $managers = employee_options(array_filter($state['employees'], function ($e) use ($employeeId) { return $e['id'] !== $employeeId && $e['status'] === 'Active'; }
-    ));
-    choice('managerId', 'Manager', ['' => 'None'] + $managers, $employee['managerId'] ?? '');
+    if ($employeeId !== null) {
+        field('salary', 'Annual salary', $employee['salary'] ?? '', 'number', true, $errors['salary'] ?? '');
+        $managers = employee_options(array_filter($state['employees'], function ($e) use ($employeeId) {
+            return $e['id'] !== $employeeId && $e['status'] === 'Active';
+        }));
+        choice('managerId', 'Manager', ['' => 'None'] + $managers, $employee['managerId'] ?? '');
+    }
     field('biometricId', 'Biometric ID', $employee['biometricId'] ?? '', 'text', false, $errors['biometricId'] ?? '', ['maxlength' => '30', 'pattern' => '[A-Za-z0-9_-]+']);
 }
 
@@ -115,7 +127,11 @@ function add_employee_modal(array $state, string $page, array $formError): void
                         <button class="btn" type="button" data-location-retry hidden>Retry loading locations</button>
                     </div>
                 </div>
-                <div class="form-grid"><?php employee_login_fields($state, $values, $errors, null); ?></div>
+                <?php if ($editing): ?>
+                    <div class="form-grid"><?php employee_login_fields($state, $values, $errors, null); ?></div>
+                <?php else: ?>
+                    <p class="muted">A temporary HRMS login will be emailed to the address entered above.</p>
+                <?php endif; ?>
             </div>
             <div class="modal-foot">
                 <a class="btn" data-close-employee data-employee-cancel href="<?= h(page_url($page, $query)) ?>">Cancel</a>

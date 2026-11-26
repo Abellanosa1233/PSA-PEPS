@@ -146,6 +146,7 @@ try {
             elseif ($action === 'employee.import') $_SESSION['web_notice'] = $result['imported'] . ' employee' . ($result['imported'] === 1 ? '' : 's') . ' imported successfully.';
             elseif ($action === 'attendance.import') $_SESSION['web_notice'] = $result['imported'] . ' attendance record' . ($result['imported'] === 1 ? '' : 's') . ' imported successfully.';
             elseif ($action === 'attendance.biometrics') $_SESSION['web_notice'] = biometric_import_message($result);
+            elseif ($action === 'employee.save' && !empty($result['onboarded'])) $_SESSION['web_notice'] = 'Employee added and sign-in details sent by email.';
             else $_SESSION['web_notice'] = action_success_message($action, $_POST);
         }
         unset($query['candidate']);

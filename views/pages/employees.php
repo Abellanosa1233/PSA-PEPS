@@ -147,7 +147,7 @@ function employees_view(array $state): void
             </div>
             <?php foreach ([
                 ['department', 'Department', ['' => 'All departments'] + options(DEPARTMENTS), ''],
-                ['type', 'Employment type', ['' => 'All types'] + options(EMP_TYPES), ''],
+                ['type', 'Employment type', ['' => 'All types'] + options(array_merge(EMPLOYEE_TYPES, EMP_TYPES)), ''],
                 ['status', 'Employment status', ['' => 'Everyone'] + options(['Active', 'Offboarded']), 'Active'],
                 ['todayStatus', 'Today’s attendance', ['' => 'Any status today'] + $attendanceOptions, ''],
             ] as [$name, $label, $items, $default]): ?>

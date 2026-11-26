@@ -128,7 +128,7 @@ function field(string $name, string $label, $value = '', string $type = 'text', 
         . ($type === 'number' ? ' step="any"' : '')
         . ($error !== '' ? ' aria-invalid="true" aria-describedby="' . h($errorId) . '"' : '');
     foreach ($attributes as $attribute => $attributeValue) {
-        if (in_array($attribute, ['autocomplete', 'minlength', 'maxlength', 'pattern'], true)) {
+        if (in_array($attribute, ['autocomplete', 'minlength', 'maxlength', 'pattern', 'placeholder', 'inputmode'], true)) {
             echo ' ' . $attribute . '="' . h($attributeValue) . '"';
         }
     }

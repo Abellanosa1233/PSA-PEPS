@@ -96,7 +96,14 @@ function employeeLocationPicker(form, onChange) {
         const entries = await records('cities-municipalities?province=none');
         return entries.filter((entry) => entry.regionCode !== ncr);
       }
-      return records(`provinces/${province.value}/cities-municipalities`);
+      const provinceCode = province.value;
+      const cities = await records(`provinces/${provinceCode}/cities-municipalities`);
+      // Cagayan de Oro is listed separately in the PSGC as a highly urbanized city.
+      const cagayanDeOro = { code: '1030500000', name: 'City of Cagayan de Oro' };
+      if (provinceCode === '1004300000' && !cities.some(({ code }) => String(code) === cagayanDeOro.code)) {
+        return [...cities, cagayanDeOro].sort((a, b) => a.name.localeCompare(b.name, 'en', { numeric: true }));
+      }
+      return cities;
     });
   });
 

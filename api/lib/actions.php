@@ -13,17 +13,37 @@ function employee_exists(int $id): array
 
 function act_employee_save(array $in): array
 {
+    return save_employee($in);
+}
+
+function ensure_employee_type_capacity(): void
+{
+    $length = q("SELECT CHARACTER_MAXIMUM_LENGTH FROM information_schema.columns
+                 WHERE table_schema = ? AND table_name = 'employees' AND column_name = 'emp_type'", [DB_NAME])->fetchColumn();
+    if ((int) $length < 40) q("ALTER TABLE employees MODIFY emp_type VARCHAR(40) NOT NULL DEFAULT 'Full-time'");
+}
+
+function save_employee(array $in, bool $importing = false): array
+{
     $id = int_in($in, 'id', false);
-    $salary = filter_var($in['salary'] ?? '', FILTER_VALIDATE_FLOAT);
+    $existing = $id ? employee_exists($id) : null;
+    $onboard = !$id && !$importing;
+    $type = str_in($in, 'type', 40, true, 'Employment type');
+    $allowedTypes = $importing ? array_merge(EMPLOYEE_TYPES, EMP_TYPES) : EMPLOYEE_TYPES;
+    if ($existing && $type === $existing['emp_type']) $allowedTypes[] = $type;
+    if (!in_array($type, $allowedTypes, true)) fail('Choose a valid employment type.', 422, 'type');
+    $email = strtolower(str_in($in, 'email', 160, true, 'Email'));
+    if ($onboard && strpos($email, '@') === false) $email .= '@gmail.com';
+    $salary = $onboard ? 0 : filter_var($in['salary'] ?? '', FILTER_VALIDATE_FLOAT);
     $f = [
         'first_name' => str_in($in, 'firstName', 80, true, 'First name'),
         'last_name' => str_in($in, 'lastName', 80, true, 'Last name'),
-        'email' => strtolower(str_in($in, 'email', 160, true, 'Email')),
+        'email' => $email,
         'phone' => ph_phone(str_in($in, 'phone', 40, false)),
-        'title' => str_in($in, 'title', 120, true, 'Job title'),
-        'department' => one_of(str_in($in, 'department', 60, true, 'Department'), DEPARTMENTS, 'Department'),
+        'title' => $onboard ? 'Employee' : str_in($in, 'title', 120, true, 'Job title'),
+        'department' => $onboard ? 'Unassigned' : one_of(str_in($in, 'department', 60, true, 'Department'), array_merge(DEPARTMENTS, ['Unassigned']), 'Department'),
         'location' => str_in($in, 'location', 80, false),
-        'emp_type' => one_of(str_in($in, 'type', 20, true, 'Employment type'), EMP_TYPES, 'Employment type'),
+        'emp_type' => $type,
         'start_date' => date_in($in, 'startDate', true, 'Start date'),
         'salary' => $salary,
         'manager_id' => int_in($in, 'managerId', false),
@@ -37,26 +57,36 @@ function act_employee_save(array $in): array
             fail('Another employee already has that biometric ID.', 422, 'biometricId');
         }
     }
-    if (!filter_var($f['email'], FILTER_VALIDATE_EMAIL)) fail('Enter a valid email address, like name@company.com.', 422, 'email');
-    if ($salary === false || $salary < 0.01 || $salary > 10000000) fail('Annual salary must be between 0.01 and 10,000,000.', 422, 'salary');
+    if (strlen($email) > 160 || !filter_var($email, FILTER_VALIDATE_EMAIL)) fail('Enter a valid email address, like name@company.com.', 422, 'email');
+    $minimumSalary = $importing ? 0.01 : 0;
+    if ($salary === false || $salary < $minimumSalary || $salary > 10000000) {
+        fail('Annual salary must be between ' . $minimumSalary . ' and 10,000,000.', 422, 'salary');
+    }
     $dupe = q('SELECT id FROM employees WHERE email = ? AND id <> ?', [$f['email'], $id ?? 0])->fetchColumn();
     if ($dupe) fail('Another employee already uses that email address.', 422, 'email');
     if ($f['manager_id'] !== null) {
         if ($id !== null && $f['manager_id'] === $id) fail('An employee cannot be their own manager.');
         employee_exists($f['manager_id']);
     }
+    if (!$importing && strlen($type) > 20) ensure_employee_type_capacity();
+    if ($onboard) {
+        require_once __DIR__ . '/employee-onboarding.php';
+        ensure_employee_onboarding_mail();
+        ensure_account_columns();
+    }
     // The employee and their sign-in change together: if the login part fails, nothing is saved.
     $ownTx = !db()->inTransaction();
     if ($ownTx) db()->beginTransaction();
     try {
         [$id, $changed] = employee_save_rows($id, $f, $in);
-        if (employee_login_changes($id, $in)) $changed = true;
+        if ($onboard) provision_employee_login($id, $f);
+        elseif (employee_login_changes($id, $in)) $changed = true;
         if ($ownTx) db()->commit();
     } catch (Throwable $e) {
         if ($ownTx && db()->inTransaction()) db()->rollBack();
         throw $e;
     }
-    return ['id' => $id, 'changed' => $changed];
+    return ['id' => $id, 'changed' => $changed, 'onboarded' => $onboard];
 }
 
 function employee_save_rows(?int $id, array $f, array $in): array
@@ -149,6 +179,7 @@ function act_employee_import(array $file): array
     }
     $row = 1;
     $count = 0;
+    ensure_employee_type_capacity();
     db()->beginTransaction();
     try {
         while (($values = fgetcsv($handle, 0, ',', '"', '')) !== false) {
@@ -157,11 +188,11 @@ function act_employee_import(array $file): array
             if (count($values) > count($headers)) fail("CSV row $row has more values than the header.", 422, 'employeeCsv');
             if ($count >= 500) fail('A CSV import can contain at most 500 employees.', 422, 'employeeCsv');
             $value = function ($key) use ($columns, $values) { return isset($columns[$key]) ? trim((string) ($values[$columns[$key]] ?? '')) : ''; };
-            $result = act_employee_save([
+            $result = save_employee([
                 'firstName' => $value('firstName'), 'lastName' => $value('lastName'), 'email' => $value('email'),
                 'phone' => $value('phone'), 'title' => $value('title'), 'department' => $value('department'),
                 'type' => $value('type'), 'location' => $value('location'), 'startDate' => $value('startDate'), 'salary' => $value('salary'),
-            ]);
+            ], true);
             $status = $value('status') ?: 'Active';
             if ($status !== 'Active' || $value('endDate') !== '') act_employee_status(['id' => $result['id'], 'status' => $status, 'endDate' => $value('endDate')]);
             $count++;

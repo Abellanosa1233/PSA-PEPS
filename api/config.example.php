@@ -13,3 +13,12 @@ const APP_TIMEZONE = 'Asia/Manila';
 // for the first time, so nobody else can create the administrator account.
 // Leave empty only on a private computer.
 const SETUP_KEY = '';
+
+// Employee onboarding email. Use a sender from your verified Resend domain.
+const RESEND_API_KEY = '';
+const EMPLOYEE_MAIL_FROM = '';
+const EMPLOYEE_SIGN_IN_URL = '';
+
+// Optional Gmail sender. When configured, Gmail takes precedence over Resend.
+const GMAIL_SMTP_USER = '';
+const GMAIL_SMTP_APP_PASSWORD = '';

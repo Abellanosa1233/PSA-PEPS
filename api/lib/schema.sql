@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS employees (
   title VARCHAR(120) NOT NULL,
   department VARCHAR(60) NOT NULL,
   location VARCHAR(80) NOT NULL DEFAULT '',
-  emp_type VARCHAR(20) NOT NULL DEFAULT 'Full-time',
+  emp_type VARCHAR(40) NOT NULL DEFAULT 'Regular',
   start_date DATE NOT NULL,
   end_date DATE NULL,
   salary DECIMAL(12,2) NOT NULL DEFAULT 0,
