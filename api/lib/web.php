@@ -59,7 +59,7 @@ function action_success_message(string $action, array $input): string
         'employee.request.cancel' => 'Request canceled.',
         'attendance.set' => 'Attendance updated.',
         'attendance.fill' => 'Attendance fill completed.',
-        'attendance.clock' => ($input['mode'] ?? '') === 'in' ? 'Clock-in recorded.' : 'Clock-out recorded.',
+        'attendance.clock' => in_array($input['slot'] ?? '', ['amIn', 'pmIn'], true) ? 'Clock-in recorded.' : 'Clock-out recorded.',
         'event.save' => 'Schedule event saved.',
         'event.delete' => 'Schedule event removed.',
         'position.save' => 'Recruitment role saved.',

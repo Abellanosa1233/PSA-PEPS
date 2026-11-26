@@ -83,16 +83,7 @@ function self_today_attendance_card(array $state, int $id, bool $withClock = tru
     echo '<section class="card self-today"><div class="card-head"><h3>Today’s attendance</h3><span class="badge ' . $style . '">' . $state1 . '</span></div><div class="card-body">';
     echo '<div class="self-today-time">' . h($in ? $fmt($in) : '—') . '</div><p class="muted">' . h((new DateTimeImmutable($today))->format('l, M j, Y')) . ($in ? ' · time in' : '') . ($out ? ' · out at ' . h($fmt($out)) : '') . '</p>';
     echo '<dl class="self-today-facts"><dt>Schedule</dt><dd>' . h($fmt($start) . ' – ' . $fmt($end)) . '</dd><dt>Work location</dt><dd>' . h($onLeave ? 'On leave' : $where) . '</dd></dl>';
-    if ($withClock && !$onLeave) {
-        echo '<div class="toolbar">';
-        if (!$in) {
-            action_button('attendance.clock', 'Clock in at office', ['empId' => $id, 'mode' => 'in', 'status' => 'office']);
-            action_button('attendance.clock', 'Clock in remotely', ['empId' => $id, 'mode' => 'in', 'status' => 'remote']);
-        } elseif (!$out) {
-            action_button('attendance.clock', 'Clock out', ['empId' => $id, 'mode' => 'out']);
-        }
-        echo '</div>';
-    }
+    if ($withClock && !$onLeave) self_clock_actions($id, $today, $record);
     echo '<a class="btn self-wide" href="' . h(page_url('my-attendance')) . '">View attendance ' . icon('arrowRight', 14) . '</a></div></section>';
 }
 
@@ -133,18 +124,33 @@ function self_company_updates_card(array $state): void
 
 /* ---------- Sections reused by My time off / My attendance / My payslips and HR's employee view ---------- */
 
+function self_clock_actions(int $id, string $day, array $record): void
+{
+    $windows = attendance_clock_windows(attendance_day_slots($id, $day, $record));
+    if (!$windows) return;
+    $clock = new DateTimeImmutable();
+    $now = $clock->format('H:i');
+    echo '<div class="attendance-clock-actions" data-attendance-clock data-clock-seconds="'
+        . (dtr_minutes($now) * 60 + (int) $clock->format('s')) . '">';
+    foreach ($windows as $slot => [$from, $until, $late, $label]) {
+        $available = $now >= $from && $now < $until;
+        $isLate = $late !== null && $now >= $late;
+        echo '<div data-clock-from="' . dtr_minutes($from) . '" data-clock-until="' . dtr_minutes($until)
+            . '"' . ($late === null ? '' : ' data-clock-late="' . dtr_minutes($late) . '"') . ($available ? ' data-available' : ' hidden') . '>';
+        post_form('attendance.clock', ['empId' => $id, 'slot' => $slot], true);
+        echo '<button class="btn primary attendance-clock-button' . ($isLate ? ' is-late' : '') . '" type="submit">'
+            . h($label) . '<span data-clock-late-label' . ($isLate ? '' : ' hidden') . '> · Late</span></button></form></div>';
+    }
+    echo '</div>';
+}
+
 function self_clock_card(array $state, int $id): void
 {
     $record = ((array) ($state['attendance']->{$state['today']} ?? []))[$id] ?? [];
     card('Attendance today');
-    if (empty($record['in'])) {
-        action_button('attendance.clock', 'Clock in at office', ['empId' => $id, 'mode' => 'in', 'status' => 'office']);
-        action_button('attendance.clock', 'Clock in remotely', ['empId' => $id, 'mode' => 'in', 'status' => 'remote']);
-    } else {
-        echo '<p>Clocked in at ' . h($record['in']) . '</p>';
-        if (empty($record['out'])) action_button('attendance.clock', 'Clock out', ['empId' => $id, 'mode' => 'out']);
-        else echo '<p>Clocked out at ' . h($record['out']) . '</p>';
-    }
+    if (!empty($record['in'])) echo '<p>Clocked in at ' . h($record['in']) . '</p>';
+    if (!empty($record['out'])) echo '<p>Clocked out at ' . h($record['out']) . '</p>';
+    self_clock_actions($id, $state['today'], $record);
     echo '</section>';
 }
 

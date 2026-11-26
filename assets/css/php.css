@@ -552,7 +552,14 @@
 }
 .employee-dashboard .self-today-facts dt { color: var(--fg-2); }
 .employee-dashboard .self-today-facts dd { margin: 0; text-align: end; }
-.employee-dashboard .self-today .toolbar:not(:empty) { margin-bottom: 10px; }
+.attendance-clock-actions:has([data-available]) { margin-bottom: 10px; }
+.attendance-clock-actions [hidden] { display: none; }
+.attendance-clock-button.btn.is-late,
+.attendance-clock-button.btn.is-late:hover {
+  background: #b91c1c;
+  border-color: #b91c1c;
+  color: #fff;
+}
 .employee-dashboard .self-wide { width: 100%; justify-content: flex-start; }
 .employee-dashboard .sched-item { grid-template-columns: 52px minmax(0, 1fr); }
 .employee-dashboard .sched-item .rule { display: none; }

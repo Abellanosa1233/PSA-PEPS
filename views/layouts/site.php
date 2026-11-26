@@ -355,5 +355,6 @@
 <?php endif; ?>
 <script src="<?= h(versioned_asset('assets/js/desktop-window.js')) ?>" defer></script>
 <script src="<?= h(versioned_asset('assets/js/page-loader.js')) ?>" defer></script>
+<script src="<?= h(versioned_asset('assets/js/attendance-clock.js')) ?>" defer></script>
 </body>
 </html>

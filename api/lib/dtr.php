@@ -115,13 +115,35 @@ function import_biometric_punches(string $content): array
 
 function sync_attendance_from_punches(int $empId, string $day): void
 {
-    $times = q('SELECT DATE_FORMAT(punched_at, "%H:%i") FROM attendance_punches WHERE emp_id = ? AND DATE(punched_at) = ? ORDER BY punched_at', [$empId, $day])->fetchAll(PDO::FETCH_COLUMN);
-    if (!$times) return;
-    $in = $times[0];
-    $out = count($times) > 1 ? end($times) : null;
+    $punches = attendance_day_punches($empId, $day);
+    if (!$punches) return;
+    $slots = attendance_punch_slots($punches);
+    $in = $punches[0]['t'];
+    $out = count($punches) > 1 ? $punches[count($punches) - 1]['t'] : null;
+    foreach ($punches as $punch) {
+        if (strpos($punch['source'], 'web:') !== 0) continue;
+        $in = $slots['amIn'] ?? $slots['pmIn'];
+        $out = $slots['otOut'] ?? $slots['pmOut'];
+        break;
+    }
     q("INSERT INTO attendance (work_date, emp_id, status, time_in, time_out) VALUES (?, ?, 'office', ?, ?)
        ON DUPLICATE KEY UPDATE status = IF(status = 'away', 'office', status), time_in = VALUES(time_in), time_out = VALUES(time_out)",
         [$day, $empId, $in, $out]);
+}
+
+function attendance_day_punches(int $empId, string $day): array
+{
+    return q('SELECT DATE_FORMAT(punched_at, "%H:%i") AS t, source FROM attendance_punches
+              WHERE emp_id = ? AND punched_at >= ? AND punched_at < DATE_ADD(?, INTERVAL 1 DAY)
+              ORDER BY punched_at', [$empId, $day, $day])->fetchAll();
+}
+
+function attendance_day_slots(int $empId, string $day, array $record): array
+{
+    $punches = attendance_day_punches($empId, $day);
+    return $punches ? attendance_punch_slots($punches) : dtr_slots(array_values(array_filter([
+        $record['in'] ?? null, $record['out'] ?? null,
+    ])));
 }
 
 function biometric_import_message(array $r): string
@@ -173,6 +195,40 @@ function dtr_slots(array $times): array
     return $slots;
 }
 
+function attendance_punch_slots(array $punches): array
+{
+    $slots = dtr_slots(array_column($punches, 't'));
+    $explicit = [];
+    foreach ($punches as $punch) {
+        $slot = substr($punch['source'], 4);
+        if (strpos($punch['source'], 'web:') === 0 && array_key_exists($slot, $slots)) {
+            $explicit[$slot] = $punch['t'];
+        }
+    }
+    foreach ($slots as $slot => $time) {
+        if (in_array($time, $explicit, true)) $slots[$slot] = null;
+    }
+    return array_replace($slots, $explicit);
+}
+
+function attendance_clock_windows(array $slots): array
+{
+    $windows = [];
+    if (!$slots['amIn'] && !$slots['pmIn'] && !$slots['pmOut']) {
+        $windows['amIn'] = ['00:00', '12:01', '08:01', 'Clock in'];
+    }
+    if ($slots['amIn'] && !$slots['amOut'] && !$slots['pmIn'] && !$slots['pmOut']) {
+        $windows['amOut'] = ['12:01', '13:00', null, 'Clock out for lunch'];
+    }
+    if (!$slots['pmIn'] && !$slots['pmOut']) {
+        $windows['pmIn'] = ['13:00', '17:01', '13:01', 'Clock in'];
+    }
+    if (($slots['pmIn'] || ($slots['amIn'] && !$slots['amOut'])) && !$slots['pmOut']) {
+        $windows['pmOut'] = ['17:01', '24:00', null, 'Clock out'];
+    }
+    return $windows;
+}
+
 /* Worked minutes for one day: [regular, overtime]. */
 function dtr_worked(array $s): array
 {
@@ -205,9 +261,9 @@ function dtr_card(array $employee, DateTimeImmutable $from, DateTimeImmutable $t
     ensure_biometrics();
     $id = (int) $employee['id'];
     $byDay = [];
-    foreach (q('SELECT DATE(punched_at) AS d, DATE_FORMAT(punched_at, "%H:%i") AS t FROM attendance_punches WHERE emp_id = ? AND punched_at >= ? AND punched_at < ? ORDER BY punched_at',
+    foreach (q('SELECT DATE(punched_at) AS d, DATE_FORMAT(punched_at, "%H:%i") AS t, source FROM attendance_punches WHERE emp_id = ? AND punched_at >= ? AND punched_at < ? ORDER BY punched_at',
         [$id, $from->format('Y-m-d'), $to->modify('+1 day')->format('Y-m-d')])->fetchAll() as $p) {
-        $byDay[$p['d']][] = $p['t'];
+        $byDay[$p['d']][] = $p;
     }
     $records = [];
     foreach (q('SELECT work_date, status, TIME_FORMAT(time_in, "%H:%i") AS i, TIME_FORMAT(time_out, "%H:%i") AS o FROM attendance WHERE emp_id = ? AND work_date BETWEEN ? AND ?',
@@ -223,7 +279,8 @@ function dtr_card(array $employee, DateTimeImmutable $from, DateTimeImmutable $t
     for ($d = $from; $d <= $to; $d = $d->modify('+1 day')) {
         $day = $d->format('Y-m-d');
         $weekend = (int) $d->format('N') >= 6;
-        $times = $byDay[$day] ?? [];
+        $punches = $byDay[$day] ?? [];
+        $times = array_column($punches, 't');
         $note = '';
         if (!$times && isset($records[$day]) && $records[$day]['i']) {
             $times = array_values(array_filter([$records[$day]['i'], $records[$day]['o']]));
@@ -234,7 +291,7 @@ function dtr_card(array $employee, DateTimeImmutable $from, DateTimeImmutable $t
             $times = array_values(array_filter([$c['in'] ?? ($times[0] ?? null), $c['out'] ?? ($times ? end($times) : null)]));
             if (count($times) === 2 && $times[0] === $times[1]) $times = [$times[0]];
         }
-        $slots = dtr_slots($times);
+        $slots = $punches && !isset($corrections[$day]) ? attendance_punch_slots($punches) : dtr_slots($times);
         [$regular, $overtime] = dtr_worked($slots);
         if (!$times) {
             foreach ($leaves as $l) if ($l['start_date'] <= $day && $l['end_date'] >= $day) $note = $l['leave_type'];

@@ -453,25 +453,43 @@ function act_attendance_import(array $file): array
 
 function act_attendance_clock(array $in): array
 {
-    $emp = employee_exists(int_in($in, 'empId'));
-    $day = today();
-    $now = date('H:i');
-    $mode = one_of((string) ($in['mode'] ?? ''), ['in', 'out'], 'Clock action');
-    $rec = q('SELECT * FROM attendance WHERE work_date = ? AND emp_id = ?', [$day, $emp['id']])->fetch();
-    if ($mode === 'in') {
-        $status = one_of((string) ($in['status'] ?? 'office'), ['office', 'remote'], 'Work location');
-        if ($rec && $rec['time_in']) fail('Already clocked in today at ' . substr($rec['time_in'], 0, 5) . '.');
-        q('INSERT INTO attendance (work_date, emp_id, status, time_in) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE status = VALUES(status), time_in = VALUES(time_in), time_out = NULL',
-            [$day, $emp['id'], $status, $now]);
-    } else {
-        if (!$rec || !$rec['time_in']) fail('Clock in before clocking out.');
-        if ($rec['time_out']) fail('Already clocked out today.');
-        if ($now <= substr($rec['time_in'], 0, 5)) fail('Clock-out must be later than clock-in.');
-        q('UPDATE attendance SET time_out = ? WHERE work_date = ? AND emp_id = ?', [$now, $day, $emp['id']]);
-    }
-    // Web clock-ins also count as punches, so they appear on the DTR next to biometric ones.
+    $id = int_in($in, 'empId');
+    $slot = one_of((string) ($in['slot'] ?? ''), ['amIn', 'amOut', 'pmIn', 'pmOut'], 'Clock action');
     ensure_biometrics();
-    q("INSERT IGNORE INTO attendance_punches (emp_id, punched_at, source) VALUES (?, ?, 'web')", [$emp['id'], $day . ' ' . $now . ':00']);
+    db()->beginTransaction();
+    try {
+        $employee = q('SELECT status FROM employees WHERE id = ? FOR UPDATE', [$id])->fetchColumn();
+        if ($employee !== 'Active') fail('Only active employees can clock in or out.');
+        $clock = new DateTimeImmutable();
+        $day = $clock->format('Y-m-d');
+        $now = $clock->format('H:i');
+        if (q("SELECT 1 FROM leave_requests WHERE emp_id = ? AND status = 'approved' AND ? BETWEEN start_date AND end_date", [$id, $day])->fetchColumn()) {
+            fail('Clocking in or out is unavailable during approved leave.');
+        }
+        $record = q('SELECT TIME_FORMAT(time_in, "%H:%i") AS `in`, TIME_FORMAT(time_out, "%H:%i") AS `out`
+                     FROM attendance WHERE work_date = ? AND emp_id = ? FOR UPDATE', [$day, $id])->fetch() ?: [];
+        $slots = attendance_day_slots($id, $day, $record);
+        $window = attendance_clock_windows($slots)[$slot] ?? null;
+        if ($window === null || $now < $window[0] || $now >= $window[1]) {
+            fail('This clock action is unavailable right now. Refresh the page to see your available action.', 409);
+        }
+        // Keep manual entry times when recording the first web punch of the day.
+        if ($record && !attendance_day_punches($id, $day)) {
+            foreach (['amIn', 'amOut', 'pmIn', 'pmOut'] as $existingSlot) {
+                if (!$slots[$existingSlot]) continue;
+                q('INSERT INTO attendance_punches (emp_id, punched_at, source) VALUES (?, ?, ?)',
+                    [$id, $day . ' ' . $slots[$existingSlot] . ':00', 'web:' . $existingSlot]);
+            }
+        }
+        q('INSERT INTO attendance_punches (emp_id, punched_at, source) VALUES (?, ?, ?)',
+            [$id, $day . ' ' . $now . ':00', 'web:' . $slot]);
+        sync_attendance_from_punches($id, $day);
+        q("UPDATE attendance SET status = 'office' WHERE emp_id = ? AND work_date = ?", [$id, $day]);
+        db()->commit();
+    } catch (Throwable $e) {
+        if (db()->inTransaction()) db()->rollBack();
+        throw $e;
+    }
     return [];
 }
 

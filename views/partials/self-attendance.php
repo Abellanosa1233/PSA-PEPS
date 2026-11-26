@@ -21,8 +21,7 @@ function self_day_summary(array $row, string $workStart): array
 {
     $s = $row['slots'];
     $in = $s['amIn'] ?? $s['pmIn'];
-    $punches = array_values(array_filter([$s['amIn'], $s['amOut'], $s['pmIn'], $s['pmOut'], $s['otIn'], $s['otOut']]));
-    $out = count($punches) > 1 ? end($punches) : null;
+    $out = $s['otOut'] ?? $s['pmOut'] ?? ($s['pmIn'] === null ? $s['amOut'] : null);
     $break = 0;
     if ($s['amOut'] && $s['pmIn']) {
         $break = intdiv(strtotime($s['pmIn']) - strtotime($s['amOut']), 60);
