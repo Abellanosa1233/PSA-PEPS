@@ -203,6 +203,7 @@ if ($isPost) {
         'position.save' => ['id', 'title', 'department', 'type', 'location'],
         'candidate.save' => ['positionId', 'name', 'email', 'source'],
         'profile.save' => ['name', 'role'],
+        'profile.emergency.save' => ['emergencyName', 'emergencyRelationship', 'emergencyPhone'],
         'password.change' => [],
         'admin.create' => ['name', 'username'],
     ];

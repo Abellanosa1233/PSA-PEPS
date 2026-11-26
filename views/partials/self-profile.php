@@ -73,6 +73,7 @@ function self_emergency_card(array $me, bool $editable): void
         field('emergencyName', 'Contact name', $me['emergencyName'] ?? '', 'text', false, '', ['maxlength' => '120']);
         field('emergencyRelationship', 'Relationship', $me['emergencyRelationship'] ?? '', 'text', false, '', ['maxlength' => '60']);
         field('emergencyPhone', 'Phone number', $me['emergencyPhone'] ?? '', 'tel', false, '', ['maxlength' => '40']);
+        echo '<p class="hint full">Fill in all three fields to save a contact, or clear all three to remove it.</p>';
         end_form('Save emergency contact');
         echo '</details>';
     }
@@ -173,7 +174,8 @@ function hr_personal_details_card(array $employee): void
         . '<dt>Preferred name</dt><dd>' . self_value($employee['preferredName'] ?? null, '—') . '</dd>'
         . '<dt>Personal email</dt><dd>' . self_value($employee['personalEmail'] ?? null, '—') . '</dd>'
         . '<dt>Home address</dt><dd>' . self_value($employee['homeAddress'] ?? null, '—') . '</dd>'
-        . '<dt>Emergency contact</dt><dd>' . self_value(trim(($employee['emergencyName'] ?? '') . (($employee['emergencyRelationship'] ?? '') !== '' ? ' (' . $employee['emergencyRelationship'] . ')' : '')), '—') . '</dd>'
-        . '<dt>Emergency phone</dt><dd>' . self_value($employee['emergencyPhone'] ?? null, '—') . '</dd>'
+        . '<dt>Contact name</dt><dd>' . self_value($employee['emergencyName'] ?? null) . '</dd>'
+        . '<dt>Relationship</dt><dd>' . self_value($employee['emergencyRelationship'] ?? null, '—') . '</dd>'
+        . '<dt>Phone number</dt><dd>' . self_value($employee['emergencyPhone'] ?? null, '—') . '</dd>'
         . '</dl><p class="muted">The employee keeps these up to date on My profile.</p></div></section>';
 }

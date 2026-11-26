@@ -487,7 +487,7 @@ function one_of(string $v, array $allowed, string $label): string
 
 /* Philippine phone numbers, stored as +63 917 123 4567 / +63 2 8123 4567 / +63 32 123 4567.
    Accepts 09171234567, 0917-123-4567, +639171234567, (02) 8123 4567, (032) 123 4567 … */
-function ph_phone(string $raw): string
+function ph_phone(string $raw, ?string $field = null): string
 {
     $raw = trim($raw);
     if ($raw === '') return '';
@@ -504,7 +504,7 @@ function ph_phone(string $raw): string
         $n = $m[1];
         return '+63 ' . substr($n, 0, 2) . ' ' . substr($n, 2, 3) . ' ' . substr($n, 5);
     }
-    fail('Enter a Philippine number, like 0917 123 4567 or (02) 8123 4567.');
+    fail('Enter a Philippine number, like 0917 123 4567 or (02) 8123 4567.', 422, $field);
 }
 
 function workdays(string $a, string $b): int

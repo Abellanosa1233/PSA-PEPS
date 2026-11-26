@@ -83,6 +83,35 @@ if (typeof HTMLDialogElement !== 'undefined' && typeof HTMLDialogElement.prototy
     };
   }
 
+  function emergencyContactValidation(form) {
+    const fields = Array.from(form.querySelectorAll('.field input'));
+    const phone = form.elements.namedItem('emergencyPhone');
+    const phonePattern = /^(?:(?:\+?63|0)?9[0-9]{9}|(?:\+?63|0)[2-8][0-9]{8})$/;
+
+    function validate(field) {
+      const value = field.value.trim();
+      const label = field.labels[0].textContent.trim();
+      let message = '';
+      if (!value && fields.some((input) => input.value.trim())) {
+        message = `Enter the ${label.toLowerCase()}.`;
+      } else if (field.maxLength > 0 && Array.from(value).length > field.maxLength) {
+        message = `${label} must be ${field.maxLength} characters or fewer.`;
+      } else if (field === phone && value && !phonePattern.test(value.replace(/[\s().-]/g, ''))) {
+        message = 'Enter a Philippine number, like 0917 123 4567 or (02) 8123 4567.';
+      }
+      return showFieldError(field, message);
+    }
+
+    form.addEventListener('input', () => {
+      fields.filter((field) => field.hasAttribute('aria-invalid')).forEach(validate);
+    });
+    return () => {
+      const invalid = fields.filter((field) => !validate(field));
+      invalid[0]?.focus();
+      return invalid.length === 0;
+    };
+  }
+
   function accountValidation(form) {
     form.noValidate = true;
     const fields = Array.from(form.querySelectorAll('.field input'));
@@ -240,6 +269,7 @@ if (typeof HTMLDialogElement !== 'undefined' && typeof HTMLDialogElement.prototy
     form.append(header, body, footer);
     let validate;
     if (action === 'event.save') validate = eventValidation(form);
+    if (action === 'profile.emergency.save') validate = emergencyContactValidation(form);
     if (['profile.save', 'password.change', 'admin.create'].includes(action)) validate = accountValidation(form);
     form.addEventListener('submit', (submitEvent) => {
       submitEvent.preventDefault();

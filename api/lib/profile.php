@@ -25,11 +25,20 @@ function act_profile_emergency_save(array $in): array
 {
     ensure_profile_details();
     $emp = employee_exists(int_in($in, 'empId'));
+    foreach (['emergencyName', 'emergencyRelationship', 'emergencyPhone'] as $field) {
+        if (!is_string($in[$field] ?? '')) fail('Enter a text value for this field.', 422, $field);
+    }
     $name = str_in($in, 'emergencyName', 120, false, 'Contact name');
-    $phone = ph_phone(str_in($in, 'emergencyPhone', 40, false, 'Phone number'));
-    if ($name !== '' && $phone === '') fail('Add a phone number for your emergency contact.', 422, 'emergencyPhone');
+    $relationship = str_in($in, 'emergencyRelationship', 60, false, 'Relationship');
+    $phone = str_in($in, 'emergencyPhone', 40, false, 'Phone number');
+    if ($name !== '' || $relationship !== '' || $phone !== '') {
+        if ($name === '') fail('Enter the contact name.', 422, 'emergencyName');
+        if ($relationship === '') fail('Enter the relationship.', 422, 'emergencyRelationship');
+        if ($phone === '') fail('Enter the phone number.', 422, 'emergencyPhone');
+        $phone = ph_phone($phone, 'emergencyPhone');
+    }
     q('UPDATE employees SET emergency_name = ?, emergency_relationship = ?, emergency_phone = ? WHERE id = ?', [
-        $name ?: null, str_in($in, 'emergencyRelationship', 60, false, 'Relationship') ?: null, $phone ?: null, $emp['id'],
+        $name === '' ? null : $name, $relationship === '' ? null : $relationship, $phone === '' ? null : $phone, $emp['id'],
     ]);
     return [];
 }
