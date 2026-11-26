@@ -98,8 +98,23 @@ function settings_view(array $state): void
             end_form('Save profile');
             ?>
         </details>
+        <details data-form-dialog="form">
+            <summary class="btn">Add admin</summary>
+            <?php
+            post_form('admin.create');
+            field('name', 'Display name', '', 'text', true, '', ['maxlength' => '120']);
+            field('username', 'Username', '', 'text', true, '', [
+                'maxlength' => '60', 'pattern' => '[A-Za-z0-9._\\-]{3,60}', 'autocomplete' => 'off',
+            ]);
+            field('newPassword', 'Temporary password', '', 'password', true, '', [
+                'minlength' => '8', 'autocomplete' => 'new-password',
+            ]);
+            field('confirmPassword', 'Confirm password', '', 'password', true, '', ['autocomplete' => 'new-password']);
+            end_form('Add admin');
+            ?>
+        </details>
         <?php endif; ?>
-        <details data-form-dialog="form"<?= !empty($state['user']['mustChangePassword']) ? ' open' : '' ?>>
+        <details data-form-dialog="form"<?= !empty($state['user']['mustChangePassword']) ? ' data-auto-open' : '' ?>>
             <summary class="btn">Change password</summary>
             <?php post_form('password.change'); ?>
             <?php foreach ([

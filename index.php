@@ -197,6 +197,7 @@ if ($isPost) {
         'candidate.save' => ['positionId', 'name', 'email', 'source'],
         'profile.save' => ['name', 'role'],
         'password.change' => [],
+        'admin.create' => ['name', 'username'],
     ];
     $sharedFields = is_string($sharedForm) ? ($sharedFormFields[$sharedForm] ?? null) : null;
     $_SESSION['web_form_error'] = [

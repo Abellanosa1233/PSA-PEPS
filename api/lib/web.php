@@ -74,6 +74,7 @@ function action_success_message(string $action, array $input): string
         'workspace.view' => 'Workspace selection updated.',
         'profile.save' => 'Profile saved.',
         'password.change' => 'Password changed.',
+        'admin.create' => 'Administrator account added.',
         'theme' => 'Appearance saved.',
         'demo.reset' => 'Demo data reset.',
         'account.create' => 'Sign-in access created. Share the temporary password privately.',

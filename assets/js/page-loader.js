@@ -40,11 +40,12 @@
       return;
     }
 
-    if (action === 'login' ||
+    if (action === 'login' || action === 'admin.create' || action === 'password.change' ||
         (action === 'employee.save' && form.closest('.employee-profile-details-card'))) {
       showLoader();
     }
   });
 
+  window.addEventListener('page-loading', showLoader);
   window.addEventListener('pageshow', hideLoader);
 })();

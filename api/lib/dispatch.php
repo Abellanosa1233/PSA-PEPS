@@ -16,6 +16,7 @@ function action_handler(string $action): string
         'settings.save' => 'act_settings_save', 'workspace.view' => 'act_workspace_view', 'profile.save' => 'act_profile_save',
         'password.change' => 'act_password_change', 'demo.reset' => 'act_demo_reset',
         'account.create' => 'act_account_create', 'account.password' => 'act_account_password', 'account.remove' => 'act_account_remove',
+        'admin.create' => 'act_admin_create',
         'announcement.save' => 'act_announcement_save', 'announcement.delete' => 'act_announcement_delete',
         'correction.create' => 'act_correction_create', 'correction.cancel' => 'act_correction_cancel', 'correction.decide' => 'act_correction_decide',
         'profile.personal.save' => 'act_profile_personal_save', 'profile.emergency.save' => 'act_profile_emergency_save',

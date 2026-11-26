@@ -107,6 +107,8 @@ if (typeof HTMLDialogElement !== 'undefined' && typeof HTMLDialogElement.prototy
         if (!value) message = `${label} is required.`;
       } else if (!value.trim()) {
         message = `${label} is required.`;
+      } else if (field.name === 'username' && !/^[a-z0-9._-]{3,60}$/i.test(value.trim())) {
+        message = 'Use 3 to 60 letters, numbers, periods, hyphens, or underscores.';
       } else if (Array.from(value.trim()).length > 120) {
         message = `${label} must be 120 characters or fewer.`;
       }
@@ -229,11 +231,16 @@ if (typeof HTMLDialogElement !== 'undefined' && typeof HTMLDialogElement.prototy
     form.append(header, body, footer);
     let validate;
     if (action === 'event.save') validate = eventValidation(form);
-    if (action === 'profile.save' || action === 'password.change') validate = accountValidation(form);
+    if (['profile.save', 'password.change', 'admin.create'].includes(action)) validate = accountValidation(form);
     form.addEventListener('submit', (submitEvent) => {
       submitEvent.preventDefault();
       if (validate && !validate()) return;
-      finishDialog(() => form.submit());
+      finishDialog(() => {
+        if (action === 'admin.create' || action === 'password.change') {
+          window.dispatchEvent(new Event('page-loading'));
+        }
+        form.submit();
+      });
     });
     dialog.replaceChildren(form);
     dialog.showModal();

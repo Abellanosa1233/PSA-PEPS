@@ -521,12 +521,13 @@
 .settings-secondary-grid > .web-card { min-width: 0; }
 .settings-danger-zone { border-top: 3px solid var(--bad); }
 .settings-card-description { color: var(--fg-3); font-size: 12px; line-height: 1.5; }
-.settings-account-actions {
+.web-card > .settings-account-actions {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 130px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
   align-items: start;
 }
 .settings-account-actions details { min-width: 0; }
+.settings-account-actions details[open] { grid-column: 1 / -1; }
 .settings-account-actions summary { width: 100%; }
 .settings-organization > .web-fields {
   display: grid;

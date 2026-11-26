@@ -683,6 +683,40 @@ function act_password_change(array $in, array $user): array
     return [];
 }
 
+function act_admin_create(array $in): array
+{
+    if (!is_string($in['name'] ?? null)) fail('Enter a display name.', 422, 'name');
+    if (!is_string($in['username'] ?? null)) fail('Enter a username.', 422, 'username');
+    $name = str_in($in, 'name', 120, true, 'Display name');
+    $username = strtolower(str_in($in, 'username', 60, true, 'Username'));
+    if (!preg_match('/^[a-z0-9._-]{3,60}$/', $username)) {
+        fail('Use 3 to 60 letters, numbers, periods, hyphens, or underscores.', 422, 'username');
+    }
+
+    $password = $in['newPassword'] ?? '';
+    if (!is_string($password) || mb_strlen($password) < 8) {
+        fail('Use at least 8 characters for the temporary password.', 422, 'newPassword');
+    }
+    if (strlen($password) > 72 || strpos($password, "\0") !== false) {
+        fail('Use a password of up to 72 bytes without null characters.', 422, 'newPassword');
+    }
+    if (($in['confirmPassword'] ?? '') !== $password) {
+        fail('The passwords must match.', 422, 'confirmPassword');
+    }
+
+    try {
+        q("INSERT INTO users (username, display_name, role_title, password_hash, account_role, must_change_password)
+           VALUES (?, ?, 'HR administrator', ?, 'admin', 1)",
+            [$username, $name, password_hash($password, PASSWORD_DEFAULT)]);
+    } catch (PDOException $e) {
+        if ((int) ($e->errorInfo[1] ?? 0) === 1062) {
+            fail('That username is already taken. Choose another.', 422, 'username');
+        }
+        throw $e;
+    }
+    return ['id' => (int) db()->lastInsertId()];
+}
+
 /* ---------- Employee sign-in accounts (HR administrators only; see authorize_action) ---------- */
 function temporary_password_in(array $in): string
 {
