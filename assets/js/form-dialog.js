@@ -134,9 +134,18 @@ if (typeof HTMLDialogElement !== 'undefined' && typeof HTMLDialogElement.prototy
       label.htmlFor = field.id;
       toggle.hidden = false;
       toggle.setAttribute('aria-controls', field.id);
+      const eye = toggle.querySelector('[data-password-eye]');
+      const eyeOff = toggle.querySelector('[data-password-eye-off]');
       const updateToggle = () => {
-        toggle.textContent = field.type === 'password' ? 'Show' : 'Hide';
-        toggle.setAttribute('aria-label', `${toggle.textContent} ${label.textContent.toLowerCase()}`);
+        const visible = field.type === 'text';
+        const action = visible ? 'Hide' : 'Show';
+        if (eye && eyeOff) {
+          eye.hidden = visible;
+          eyeOff.hidden = !visible;
+        } else {
+          toggle.textContent = action;
+        }
+        toggle.setAttribute('aria-label', `${action} ${label.textContent.toLowerCase()}`);
       };
       updateToggle();
       toggle.addEventListener('click', () => {

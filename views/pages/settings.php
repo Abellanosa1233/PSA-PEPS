@@ -106,12 +106,21 @@ function settings_view(array $state): void
             field('username', 'Username', '', 'text', true, '', [
                 'maxlength' => '60', 'pattern' => '[A-Za-z0-9._\\-]{3,60}', 'autocomplete' => 'off',
             ]);
-            field('newPassword', 'Temporary password', '', 'password', true, '', [
-                'minlength' => '8', 'autocomplete' => 'new-password',
-            ]);
-            field('confirmPassword', 'Confirm password', '', 'password', true, '', ['autocomplete' => 'new-password']);
-            end_form('Add admin');
             ?>
+            <?php foreach (['newPassword' => 'Temporary password', 'confirmPassword' => 'Confirm password'] as $name => $label): ?>
+                <div class="field">
+                    <label for="add-admin-<?= h($name) ?>"><?= h($label) ?></label>
+                    <div class="account-password-input">
+                        <input class="input" id="add-admin-<?= h($name) ?>" name="<?= h($name) ?>"
+                            type="password" autocomplete="new-password" required<?= $name === 'newPassword' ? ' minlength="8"' : '' ?>>
+                        <button class="account-password-toggle" type="button" data-password-toggle hidden>
+                            <span data-password-eye><?= icon('eye', 18) ?></span>
+                            <span data-password-eye-off hidden><?= icon('eyeOff', 18) ?></span>
+                        </button>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+            <?php end_form('Add admin'); ?>
         </details>
         <?php endif; ?>
         <details data-form-dialog="form"<?= !empty($state['user']['mustChangePassword']) ? ' data-auto-open' : '' ?>>
@@ -127,7 +136,10 @@ function settings_view(array $state): void
                     <div class="account-password-input">
                         <input class="input" id="account-<?= h($name) ?>" name="<?= h($name) ?>" type="password"
                             autocomplete="<?= h($autocomplete) ?>" required<?= $name === 'newPassword' ? ' minlength="8"' : '' ?>>
-                        <button class="btn" type="button" data-password-toggle hidden>Show</button>
+                        <button class="account-password-toggle" type="button" data-password-toggle hidden>
+                            <span data-password-eye><?= icon('eye', 18) ?></span>
+                            <span data-password-eye-off hidden><?= icon('eyeOff', 18) ?></span>
+                        </button>
                     </div>
                     <?php if ($name === 'newPassword'): ?><small class="hint">Use at least 8 characters.</small><?php endif; ?>
                 </div>

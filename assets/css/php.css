@@ -1075,9 +1075,23 @@
   .overview-grid { grid-template-columns: minmax(0, 1.55fr) minmax(320px, 1fr); }
 }
 .field .field-error { color: var(--bad); }
-.account-password-input { display: flex; gap: 8px; }
-.account-password-input .input { min-width: 0; flex: 1; }
+.account-password-input { position: relative; }
+.account-password-input .input { width: 100%; padding-inline-end: 44px; }
 .account-password-input [hidden] { display: none; }
+.account-password-toggle {
+  position: absolute;
+  inset-block: 1px;
+  inset-inline-end: 1px;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--fg-2);
+  cursor: pointer;
+}
+.account-password-toggle svg { display: block; }
 .field .input[aria-invalid="true"] { border-color: var(--bad); }
 .employee-save-pending { display: none; align-items: center; gap: 7px; }
 .employee-save[data-saving] .employee-save-ready { display: none; }
