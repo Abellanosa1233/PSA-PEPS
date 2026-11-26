@@ -23,23 +23,25 @@ $upcoming = array_slice(array_filter($approved, function ($l) use ($friday) { re
 </div>
 <?php
 $orderRequests = paginate($state['employeeRequests'], 'orderRequestPage');
-card('Special and travel order requests');
-web_table(['Employee', 'Request', 'Purpose / destination', 'Dates', 'Status', 'Actions'], array_map(function ($request) use ($employees) {
+card('Employee requests');
+web_table(['Employee', 'Request', 'Details', 'Dates', 'Status', 'Actions'], array_map(function ($request) use ($employees) {
     return [
         $employees[$request['empId']] ?? 'Former employee',
-        $request['type'] === 'travel_order' ? 'Travel Order' : 'Special Order',
-        function () use ($request) {
-            echo h($request['purpose']);
-            if ($request['destination']) echo '<span class="sub">' . h($request['destination']) . '</span>';
-            if ($request['details']) echo '<span class="sub">' . h($request['details']) . '</span>';
-        },
+        employee_request_label($request['type']),
+        function () use ($request) { employee_request_details($request); },
         $request['start'] . ($request['end'] ? ' – ' . $request['end'] : ''),
         function () use ($request) {
+            if ($request['type'] === 'coe') {
+                status_badge('submitted');
+                return;
+            }
             status_badge($request['status']);
             if ($request['decisionRole']) echo '<span class="sub">Reviewed by ' . h($request['decisionRole'] === 'hr_admin' ? 'HR administrator' : 'supervisor') . ($request['decidedBy'] ? ' · ' . h($request['decidedBy']) : '') . '</span>';
         },
         function () use ($request) {
-            if ($request['status'] === 'pending') {
+            if ($request['type'] === 'coe') {
+                link_to('coe-requests', 'View COE', ['id' => $request['id']], 'btn sm');
+            } elseif ($request['status'] === 'pending') {
                 action_button('employee.request.decide', 'Approve', ['id' => $request['id'], 'status' => 'approved']);
                 action_button('employee.request.decide', 'Decline', ['id' => $request['id'], 'status' => 'rejected']);
             }

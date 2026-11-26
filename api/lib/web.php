@@ -55,11 +55,20 @@ function action_success_message(string $action, array $input): string
         'leave.decide' => ($input['status'] ?? '') === 'approved' ? 'Leave request approved.' : 'Leave request declined.',
         'leave.cancel' => 'Leave request canceled.',
         'employee.request.create' => 'Request submitted for review.',
+        'coe.request' => 'Certificate of Employment request sent to HR.',
+        'coe.update' => 'COE corrections saved.',
+        'coe.send' => 'COE soft copy sent to the requester.',
         'employee.request.decide' => ($input['status'] ?? '') === 'approved' ? 'Request approved.' : 'Request declined.',
         'employee.request.cancel' => 'Request canceled.',
         'attendance.set' => 'Attendance updated.',
         'attendance.fill' => 'Attendance fill completed.',
-        'attendance.clock' => in_array($input['slot'] ?? '', ['amIn', 'pmIn'], true) ? 'Clock-in recorded.' : 'Clock-out recorded.',
+        'attendance.clock' => match ($input['slot'] ?? '') {
+            'amIn', 'pmIn' => 'Clock-in recorded.',
+            'amUndertime', 'pmUndertime' => 'Undertime clock-out recorded.',
+            'otIn' => 'Overtime clock-in recorded.',
+            'otOut' => 'Overtime clock-out recorded.',
+            default => 'Clock-out recorded.',
+        },
         'event.save' => 'Schedule event saved.',
         'event.delete' => 'Schedule event removed.',
         'position.save' => 'Recruitment role saved.',
@@ -72,6 +81,7 @@ function action_success_message(string $action, array $input): string
         'profile.save' => 'Profile saved.',
         'password.change' => 'Password changed.',
         'admin.create' => 'Administrator account added.',
+        'employee.position.add' => 'Employee position added.',
         'theme' => 'Appearance saved.',
         'account.create' => 'Sign-in access created. Share the temporary password privately.',
         'account.password' => 'Temporary password set.',
@@ -230,9 +240,47 @@ function pagination(array $list, string $page, array $query, string $label, stri
     <?php
 }
 
+function employee_request_label(string $type): string
+{
+    return [
+        'special_order' => 'Special Order',
+        'travel_order' => 'Travel Order',
+        'employment_memo' => 'Employment Memo',
+        'coe' => 'Certificate of Employment',
+    ][$type] ?? 'Employee request';
+}
+
+function employee_request_details(array $request, bool $includeName = true): void
+{
+    $details = $request['type'] === 'coe' ? json_decode($request['details'], true) : null;
+    if (!is_array($details) || !isset($details['position'], $details['name'])) {
+        echo h($request['purpose']);
+        if ($request['destination']) echo '<span class="sub">' . h($request['destination']) . '</span>';
+        if ($request['details']) echo '<span class="sub">' . h($request['details']) . '</span>';
+        return;
+    }
+    foreach ([
+        'Name' => $includeName ? ($details['name'] ?? '') : '',
+        'Position' => $details['position'],
+        'Name of project' => $request['purpose'],
+        'Area of assignment' => $request['destination'],
+        'Date of training' => $details['training'] ?? '',
+        'Training start date' => $details['trainingStart'] ?? '',
+        'Training end date' => $details['trainingEnd'] ?? '',
+        'No. of mandays' => $details['mandays'] ?? '',
+        'Contact number' => $details['contact'] ?? '',
+        'Name of focal person' => $details['focalName'] ?? '',
+        'Focal person’s position' => $details['focalPosition'] ?? '',
+    ] as $label => $value) {
+        if ($value !== '') echo '<span class="sub"><strong>' . h($label) . '</strong> ' . h($value) . '</span>';
+    }
+}
+
 function status_badge(string $status): void
 {
     $badges = [
+        'submitted' => ['Submitted', 'plain'],
+        'sent' => ['Sent', 'ok'],
         'approved' => ['Approved', 'ok'], 'pending' => ['Pending', 'warn'], 'rejected' => ['Declined', 'bad'],
         'office' => ['In office', 'ok'], 'remote' => ['Remote', ''], 'away' => ['Away', 'warn'],
         'leave' => ['On leave', 'warn'], 'offboarded' => ['Offboarded', 'plain'],

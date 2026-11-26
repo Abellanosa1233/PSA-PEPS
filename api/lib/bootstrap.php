@@ -30,6 +30,41 @@ const DEPARTMENTS = ['Design', 'Engineering', 'People', 'Product', 'Marketing', 
 const STAGES = ['Applied', 'Screening', 'Interview', 'Offer', 'Hired'];
 const EMP_TYPES = ['Full-time', 'Part-time', 'Contract'];
 const EMPLOYEE_TYPES = ['Regular', 'Job Order', 'Contract of Service Worker', 'Co-Term'];
+
+function employee_position_options(): array
+{
+    $positions = [
+        'Regular' => [
+            'Chief Statistical Specialist' => 'CSS', 'Supervising Statistical Specialist' => 'SSS',
+            'Senior Statistical Specialist' => 'SrSS', 'Statistical Specialist' => 'SS II',
+            'Registration Officer' => 'RO II', 'Accountant I' => '', 'Statistical Analyst' => 'SA',
+            'Administrative Officer I' => 'AO I', 'Registration Officer I' => 'RO I',
+            'Assistant Statistician' => 'AS', 'Administrative Assistant' => 'ADAS III',
+            'Administrative Aide VI' => 'AA VI',
+        ],
+        'Co-Term' => ['Information Systems Analyst II' => 'ISA II', 'Information Systems Analyst I' => 'ISA I'],
+        'Contract of Service Worker' => [
+            'Statistical Specialist II' => 'SS II', 'Registration Officer II' => 'RO II',
+            'Information Systems Analyst I' => 'ISA I', 'Statistical Analyst' => 'SA', 'Information Officer I' => 'IO I',
+            'Assistant Statistician' => 'AS', 'Administrative Assistant' => 'ADAS III',
+        ],
+        'Job Order' => [
+            'Birth Registration Coordinator' => 'BRC', 'Administrative Aide VI' => 'AA VI', 'Administrative Aide IV' => 'AA IV',
+        ],
+    ];
+    foreach (q("SELECT v FROM settings WHERE k LIKE 'employee-position:%' ORDER BY k")->fetchAll(PDO::FETCH_COLUMN) as $json) {
+        $entry = json_decode($json, true);
+        if (isset($positions[$entry['type'] ?? '']) && !empty($entry['name'])) {
+            $positions[$entry['type']][$entry['name']] = $entry['code'] ?? '';
+        }
+    }
+    foreach ($positions as &$group) {
+        foreach ($group as $name => &$code) $code = $code === '' ? $name : "$code – $name";
+        unset($code);
+    }
+    unset($group);
+    return $positions;
+}
 const ATT_STATUSES = ['office', 'remote', 'away'];
 
 final class ApiError extends Exception
@@ -221,7 +256,7 @@ function current_user(): ?array
     ensure_attendance_corrections();
     ensure_profile_details();
     $u = q('SELECT u.id, u.username, u.display_name, u.role_title, u.profile_image_updated_at, u.account_role, u.employee_id,
-                   u.must_change_password, e.first_name, e.last_name, e.title, e.status AS employee_status
+                   u.must_change_password, e.first_name, e.last_name, e.title, e.emp_type, e.status AS employee_status
             FROM users u LEFT JOIN employees e ON e.id = u.employee_id WHERE u.id = ?', [$_SESSION['uid']])->fetch();
     if (!$u) return null;
     $isEmployee = $u['account_role'] === 'employee';
@@ -235,6 +270,7 @@ function current_user(): ?array
         'role' => $isEmployee ? $u['title'] : $u['role_title'],
         'accountRole' => $isEmployee ? 'employee' : 'admin',
         'employeeId' => $employeeId,
+        'canViewCoeRequests' => $isEmployee && is_coe_focal_employment_type($u['emp_type']),
         'hasTeam' => $isEmployee && (int) q("SELECT COUNT(*) FROM employees WHERE manager_id = ? AND status = 'Active'", [$employeeId])->fetchColumn() > 0,
         'mustChangePassword' => (bool) $u['must_change_password'],
         'avatarUrl' => $u['profile_image_updated_at']
@@ -356,6 +392,16 @@ function days_label($days): string
     return $n . ($d == 1 ? ' day' : ' days');
 }
 
+function is_coe_focal_employment_type(?string $type): bool
+{
+    return in_array(strtolower(trim($type ?? '')), ['regular', 'co-term', 'co-terms'], true);
+}
+
+function can_manage_coe_requests(array $user): bool
+{
+    return ($user['accountRole'] ?? '') === 'admin' || !empty($user['canViewCoeRequests']);
+}
+
 function is_admin(array $user): bool
 {
     return ($user['accountRole'] ?? 'admin') === 'admin';
@@ -406,7 +452,7 @@ function ensure_employee_requests_table(): void
     $exists = q('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = ? AND table_name = ?', [DB_NAME, 'employee_requests'])->fetchColumn();
     if (!$exists) {
         db()->exec("CREATE TABLE employee_requests (
-            id INT AUTO_INCREMENT PRIMARY KEY, emp_id INT NOT NULL, request_type VARCHAR(24) NOT NULL,
+            id INT AUTO_INCREMENT PRIMARY KEY, emp_id INT NOT NULL, request_type VARCHAR(24) NOT NULL, coe_document_id INT NULL,
             purpose VARCHAR(160) NOT NULL, destination VARCHAR(160) NOT NULL DEFAULT '',
             start_date DATE NOT NULL, end_date DATE NULL, details VARCHAR(1000) NOT NULL DEFAULT '',
             status VARCHAR(20) NOT NULL DEFAULT 'pending', decision_role VARCHAR(24) NULL,
@@ -417,6 +463,13 @@ function ensure_employee_requests_table(): void
             CONSTRAINT fk_employee_request_user FOREIGN KEY (decided_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
             CONSTRAINT fk_employee_request_reviewer FOREIGN KEY (decided_by_employee_id) REFERENCES employees(id) ON DELETE SET NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    }
+    if ($exists && !q("SELECT 1 FROM information_schema.columns WHERE table_schema=? AND table_name='employee_requests' AND column_name='coe_document_id'", [DB_NAME])->fetchColumn()) {
+        try {
+            q('ALTER TABLE employee_requests ADD COLUMN coe_document_id INT NULL');
+        } catch (PDOException $e) {
+            if ((int) ($e->errorInfo[1] ?? 0) !== 1060) throw $e;
+        }
     }
     $checked = true;
 }

@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS employee_requests (
   id INT AUTO_INCREMENT PRIMARY KEY,
   emp_id INT NOT NULL,
   request_type VARCHAR(24) NOT NULL,
+  coe_document_id INT NULL,
   purpose VARCHAR(160) NOT NULL,
   destination VARCHAR(160) NOT NULL DEFAULT '',
   start_date DATE NOT NULL,

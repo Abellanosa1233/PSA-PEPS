@@ -11,31 +11,11 @@ function employee_form(array $state, array $employee = [], ?array $candidate = n
             'title' => $candidate['position']['title'], 'department' => $candidate['position']['department'],
             'type' => $candidate['position']['type'], 'location' => $candidate['position']['location']];
     }
-    card($hidden && !$candidate ? 'Employee details' : 'Add employee', $hidden && !$candidate ? 'employee-profile-details-card' : '');
+    card('Add employee');
     post_form('employee.save', $hidden);
-    employee_fields($state, $employee, $hidden['id'] ?? null);
-    if (isset($employee['id'])) employee_login_fields($state, $employee, [], isset(((array) ($state['accounts'] ?? []))[$employee['id']]));
-    else echo '<p class="full muted">A temporary HRMS login will be emailed to the address entered above.</p>';
-    if ($hidden && !$candidate) {
-        echo '<a class="btn" data-employee-profile-close href="' . h(page_url('employees')) . '">Close</a>';
-        echo '<button class="btn primary" type="submit" data-employee-profile-save data-original-employee="' . html_json($employee + ['loginUsername' => ((array) ($state['accounts'] ?? []))[$employee['id']]['username'] ?? '']) . '" hidden>Save Changes</button></form>';
-        ?>
-        <dialog class="modal employee-change-confirmation" id="employee-change-confirmation" aria-labelledby="employee-change-title" aria-describedby="employee-change-description">
-            <div class="modal-head"><h2 id="employee-change-title">Confirm changes</h2></div>
-            <div class="modal-body">
-                <p id="employee-change-description">Review the changes before saving.</p>
-                <div class="table-wrap" data-employee-change-summary></div>
-            </div>
-            <div class="modal-foot">
-                <button class="btn" type="button" data-cancel-employee-changes>Cancel</button>
-                <button class="btn primary" type="button" data-confirm-employee-changes>Save Changes</button>
-            </div>
-        </dialog>
-        <script src="<?= h(versioned_asset('assets/js/employee-profile-form.js')) ?>" defer></script>
-        <?php
-    } else {
-        end_form('Save employee');
-    }
+    employee_fields($state, $employee);
+    echo '<p class="full muted">A temporary HRMS login will be emailed to the address entered above.</p>';
+    end_form('Save employee');
     echo '</section>';
 }
 
@@ -49,23 +29,35 @@ function employee_fields(array $state, array $employee, ?int $employeeId = null,
     field('email', $employeeId === null ? 'Email (@gmail.com by default)' : 'Email',
         $employee['email'] ?? '', $employeeId === null ? 'text' : 'email', true, $errors['email'] ?? '', $emailAttributes);
     field('phone', 'Phone', $employee['phone'] ?? '', 'tel', false, $errors['phone'] ?? '');
-    if ($employeeId !== null) {
-        field('title', 'Job title', $employee['title'] ?? '', 'text', true, $errors['title'] ?? '');
-        choice('department', 'Department', options(array_merge(DEPARTMENTS, ['Unassigned'])), $employee['department'] ?? '');
-    }
     $types = EMPLOYEE_TYPES;
     if ($employeeId !== null && !empty($employee['type']) && !in_array($employee['type'], $types, true)) $types[] = $employee['type'];
     choice('type', 'Employment type', options($types), $employee['type'] ?? '');
+    employee_position_field($employee, $errors['title'] ?? '', $employeeId !== null);
     field('location', 'Location', $employee['location'] ?? '', 'text', false, $errors['location'] ?? '');
     field('startDate', 'Start date', $employee['startDate'] ?? $state['today'], 'date', true, $errors['startDate'] ?? '');
-    if ($employeeId !== null) {
-        field('salary', 'Annual salary', $employee['salary'] ?? '', 'number', true, $errors['salary'] ?? '');
-        $managers = employee_options(array_filter($state['employees'], function ($e) use ($employeeId) {
-            return $e['id'] !== $employeeId && $e['status'] === 'Active';
-        }));
-        choice('managerId', 'Manager', ['' => 'None'] + $managers, $employee['managerId'] ?? '');
-    }
     field('biometricId', 'Biometric ID', $employee['biometricId'] ?? '', 'text', false, $errors['biometricId'] ?? '', ['maxlength' => '30', 'pattern' => '[A-Za-z0-9_-]+']);
+}
+
+function employee_position_field(array $employee, string $error, bool $editing): void
+{
+    static $sequence = 0;
+    $selected = $employee['title'] ?? '';
+    $type = $employee['type'] ?? EMPLOYEE_TYPES[0];
+    $positions = employee_position_options();
+    if ($editing && $selected !== '' && !isset($positions[$type][$selected])) {
+        $positions[$type][$selected] = $selected . ' (current)';
+    }
+    $listId = 'employee-position-options-' . ++$sequence;
+    echo '<label class="field" data-employee-position="' . html_json($positions) . '"><span>Position</span>';
+    echo '<input class="input" type="text" name="title" placeholder="Search position name or abbreviation" autocomplete="off" maxlength="120"'
+        . ' value="' . h($selected) . '" list="' . h($listId) . '"' . ($error !== '' ? ' aria-invalid="true"' : '') . '>';
+    echo '<datalist id="' . h($listId) . '">';
+    foreach ($positions[$type] ?? [] as $value => $label) {
+        echo '<option value="' . h($value) . '" label="' . h($label) . '"></option>';
+    }
+    echo '</datalist>';
+    if ($error !== '') echo '<span class="field-error" role="alert">' . h($error) . '</span>';
+    echo '</label>';
 }
 
 /* "Sign-in access" in the Add/Edit employee form. $knownAccount: true/false when we know whether this
@@ -100,6 +92,7 @@ function add_employee_modal(array $state, string $page, array $formError): void
     $editing = $page === 'employees' ? ($employees[(int) ($formError['values']['id'] ?? $_GET['edit'] ?? 0)] ?? null) : null;
     $open = $failed || $editing || isset($_GET['add']) || ($_GET['id'] ?? '') === 'new';
     $query = array_intersect_key($_GET, array_flip(['q', 'department', 'status', 'type', 'todayStatus', 'p', 'date', 'week']));
+    if (!empty($_GET['id']) && $editing) $query['id'] = $editing['id'];
     $values = $failed ? $formError['values'] : ($editing ?? []);
     $errorField = $formError['field'] ?? '';
     $errors = $failed && in_array($errorField, ['firstName', 'lastName', 'email', 'phone', 'title', 'location', 'startDate', 'salary', 'biometricId', 'loginUsername', 'loginPassword'], true)
@@ -116,7 +109,7 @@ function add_employee_modal(array $state, string $page, array $formError): void
             <input type="hidden" data-new-employee-date value="<?= h($state['today']) ?>">
             <div class="modal-body">
                 <?php if ($failed && !$errors) web_message($formError['message'], ''); ?>
-                <div class="form-grid"><?php employee_fields($state, $values, null, $errors); ?></div>
+                <div class="form-grid"><?php employee_fields($state, $values, $editing['id'] ?? null, $errors); ?></div>
                 <div class="form-grid" data-employee-location hidden>
                     <p class="full muted" data-current-location hidden></p>
                     <label class="field"><span>Province</span><select class="input" data-province aria-describedby="employee-location-message"></select></label>

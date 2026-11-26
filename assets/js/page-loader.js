@@ -44,7 +44,11 @@
       const dialog = form.closest('#add-employee');
       if (dialog?.open && typeof dialog.close === 'function') dialog.close();
       showLoader(30000);
-    } else if (action === 'login' || action === 'admin.create' || action === 'password.change') {
+    } else if (action === 'coe.update' || action === 'coe.send') {
+      const dialog = form.closest('dialog');
+      if (dialog?.open) dialog.close();
+      showLoader();
+    } else if (['login', 'admin.create', 'password.change', 'coe.request'].includes(action)) {
       showLoader();
     }
   });

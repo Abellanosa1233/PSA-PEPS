@@ -2,4 +2,4 @@ DirectoryIndex disabled
 DirectoryIndex index.php
 
 RewriteEngine On
-RewriteRule ^(?:overview|employees|attendance|time-off|recruitment|reports|supervisor|self-service|settings|help|dtr|my-time-off|my-attendance|my-profile|request-leave|leave-file|document)$ index.php [END]
+RewriteRule ^(?:overview|employees|attendance|time-off|recruitment|reports|supervisor|self-service|settings|help|dtr|my-time-off|my-attendance|my-profile|request-leave|coe-requests|coe-certificate|leave-file|document|work-calendar)$ index.php [END]

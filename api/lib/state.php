@@ -4,6 +4,7 @@ declare(strict_types=1);
 /* Everything the frontend needs in one payload. Small enough for a team of a few hundred. */
 function build_state(array $user): array
 {
+    sync_assignment_attendance();
     $hm = function (?string $t) { return $t === null ? '' : substr($t, 0, 5); };
 
     $employees = array_map(function ($e) {
@@ -36,6 +37,7 @@ function build_state(array $user): array
             'id' => (int) $r['id'], 'empId' => (int) $r['emp_id'], 'type' => $r['request_type'],
             'purpose' => $r['purpose'], 'destination' => $r['destination'], 'start' => $r['start_date'],
             'end' => $r['end_date'], 'details' => $r['details'], 'status' => $r['status'],
+            'coeDocumentId' => isset($r['coe_document_id']) ? (int) $r['coe_document_id'] : null,
             'decisionRole' => $r['decision_role'], 'decidedBy' => $decidedBy, 'decidedAt' => $r['decided_at'],
         ];
     }, q('SELECT r.*, u.display_name AS reviewer_user_name, e.first_name AS reviewer_first_name, e.last_name AS reviewer_last_name
@@ -107,6 +109,30 @@ function build_state(array $user): array
     return $state;
 }
 
+function current_chief_statistical_specialists(): array
+{
+    $date = today();
+    return q("SELECT CONCAT(first_name, ' ', last_name) FROM employees
+              WHERE status = 'Active' AND LOWER(TRIM(title)) IN ('chief statistical specialist', 'css')
+                AND start_date <= ? AND (end_date IS NULL OR end_date >= ?)
+              LIMIT 2", [$date, $date])->fetchAll(PDO::FETCH_COLUMN);
+}
+
+function coe_requests_for_staff(array $user, ?int $id = null): array
+{
+    if (!can_manage_coe_requests($user)) fail('You do not have access to the COE requests dashboard.', 403);
+    ensure_employee_requests_table();
+    ensure_profile_details();
+    $filter = $id === null ? '' : ' AND r.id = ?';
+    return q("SELECT r.id, CONCAT(e.first_name, ' ', e.last_name) AS employeeName, e.emp_type AS employmentType,
+                     r.request_type AS type, r.purpose, r.destination, r.details,
+                     r.start_date AS start, r.end_date AS end, r.status, r.created_at AS createdAt,
+                     r.coe_document_id IS NOT NULL AS archived, d.id AS coeDocumentId, d.created_at AS sentAt
+              FROM employee_requests r JOIN employees e ON e.id = r.emp_id
+              LEFT JOIN employee_documents d ON d.id = r.coe_document_id AND d.emp_id = r.emp_id
+              WHERE r.request_type = 'coe'$filter ORDER BY r.created_at DESC, r.id DESC", $id === null ? [] : [$id])->fetchAll();
+}
+
 /* What an employee account may see: their own records and, if they supervise people,
    their direct reports' attendance and Special/Travel Orders. Never anyone else's leave
    request (planned time off is private between the employee and HR), salaries except
@@ -148,7 +174,7 @@ function scope_state_to_employee(array $state, int $me): array
     }
     foreach ($state['employeeRequests'] as $r) {
         $end = $r['end'] ?: $r['start'];
-        if ($r['status'] === 'approved' && isset($aroundMe[$r['empId']]) && $end >= $state['today']) {
+        if ($r['type'] !== 'coe' && $r['status'] === 'approved' && isset($aroundMe[$r['empId']]) && $end >= $state['today']) {
             $teamAbsences[] = ['empId' => $r['empId'], 'kind' => $r['type'], 'start' => $r['start'], 'end' => $end];
         }
     }
@@ -173,7 +199,9 @@ function scope_state_to_employee(array $state, int $me): array
         'settings' => $settings + ['selfEmpId' => $me, 'supervisorId' => $me],
         'employees' => $employees,
         'leaves' => array_values(array_filter($state['leaves'], function ($l) use ($me) { return $l['empId'] === $me; })),
-        'employeeRequests' => $mine($state['employeeRequests']),
+        'employeeRequests' => array_values(array_filter($mine($state['employeeRequests']), function ($request) use ($me) {
+            return $request['type'] !== 'coe' || $request['empId'] === $me;
+        })),
         'teamAbsences' => $teamAbsences,
         'corrections' => array_values(array_filter($state['corrections'] ?? [], function ($c) use ($me) { return $c['empId'] === $me; })),
         'documents' => $state['documents'] ?? [],

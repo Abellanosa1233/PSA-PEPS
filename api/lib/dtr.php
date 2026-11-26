@@ -123,7 +123,7 @@ function sync_attendance_from_punches(int $empId, string $day): void
     $in = $punches[0]['t'];
     $out = count($punches) > 1 ? $punches[count($punches) - 1]['t'] : null;
     foreach ($punches as $punch) {
-        if (strpos($punch['source'], 'web:') !== 0) continue;
+        if (strpos($punch['source'], 'web:') !== 0 && strpos($punch['source'], 'auto:') !== 0) continue;
         $in = $slots['amIn'] ?? $slots['pmIn'];
         $out = $slots['otOut'] ?? $slots['pmOut'];
         break;
@@ -202,8 +202,8 @@ function attendance_punch_slots(array $punches): array
     $slots = dtr_slots(array_column($punches, 't'));
     $explicit = [];
     foreach ($punches as $punch) {
-        $slot = substr($punch['source'], 4);
-        if (strpos($punch['source'], 'web:') === 0 && array_key_exists($slot, $slots)) {
+        [$source, $slot] = array_pad(explode(':', $punch['source'], 2), 2, '');
+        if (in_array($source, ['web', 'auto'], true) && array_key_exists($slot, $slots)) {
             $explicit[$slot] = $punch['t'];
         }
     }
@@ -213,22 +213,113 @@ function attendance_punch_slots(array $punches): array
     return array_replace($slots, $explicit);
 }
 
-function attendance_clock_windows(array $slots): array
+/* Fill scheduled punches as they become due. Real or manually set attendance takes precedence. */
+function sync_assignment_attendance(): void
+{
+    ensure_employee_requests_table();
+    ensure_profile_details();
+    $now = new DateTimeImmutable();
+    $today = $now->format('Y-m-d');
+    $since = $now->modify('-120 days')->format('Y-m-d');
+    $assignments = q("SELECT r.emp_id, r.start_date, COALESCE(r.end_date, r.start_date) AS end_date,
+                            CASE WHEN r.request_type = 'coe' THEN DATE(d.created_at)
+                                 ELSE COALESCE(DATE(r.decided_at), DATE(r.created_at)) END AS confirmed_on,
+                            e.start_date AS employed_from, e.end_date AS employed_until
+                       FROM employee_requests r JOIN employees e ON e.id = r.emp_id
+                       LEFT JOIN employee_documents d ON d.id = r.coe_document_id AND d.emp_id = r.emp_id
+                      WHERE e.status = 'Active' AND r.start_date <= ? AND COALESCE(r.end_date, r.start_date) >= ?
+                        AND ((r.request_type IN ('special_order', 'travel_order') AND r.status = 'approved')
+                             OR (r.request_type = 'coe' AND d.id IS NOT NULL))", [$today, $since])->fetchAll();
+    if (!$assignments) return;
+    ensure_biometrics();
+    ensure_attendance_corrections();
+    $settings = settings();
+    $workStart = $settings['workStart'];
+    $workEnd = $settings['workEnd'];
+    $schedule = [];
+    if ($workStart < '12:00') $schedule += ['amIn' => $workStart, 'amOut' => min('12:00', $workEnd)];
+    if ($workEnd > '13:00') $schedule += ['pmIn' => max('13:00', $workStart), 'pmOut' => $workEnd];
+    if (!$schedule) return;
+    $seen = [];
+    foreach ($assignments as $assignment) {
+        $id = (int) $assignment['emp_id'];
+        $start = new DateTimeImmutable(max($since, $assignment['start_date'], $assignment['confirmed_on'], $assignment['employed_from']));
+        $end = min($today, $assignment['end_date'], $assignment['employed_until'] ?? $today);
+        for ($date = $start; $date->format('Y-m-d') <= $end; $date = $date->modify('+1 day')) {
+            $day = $date->format('Y-m-d');
+            if ((int) $date->format('N') >= 6 || isset($seen[$id][$day])) continue;
+            $seen[$id][$day] = true;
+            $due = $day === $today ? array_filter($schedule, function ($time) use ($now) {
+                return $time <= $now->format('H:i');
+            }) : $schedule;
+            if (!$due) continue;
+            $punches = attendance_day_punches($id, $day);
+            if (count($punches) >= count($due) || array_filter($punches, function ($punch) {
+                return strpos($punch['source'], 'auto:') !== 0;
+            })) continue;
+            db()->beginTransaction();
+            try {
+                q('SELECT id FROM employees WHERE id = ? FOR UPDATE', [$id])->fetchColumn();
+                $punches = attendance_day_punches($id, $day);
+                $manualPunches = array_filter($punches, function ($punch) {
+                    return strpos($punch['source'], 'auto:') !== 0;
+                });
+                $manualRecord = !$punches && q("SELECT 1 FROM attendance WHERE emp_id = ? AND work_date = ?
+                    AND (time_in IS NOT NULL OR time_out IS NOT NULL OR status <> 'away')", [$id, $day])->fetchColumn();
+                $onLeave = q("SELECT 1 FROM leave_requests WHERE emp_id = ? AND status = 'approved'
+                    AND ? BETWEEN start_date AND end_date", [$id, $day])->fetchColumn();
+                if (!$manualPunches && !$manualRecord && !$onLeave && !approved_corrections($id, $day, $day)) {
+                    $existing = array_column($punches, 't', 'source');
+                    foreach ($due as $slot => $time) {
+                        if (isset($existing['auto:' . $slot])) continue;
+                        q('INSERT INTO attendance_punches (emp_id, punched_at, source) VALUES (?, ?, ?)
+                           ON DUPLICATE KEY UPDATE id = id', [$id, $day . ' ' . $time . ':00', 'auto:' . $slot]);
+                    }
+                    sync_attendance_from_punches($id, $day);
+                }
+                db()->commit();
+            } catch (Throwable $e) {
+                db()->rollBack();
+                throw $e;
+            }
+        }
+    }
+}
+
+function attendance_clock_windows(array $slots, bool $automatic = false): array
 {
     $windows = [];
+    $nextMinute = static function (string $time): string {
+        return str_pad(dtr_hm(dtr_minutes($time) + 1), 5, '0', STR_PAD_LEFT);
+    };
     if (!$slots['amIn'] && !$slots['pmIn'] && !$slots['pmOut']) {
         $windows['amIn'] = ['00:00', '12:01', ATTENDANCE_AM_LATE, 'Clock in'];
     }
     if ($slots['amIn'] && !$slots['amOut'] && !$slots['pmIn'] && !$slots['pmOut']) {
+        $windows['amUndertime'] = [$nextMinute($slots['amIn']), '12:01', null, 'Clock out for undertime'];
         $windows['amOut'] = ['12:01', '13:00', null, 'Clock out for lunch'];
     }
     if (!$slots['pmIn'] && !$slots['pmOut']) {
         $windows['pmIn'] = ['13:00', '17:01', ATTENDANCE_PM_LATE, 'Clock in'];
     }
     if (($slots['pmIn'] || ($slots['amIn'] && !$slots['amOut'])) && !$slots['pmOut']) {
+        $windows['pmUndertime'] = [max('13:00', $nextMinute($slots['pmIn'] ?? $slots['amIn'])), '17:01', null, 'Clock out for undertime'];
         $windows['pmOut'] = ['17:01', '24:00', null, 'Clock out'];
     }
-    return $windows;
+    if ($slots['pmOut'] && !$slots['otIn'] && !$slots['otOut']) {
+        $windows['otIn'] = [max('17:01', $nextMinute($slots['pmOut'])), '24:00', null, 'Overtime clock in'];
+    }
+    if ($slots['otIn'] && !$slots['otOut']) {
+        $windows['otOut'] = [$nextMinute($slots['otIn']), '24:00', null, 'Overtime clock out'];
+    }
+    return $automatic ? array_intersect_key($windows, ['otIn' => true, 'otOut' => true]) : $windows;
+}
+
+function attendance_day_is_automatic(int $id, string $day): bool
+{
+    return (bool) array_filter(attendance_day_punches($id, $day), function ($punch) {
+        return strpos($punch['source'], 'auto:') === 0;
+    });
 }
 
 /* Worked minutes for one day: [regular, overtime]. */
@@ -307,7 +398,10 @@ function dtr_card(array $employee, DateTimeImmutable $from, DateTimeImmutable $t
         $totals['regular'] += $regular;
         $totals['overtime'] += $overtime;
         $rows[] = ['day' => (int) $d->format('j'), 'date' => $day, 'weekend' => $weekend, 'slots' => $slots,
-            'total' => dtr_hm($regular + $overtime), 'note' => $note];
+            'total' => dtr_hm($regular + $overtime), 'note' => $note,
+            'automatic' => !isset($corrections[$day]) && (bool) array_filter($punches, function ($punch) {
+                return strpos($punch['source'], 'auto:') === 0;
+            })];
     }
     return ['employee' => $employee, 'from' => $from, 'to' => $to, 'rows' => $rows, 'totals' => $totals];
 }

@@ -139,7 +139,9 @@
         return $item['status'] === 'pending' && ($isAdmin || $item['empId'] !== $user['employeeId']);
     };
     $pendingLeaves = array_filter($state['leaves'] ?? [], $needsDecision);
-    $pendingEmployeeRequests = array_filter($state['employeeRequests'] ?? [], $needsDecision);
+    $pendingEmployeeRequests = array_filter($state['employeeRequests'] ?? [], function ($item) use ($needsDecision) {
+        return $item['type'] !== 'coe' && $needsDecision($item);
+    });
     // Attendance corrections are decided by HR only.
     $pendingCorrections = $isAdmin ? array_filter($state['corrections'] ?? [], function ($c) { return $c['status'] === 'pending'; }) : [];
     $pendingCount = count($pendingLeaves) + count($pendingEmployeeRequests) + count($pendingCorrections);
@@ -157,7 +159,7 @@
     $signOutReturn = page_url($page, $query);
     $showSignOut = ($_GET['confirmSignOut'] ?? '') === '1';
 ?>
-    <div class="app web-app<?= !$isAdmin && in_array($page, ['overview', 'my-time-off', 'my-profile'], true) ? ' employee-dashboard-shell' : '' ?>">
+    <div class="app web-app<?= !$isAdmin && in_array($page, ['overview', 'my-time-off', 'my-profile', 'coe-requests'], true) ? ' employee-dashboard-shell' : '' ?>">
         <aside class="sidebar" id="web-sidebar" aria-label="Main navigation">
             <button class="sidebar-toggle" id="web-sidebar-toggle" type="button" aria-controls="web-sidebar" aria-expanded="true" aria-label="Collapse sidebar" title="Collapse sidebar"><?= icon('chevLeft', 16) ?></button>
             <a class="brand sidebar-brand" href="<?= h(page_url($homePage)) ?>" title="Human Resource Management System">
@@ -172,6 +174,8 @@
                 </a>
             </div>
             <?php if (!$isAdmin) $navIcons = ['overview' => 'grid', 'my-time-off' => 'calendar', 'my-attendance' => 'clock', 'my-profile' => 'user']; ?>
+            <?php $navIcons['work-calendar'] = 'calendar'; ?>
+            <?php if (!$isAdmin && !empty($user['canViewCoeRequests'])) $navIcons['coe-requests'] = 'file'; ?>
             <div>
                 <div class="side-label"><?= $isAdmin ? 'Manage' : 'My workspace' ?></div>
                 <nav class="nav">
@@ -242,7 +246,7 @@
                                     $employee = $employeesById[$item['empId']] ?? null;
                                     $name = $employee ? employee_name($employee) : 'Former employee';
                                     $label = $kind === 'leave' ? 'Requested ' . strtolower($item['type'])
-                                        : ($kind === 'correction' ? 'Attendance correction' : ($item['type'] === 'travel_order' ? 'Travel Order' : 'Special Order') . ' · ' . $item['purpose']);
+                                        : ($kind === 'correction' ? 'Attendance correction' : employee_request_label($item['type']) . ' · ' . $item['purpose']);
                                 ?>
                                     <a class="notification-item" href="<?= h($kind === 'correction' ? page_url('attendance') : page_url($reviewPage, $reviewQuery)) ?>">
                                         <span class="avatar sm"><?= h(initials($name)) ?></span>
@@ -266,11 +270,12 @@
                 </div>
             </header>
             <main class="content">
-                <?php if (!in_array($page, ['overview', 'employees', 'attendance', 'time-off', 'reports', 'my-time-off', 'request-leave', 'my-attendance', 'my-profile'], true) || !$state): ?>
+                <?php if (!in_array($page, ['overview', 'employees', 'attendance', 'time-off', 'reports', 'my-time-off', 'request-leave', 'my-attendance', 'my-profile', 'coe-requests'], true) || !$state): ?>
                     <div class="page-head"><h1><?= h($pages[$page]) ?></h1></div>
                 <?php endif; ?>
                 <?php
-                $hasEmployeeModal = $state && $page === 'employees' && (int) ($_GET['id'] ?? 0) === 0;
+                $hasEmployeeModal = $state && $page === 'employees'
+                    && ((int) ($_GET['id'] ?? 0) === 0 || !empty($_GET['edit']) || !empty($formError['employeeModal']));
                 web_message($hasEmployeeModal && !empty($formError['employeeModal']) ? '' : $error, '');
                 ?>
                 <?php if (!empty($user['mustChangePassword']) && $page !== 'preferences'): ?>
@@ -308,6 +313,9 @@
         }());
     </script>
     <script src="<?= h(versioned_asset('assets/js/form-dialog.js')) ?>" defer></script>
+    <?php if (in_array($page, ['employees', 'recruitment'], true)): ?>
+        <script src="<?= h(versioned_asset('assets/js/employee-position.js')) ?>" defer></script>
+    <?php endif; ?>
 <?php endif; ?>
 <?php if ($user || !empty($sessionReplaced)): ?>
     <dialog id="session-replaced-dialog" class="modal sign-out-dialog"

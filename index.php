@@ -24,9 +24,12 @@ $pages = [
     'reports' => 'Reports', 'supervisor' => 'Supervisor workspace',
     'self-service' => 'Employee workspace', 'preferences' => 'Settings', 'help' => 'Help & resources',
     'dtr' => 'Daily Time Record',
+    'work-calendar' => 'Work calendar',
     // Employee-account pages
     'my-time-off' => 'My time off', 'my-attendance' => 'My attendance', 'my-profile' => 'My profile',
     'request-leave' => 'Request leave',
+    'coe-requests' => 'COE requests',
+    'coe-certificate' => 'Certificate of Employment',
     'document' => 'Document', // a document HR shared (My profile)
     'leave-file' => 'Leave attachment', // download of a supporting document (HR, or the employee who sent it)
 ];
@@ -52,7 +55,7 @@ $errorLevel = 'failure';
 $errorField = null;
 $formError = [];
 $isPost = $method === 'POST';
-$query = array_intersect_key($_GET, array_flip(['id', 'date', 'q', 'department', 'status', 'month', 'type', 'todayStatus', 'week', 'p', 'candidate', 'candidates', 'rolesPage', 'leavePage', 'requestPage', 'orderRequestPage']));
+$query = array_intersect_key($_GET, array_flip(['id', 'date', 'q', 'department', 'status', 'month', 'type', 'todayStatus', 'week', 'p', 'archive', 'candidate', 'candidates', 'rolesPage', 'leavePage', 'requestPage', 'orderRequestPage']));
 $screen = 'Sign in';
 $theme = 'light';
 try {
@@ -71,7 +74,8 @@ try {
     if ($user && !is_admin($user)) {
         // Employee accounts only see their own pages (and their team, if they supervise anyone).
         $pages['supervisor'] = 'Supervisor workspace';
-        $allowedPages = array_merge(['overview', 'preferences', 'help', 'dtr', 'leave-file', 'document'], $employeeOnlyPages);
+        $allowedPages = array_merge(['overview', 'preferences', 'help', 'dtr', 'leave-file', 'document', 'work-calendar'], $employeeOnlyPages);
+        if (can_manage_coe_requests($user)) $allowedPages = array_merge($allowedPages, ['coe-requests', 'coe-certificate']);
         if ($user['hasTeam']) $allowedPages[] = 'supervisor';
         if (!in_array($page, $allowedPages, true)) {
             if (!$isPost) {
@@ -133,6 +137,7 @@ try {
             elseif ($action === 'attendance.import') $result = act_attendance_import($_FILES['attendanceCsv'] ?? []);
             elseif ($action === 'attendance.biometrics') $result = act_attendance_biometrics($_FILES['biometricLog'] ?? []);
             elseif ($action === 'document.upload') $result = act_document_upload($input, $user, leave_attachment_upload($_FILES['document'] ?? [], 'document'));
+            elseif ($action === 'coe.send') $result = act_coe_send($input, $user, leave_attachment_upload($_FILES['certificatePdf'] ?? [], 'certificatePdf', COE_PDF_MAX_MB));
             elseif ($action === 'leave.create') {
                 $result = act_leave_create($input, $user, leave_attachment_upload($_FILES['attachment'] ?? []));
                 if ($page === 'request-leave') unset($_SESSION['leave_draft']);
@@ -159,11 +164,19 @@ try {
         }
         $destination = $action === 'login' ? 'overview' : ($action === 'employee.save' ? 'employees' : ($action === 'leave.create' && $page === 'request-leave' ? 'my-time-off' : $page));
         if ($action === 'login') $query = [];
+        if ($action === 'coe.send') $query = ['archive' => '1'];
         if ($action === 'employee.save' && ($_POST['_employee_modal'] ?? '') === '1') {
             $destination = $page;
-            unset($query['id']);
+            if (empty($_GET['id'])) unset($query['id']);
         }
         header('Location: ' . page_url($destination, $query), true, 303);
+        exit;
+    }
+    if ($method === 'GET' && $page === 'coe-requests' && $user && can_manage_coe_requests($user)
+        && ($_SERVER['HTTP_X_HORIZON_VIEW'] ?? '') === 'coe-search') {
+        $coeSearchFragment = true;
+        $state = ['user' => $user];
+        require __DIR__ . '/views/pages/coe-requests.php';
         exit;
     }
     if (($_SERVER['HTTP_X_HORIZON_VIEW'] ?? '') !== 'employee-search') {
@@ -201,6 +214,9 @@ if ($isPost) {
     $sharedForm = $_POST['_shared_form'] ?? '';
     $sharedFormFields = [
         'leave.create' => ['empId', 'type', 'start', 'end', 'reason', 'approveNow'],
+        'coe.request' => ['honorific', 'position', 'project', 'area', 'trainingStart', 'trainingEnd', 'start', 'end'],
+        'coe.update' => ['requestId', 'honorific', 'position', 'project', 'area', 'trainingStart', 'trainingEnd', 'start', 'end'],
+        'coe.send' => ['requestId'],
         'event.save' => ['date', 'title', 'detail', 'start', 'end', 'forEmployees'],
         'position.save' => ['id', 'title', 'department', 'type', 'location'],
         'candidate.save' => ['positionId', 'name', 'email', 'source'],
@@ -208,6 +224,7 @@ if ($isPost) {
         'profile.emergency.save' => ['emergencyName', 'emergencyRelationship', 'emergencyPhone'],
         'password.change' => [],
         'admin.create' => ['name', 'username'],
+        'employee.position.add' => ['type', 'name', 'code'],
     ];
     $sharedFields = is_string($sharedForm) ? ($sharedFormFields[$sharedForm] ?? null) : null;
     $_SESSION['web_form_error'] = [
@@ -266,6 +283,12 @@ if ($user && in_array($page, ['leave-file', 'document'], true)) {
     header('Cache-Control: private, no-store');
     header("Content-Security-Policy: default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox");
     echo $file['bytes'];
+    exit;
+}
+if ($user && $state && $page === 'coe-certificate' && can_manage_coe_requests($user)) {
+    $certificate = coe_requests_for_staff($user, (int) ($_GET['id'] ?? 0))[0] ?? null;
+    $chiefSpecialists = $certificate ? current_chief_statistical_specialists() : [];
+    require __DIR__ . '/views/pages/coe-certificate.php';
     exit;
 }
 if ($user && $state && $page === 'dtr') {

@@ -14,7 +14,22 @@ function employees_view(array $state): void
         if ($employee['status'] === 'Active') leave_form([$id => employee_name($employee)], true);
         echo '</div></div>';
         echo '<div class="employee-profile-grid">';
-        employee_form($state, $employee);
+        card('Employee details', 'employee-profile-details-card');
+        $account = ((array) ($state['accounts'] ?? []))[$id] ?? null;
+        echo '<div class="card-body"><dl class="self-rows">';
+        foreach ([
+            'First name' => $employee['firstName'], 'Last name' => $employee['lastName'],
+            'Email' => $employee['email'], 'Phone' => $employee['phone'],
+            'Employment type' => $employee['type'],
+            'Position' => $employee['title'] === 'Employee' ? '' : $employee['title'],
+            'Location' => $employee['location'], 'Start date' => $employee['startDate'],
+            'Biometric ID' => $employee['biometricId'], 'Username' => $account['username'] ?? '',
+        ] as $label => $value) {
+            echo '<dt>' . h($label) . '</dt><dd>' . self_value($value === null ? null : (string) $value, '—') . '</dd>';
+        }
+        echo '</dl>';
+        link_to('employees', 'Edit details', ['id' => $id, 'edit' => $id], 'btn primary');
+        echo '</div></section>';
         echo '<div class="employee-profile-side">';
         card('Employment status', 'employee-profile-status');
         if ($employee['status'] === 'Active') {
