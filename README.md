@@ -16,14 +16,23 @@ Requires PHP 7.2 or newer with PDO MySQL and mbstring, plus a MySQL-compatible d
    GRANT ALL PRIVILEGES ON horizon_hrms.* TO 'hrms_app'@'localhost', 'hrms_app'@'127.0.0.1';
    ```
 3. Copy `api/config.example.php` to `api/config.php` and put that password in `DB_PASS`.
-4. Visit <http://localhost/HRMS/> (not the file itself — PHP must serve it). The first visit creates the empty tables and asks you to create the administrator account. The system starts with no records; add employees in **Employees** (one by one or with **Import CSV**).
+4. Visit <http://localhost/HRMS/> (not the file itself — PHP must serve it). The first visit creates the empty tables and the default administrator account (see below). The system starts with no records; add employees in **Employees** (one by one or with **Import CSV**).
+
+### Default administrator account
+
+When the system has no accounts at all (a fresh install, or an empty database was imported), it creates one administrator:
+
+* Username: `admin`
+* Password: `admin123`
+
+This password is temporary. After signing in you'll be asked to choose your own in **Settings → Change password**. Do this straight away, especially on the live site: the default is public in this repository. The default account is only created when there are no accounts, so it never replaces or resets an existing login.
 
 ### Set up a fresh GitHub checkout on XAMPP
 
 1. Put the checkout in `C:\xampp\htdocs\PSA-PEPS-main` and start **Apache** and **MySQL** in the XAMPP Control Panel. XAMPP 8.2.12 (64-bit) matches the tested local setup. PHP 7.2.0 also works with this project.
 2. Open phpMyAdmin at `http://localhost/phpmyadmin/` and create an empty database named `horizon_hrms` if it does not exist. Use port `8080` in the browser URL if Apache is configured for it.
 3. When opened from localhost without an `api/config.php` file, HRMS uses MySQL user `root` with a blank password on port `3306`. If your MySQL credentials or port differ, copy `api/config.example.php` to `api/config.php` and update the connection settings.
-4. Open `http://localhost/PSA-PEPS-main/index.php` (or use port `8080` if configured). Click **Install** to create the tables, then create your administrator account.
+4. Open `http://localhost/PSA-PEPS-main/index.php` (or use port `8080` if configured). Click **Install** to create the tables and the default administrator account (see below).
 
 The installer uses the tracked schema at `api/lib/schema.sql`. The tracked `horizon_hrms.sql` is a database dump for restoring an existing snapshot. For a fresh installation, start with an empty database and let HRMS create the tables. Each machine uses its own database credentials. Keep local passwords out of Git commits.
 

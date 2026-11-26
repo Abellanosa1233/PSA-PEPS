@@ -75,7 +75,7 @@ function settings_view(array $state): void
     ?>
     <p class="settings-card-description"><?= $isAdmin ? 'Manage your display name, role, and password.' : 'Change the password you use to sign in.' ?></p>
     <?php if (!empty($state['user']['mustChangePassword'])): ?>
-        <p class="temp-password-note">You’re using a temporary password from HR. Choose a new one that only you know.</p>
+        <p class="temp-password-note"><?= $isAdmin ? 'You’re using the default administrator password. Choose a new one that only you know.' : 'You’re using a temporary password from HR. Choose a new one that only you know.' ?></p>
     <?php endif; ?>
     <div class="toolbar settings-account-actions">
         <?php if ($isAdmin): ?>

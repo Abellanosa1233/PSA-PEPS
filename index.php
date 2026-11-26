@@ -91,6 +91,7 @@ try {
         header('Location: ' . page_url('my-time-off'), true, 302);
         exit;
     }
+    if (installed() && !has_users()) ensure_default_admin();
     $screen = !installed() ? 'Install HRMS' : (has_users() ? 'Sign in' : 'Create administrator');
     if ($isPost) {
         unset($_SESSION['web_form_error'], $_SESSION['web_notice']);

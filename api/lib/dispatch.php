@@ -81,6 +81,7 @@ function account_action(string $action, array $in): array
             if (installed() && has_users()) fail('Horizon HRMS is already set up.', 403);
             check_setup_key($in);
             install_schema();
+            ensure_default_admin();
             return ['ok' => true];
 
         case 'setup':

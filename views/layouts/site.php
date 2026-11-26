@@ -274,7 +274,7 @@
                 web_message($hasEmployeeModal && !empty($formError['employeeModal']) ? '' : $error, '');
                 ?>
                 <?php if (!empty($user['mustChangePassword']) && $page !== 'preferences'): ?>
-                    <div class="temp-password-banner" role="status"><?= icon('settings', 16) ?><span>You’re signed in with a temporary password from HR. Please choose your own.</span><a class="btn sm primary" href="<?= h(page_url('preferences')) ?>">Change password</a></div>
+                    <div class="temp-password-banner" role="status"><?= icon('settings', 16) ?><span><?= $isAdmin ? 'You’re signed in with the default administrator password. Choose your own now to keep the system secure.' : 'You’re signed in with a temporary password from HR. Please choose your own.' ?></span><a class="btn sm primary" href="<?= h(page_url('preferences')) ?>">Change password</a></div>
                 <?php endif; ?>
                 <?php if ($state) require __DIR__ . '/../pages/' . ($page === 'preferences' ? 'settings' : ($page === 'overview' && !$isAdmin ? 'my-overview' : $page)) . '.php'; ?>
                 <?php if ($hasEmployeeModal) add_employee_modal($state, $page, $formError); ?>

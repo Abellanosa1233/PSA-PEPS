@@ -112,6 +112,24 @@ function has_users(): bool
     return installed() && (int) q('SELECT COUNT(*) FROM users')->fetchColumn() > 0;
 }
 
+/* Default administrator. When the system has no accounts at all (a fresh install, or an empty
+   database was imported) this login is created so someone can sign in and set things up.
+   Its password is temporary: the first sign-in is asked to choose a new one. Change it right
+   away on a public site, since the default is written here for anyone to read. */
+const DEFAULT_ADMIN_USERNAME = 'admin';
+const DEFAULT_ADMIN_PASSWORD = 'admin123';
+
+function ensure_default_admin(): bool
+{
+    if (!installed() || has_users()) return false;
+    ensure_account_columns();
+    // INSERT ... SELECT with NOT EXISTS: two first visits at once still create only one account.
+    $created = q("INSERT INTO users (username, display_name, role_title, password_hash, account_role, must_change_password)
+                   SELECT ?, 'Administrator', 'HR administrator', ?, 'admin', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM users)",
+        [DEFAULT_ADMIN_USERNAME, password_hash(DEFAULT_ADMIN_PASSWORD, PASSWORD_DEFAULT)]);
+    return $created->rowCount() > 0;
+}
+
 /* ---------- Session / auth ---------- */
 const ACCOUNT_SESSION_IDLE_SECONDS = 1800;
 
