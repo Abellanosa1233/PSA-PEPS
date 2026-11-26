@@ -36,7 +36,6 @@ CREATE TABLE `attendance` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
-
 -- --------------------------------------------------------
 
 --
@@ -53,7 +52,6 @@ CREATE TABLE `candidates` (
   `applied_at` date NOT NULL,
   `employee_id` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 
 
 -- --------------------------------------------------------
@@ -81,7 +79,6 @@ CREATE TABLE `employees` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
-
 -- --------------------------------------------------------
 
 --
@@ -96,7 +93,6 @@ CREATE TABLE `events` (
   `title` varchar(160) NOT NULL,
   `detail` varchar(255) NOT NULL DEFAULT ''
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 
 
 -- --------------------------------------------------------
@@ -119,58 +115,6 @@ CREATE TABLE `leave_requests` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
-
--- --------------------------------------------------------
-
---
--- Table structure for table `payslips`
---
-
-CREATE TABLE `payslips` (
-  `id` int(11) NOT NULL,
-  `run_id` int(11) NOT NULL,
-  `emp_id` int(11) DEFAULT NULL,
-  `emp_name` varchar(170) NOT NULL,
-  `department` varchar(60) NOT NULL,
-  `base` decimal(12,2) NOT NULL,
-  `bonus` decimal(12,2) NOT NULL,
-  `gross` decimal(12,2) NOT NULL,
-  `tax` decimal(12,2) NOT NULL,
-  `benefits` decimal(12,2) NOT NULL,
-  `net` decimal(12,2) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-
-
--- --------------------------------------------------------
-
---
--- Table structure for table `pay_bonuses`
---
-
-CREATE TABLE `pay_bonuses` (
-  `run_id` int(11) NOT NULL,
-  `emp_id` int(11) NOT NULL,
-  `amount` decimal(12,2) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-
-
--- --------------------------------------------------------
-
---
--- Table structure for table `pay_runs`
---
-
-CREATE TABLE `pay_runs` (
-  `id` int(11) NOT NULL,
-  `period` char(7) NOT NULL,
-  `status` varchar(10) NOT NULL DEFAULT 'draft',
-  `paid_at` datetime DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-
-
 -- --------------------------------------------------------
 
 --
@@ -188,7 +132,6 @@ CREATE TABLE `positions` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
-
 -- --------------------------------------------------------
 
 --
@@ -199,7 +142,6 @@ CREATE TABLE `settings` (
   `k` varchar(60) NOT NULL,
   `v` text NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 
 
 -- --------------------------------------------------------
@@ -216,7 +158,6 @@ CREATE TABLE `users` (
   `password_hash` varchar(255) NOT NULL,
   `created_at` datetime NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 
 
 --
@@ -262,28 +203,6 @@ ALTER TABLE `leave_requests`
   ADD KEY `idx_leave_status` (`status`),
   ADD KEY `idx_leave_dates` (`start_date`,`end_date`),
   ADD KEY `fk_leave_emp` (`emp_id`);
-
---
--- Indexes for table `payslips`
---
-ALTER TABLE `payslips`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `fk_slip_run` (`run_id`),
-  ADD KEY `fk_slip_emp` (`emp_id`);
-
---
--- Indexes for table `pay_bonuses`
---
-ALTER TABLE `pay_bonuses`
-  ADD PRIMARY KEY (`run_id`,`emp_id`),
-  ADD KEY `fk_bonus_emp` (`emp_id`);
-
---
--- Indexes for table `pay_runs`
---
-ALTER TABLE `pay_runs`
-  ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `period` (`period`);
 
 --
 -- Indexes for table `positions`
@@ -333,18 +252,6 @@ ALTER TABLE `leave_requests`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
--- AUTO_INCREMENT for table `payslips`
---
-ALTER TABLE `payslips`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `pay_runs`
---
-ALTER TABLE `pay_runs`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
 -- AUTO_INCREMENT for table `positions`
 --
 ALTER TABLE `positions`
@@ -385,19 +292,7 @@ ALTER TABLE `employees`
 ALTER TABLE `leave_requests`
   ADD CONSTRAINT `fk_leave_emp` FOREIGN KEY (`emp_id`) REFERENCES `employees` (`id`) ON DELETE CASCADE;
 
---
--- Constraints for table `payslips`
---
-ALTER TABLE `payslips`
-  ADD CONSTRAINT `fk_slip_emp` FOREIGN KEY (`emp_id`) REFERENCES `employees` (`id`) ON DELETE SET NULL,
-  ADD CONSTRAINT `fk_slip_run` FOREIGN KEY (`run_id`) REFERENCES `pay_runs` (`id`) ON DELETE CASCADE;
 
---
--- Constraints for table `pay_bonuses`
---
-ALTER TABLE `pay_bonuses`
-  ADD CONSTRAINT `fk_bonus_emp` FOREIGN KEY (`emp_id`) REFERENCES `employees` (`id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `fk_bonus_run` FOREIGN KEY (`run_id`) REFERENCES `pay_runs` (`id`) ON DELETE CASCADE;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
