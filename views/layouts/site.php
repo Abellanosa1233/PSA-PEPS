@@ -156,7 +156,7 @@
     $signOutReturn = page_url($page, $query);
     $showSignOut = ($_GET['confirmSignOut'] ?? '') === '1';
 ?>
-    <div class="app web-app">
+    <div class="app web-app<?= !$isAdmin && in_array($page, ['overview', 'my-time-off', 'my-profile'], true) ? ' employee-dashboard-shell' : '' ?>">
         <aside class="sidebar" id="web-sidebar" aria-label="Main navigation">
             <button class="sidebar-toggle" id="web-sidebar-toggle" type="button" aria-controls="web-sidebar" aria-expanded="true" aria-label="Collapse sidebar" title="Collapse sidebar"><?= icon('chevLeft', 16) ?></button>
             <a class="brand sidebar-brand" href="<?= h(page_url($homePage)) ?>" title="Human Resource Management System">

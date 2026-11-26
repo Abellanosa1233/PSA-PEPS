@@ -122,9 +122,12 @@ function self_attendance_log(array $state, int $id): void
         $shown++;
         $d = self_day_summary($row, $start);
         $total = $d['total'] !== '' ? str_replace(':', 'h ', $d['total']) . 'm' : '—';
+        $pastDay = $row['date'] < $state['today'];
+        $checkIn = $pastDay && !$d['in'] ? 'Did not clock in' : self_clock12($d['in']);
+        $checkOut = $pastDay && !$d['out'] ? 'Did not clock out' : self_clock12($d['out']);
         $style = ['On time' => 'ok', 'Late' => 'warn', 'Absent' => 'bad', 'On leave' => 'plain'][$d['status']] ?? 'plain';
         echo '<tr><td>' . h((new DateTimeImmutable($row['date']))->format('D, M j')) . '</td>'
-            . '<td class="tabular">' . h(self_clock12($d['in'])) . '</td><td class="tabular">' . h(self_clock12($d['out'])) . '</td>'
+            . '<td class="tabular">' . h($checkIn) . '</td><td class="tabular">' . h($checkOut) . '</td>'
             . '<td>' . ($d['break'] ? h(self_minutes_label($d['break'])) : '—') . '</td><td class="tabular">' . h($total) . '</td>'
             . '<td>' . ($d['status'] !== '' ? '<span class="badge ' . $style . '">' . h($d['status']) . '</span>' : '<span class="muted">—</span>') . '</td></tr>';
     }
