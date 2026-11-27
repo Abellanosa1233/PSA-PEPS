@@ -82,7 +82,7 @@
 /* Footer: ISO and QR marks 73–153pt, address from 162pt, 782–822pt from the top */
 .so-sheet .foot { position: absolute; left: 73pt; right: 70pt; bottom: 10pt; display: flex; align-items: center; gap: 8pt; font-size: 7.2pt; line-height: 8.4pt; }
 .so-sheet .foot img { width: 95pt; height: auto; flex: none; }
-.so-sheet .foot-text { white-space: pre-wrap; } /* keeps the line breaks and the gap before the email address */
+.so-sheet .foot-text { white-space: pre-line; }
 .so-sheet .foot-text { max-width: 312pt; }
 
 .so-sheet .so-upper { text-transform: uppercase; }
@@ -93,7 +93,7 @@
 .so-sheet .so-edit:hover { outline-color: rgba(31, 78, 140, .45); }
 .so-sheet .so-edit:focus { outline: 1.5px solid #1f4e8c; background: rgba(31, 78, 140, .1); }
 .so-sheet .so-edit:empty::before { content: attr(data-placeholder); color: #8a94a3; font-style: italic; text-transform: none; }
-.so-format-toolbar { width: min(595pt, calc(100% - 24px)); margin: 0 auto 8px; padding: 7px 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 5px; border: 1px solid #cfd8e3; border-radius: 6px; background: #fff; color: #405065; font: 12px/1.2 Arial, sans-serif; }
+.so-format-toolbar { width: min(595pt, 100%); max-width: 100%; box-sizing: border-box; margin: 0 0 8px; padding: 7px 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 5px; border: 1px solid #cfd8e3; border-radius: 6px; background: #fff; color: #405065; font: 12px/1.2 Arial, sans-serif; }
 .so-format-toolbar button { min-width: 30px; height: 28px; padding: 0 6px; border: 1px solid #b9c5d4; border-radius: 4px; background: #fff; color: #1b2a3d; font: 14px Arial, sans-serif; cursor: pointer; }
 .so-format-toolbar button:hover, .so-format-toolbar button:focus-visible { background: #eef4fc; border-color: #1f4e8c; }
 .so-format-toolbar .so-format-divider { height: 20px; border-left: 1px solid #cfd8e3; margin: 0 3px; }
@@ -114,9 +114,16 @@
 .so-sheet .so-body-edit blockquote, .so-sheet .so-body-print blockquote { margin: 0 0 8pt 24pt; }
 .so-sheet .so-body-edit a, .so-sheet .so-body-print a { color: inherit; text-decoration: underline; }
 .so-sheet .foot-text.so-edit { display: block; min-width: 200pt; }
-.so-editor-head .so-logo-control, .so-editor-head .so-logo-reset { display: flex; align-items: center; gap: 5px; max-width: 180px; font: 12px/1.35 Arial, sans-serif; color: #405065; }
-.so-editor-head .so-logo-control input { width: 170px; font: 11px Arial, sans-serif; }
+.so-editor-head .so-logo-control, .so-editor-head .so-logo-reset { display: flex; align-items: center; gap: 7px; max-width: 300px; white-space: nowrap; font: 12px/1.35 Arial, sans-serif; color: #405065; }
+.so-editor-head .so-logo-control input { width: 160px; min-width: 0; font: 11px Arial, sans-serif; }
 .so-editor-head .so-logo-reset { white-space: nowrap; }
+@media (max-width: 1000px) {
+  .page-head.so-editor-head { position: relative; display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+  .so-editor-head > div:first-child { width: 100%; min-width: 0; }
+  .so-editor-head > div:first-child p { max-width: 72ch; line-height: 1.45; }
+  .so-editor-head .actions { width: 100%; min-width: 0; justify-content: flex-start; align-items: center; gap: 8px; }
+  .so-editor-head .so-logo-control { flex: 1 1 280px; max-width: none; }
+}
 .so-sheet .so-box { cursor: pointer; }
 .so-sheet .so-box input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 .so-sheet .so-box span { visibility: hidden; }

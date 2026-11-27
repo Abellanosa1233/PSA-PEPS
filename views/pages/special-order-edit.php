@@ -36,7 +36,7 @@ so_document_assets(!$signed);
     <?php hidden_inputs(['_action' => 'specialorder.generate', '_token' => $_SESSION['web_csrf'], 'id' => $doc['id'], 'toManual' => empty($doc['autoTo']) ? 1 : 0]); ?>
     <div class="page-head so-editor-head">
         <div>
-            <h1><?= $doc['generated'] ? 'Special Order ' . h($doc['number']) : 'Generate SO/RTA' ?></h1>
+            <h1><?= $doc['generated'] ? 'Special Order ' . h(special_order_plain_text((string) $doc['number'])) : 'Generate SO/RTA' ?></h1>
             <p><?= $signed
                 ? 'This Special Order is signed. It can no longer be changed.'
                 : 'The three-page PDF layout is the default template. Use the toolbar for formatting, colors, links, lists, alignment and spacing. Font size and family stay as in the template. Click the RTA boxes or adjust the participant list.' ?>

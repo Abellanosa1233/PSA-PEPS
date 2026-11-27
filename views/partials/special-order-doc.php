@@ -64,7 +64,7 @@ function so_footer(string $text, bool $edit = false): void
 {
     $fixedAddress = special_order_fixed_footer();
     echo '<footer class="foot"><img src="assets/coe-footer-certification.png" alt="PSA certification marks">'
-        . '<div class="foot-text">' . nl2br(h($fixedAddress)) . '</div></footer>';
+        . '<div class="foot-text">' . h($fixedAddress) . '</div></footer>';
 }
 
 /* A piece of text on the document: plain when printing, typed on in place when editing. */

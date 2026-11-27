@@ -165,6 +165,7 @@ function special_order_document(array $state, array $order, array $suggested = [
 {
     $people = array_column($state['employees'], null, 'id');
     $generated = !empty($order['generatedAt']);
+    $soNumber = special_order_plain_text((string) ($order['soNumber'] ?? ''));
     $defaults = special_order_defaults();
     $m = $generated ? $order['soMeta'] : array_merge($defaults, $order['soMeta']);
     $rows = [];
@@ -194,14 +195,14 @@ function special_order_document(array $state, array $order, array $suggested = [
         'id' => $order['id'], 'generated' => $generated, 'signed' => !empty($order['signedAt']),
         'company' => $state['settings']['company'] ?? 'Philippine Statistics Authority',
         'office' => !empty($order['soOffice']) && $order['soOffice'] !== 'REGION X - NORTHERN MINDANAO' ? (string) $order['soOffice'] : $defaults['office'],
-        'number' => $order['soNumber'] ?: ($generated ? '' : special_order_next_number()),
+        'number' => $soNumber ?: ($generated ? '' : special_order_next_number()),
         'issued' => $generated ? new DateTimeImmutable($order['generatedAt']) : new DateTimeImmutable(),
         'body' => !$order['soBody'] || ($generated && empty($order['signedAt']) && $order['soBody'] === special_order_legacy_default_body($employees ?: [['type' => '']], $order))
             ? special_order_default_body($employees ?: [['type' => '']], $order) : $order['soBody'],
         'signatoryName' => $order['signatoryName'] ?: $defaults['signatoryName'],
         'signatoryTitle' => !$order['signatoryTitle'] || $order['signatoryTitle'] === 'Senior Statistical Specialist' ? $defaults['signatoryTitle'] : $order['signatoryTitle'],
         'meta' => array_merge($m, [
-            'refNo' => $m['refNo'] ?: special_order_reference_number($order['soNumber'] ?: ($generated ? '' : special_order_next_number())),
+            'refNo' => $m['refNo'] ?: special_order_reference_number($soNumber ?: ($generated ? '' : special_order_next_number())),
             'to' => !empty($m['toManual']) && $m['to'] !== '' ? $m['to'] : special_order_recipient_line($participants),
             'subject' => !$m['subject'] || $m['subject'] === 'Authority to Attend the ' . $order['purpose'] ? special_order_subject($order) : $m['subject'],
             'issueDate' => $m['issueDate'] ?: ($generated ? (new DateTimeImmutable($order['generatedAt']))->format('F j, Y') : date('F j, Y')),
@@ -217,7 +218,7 @@ function special_order_document(array $state, array $order, array $suggested = [
 function special_order_request_draft(array $in, string $purpose, string $destination, string $start, ?string $end, array $employee): array
 {
     $defaults = special_order_defaults();
-    $number = special_order_rich_input($in, 'soNumber', 40, false, 'SO number') ?: special_order_next_number();
+    $number = special_order_plain_text(special_order_rich_input($in, 'soNumber', 40, false, 'SO number')) ?: special_order_next_number();
     $meta = [
         'refNo' => special_order_rich_input($in, 'refNo', 60, false, 'Reference No.') ?: special_order_reference_number($number),
         'to' => special_order_rich_input($in, 'to', 500, false, 'TO'), 'toManual' => !empty($in['toManual']),
@@ -468,7 +469,8 @@ function act_special_order_generate(array $in, array $user, ?array $logoUpload =
     $row = special_order_row(int_in($in, 'id'));
     if ($row['status'] === 'rejected') fail('This request was declined, so no Special Order can be generated.');
     if ($row['signed_at']) fail('This Special Order is already signed. Upload a new signed copy instead of editing it.');
-    $number = special_order_rich_input($in, 'soNumber', 40, true, 'SO number');
+    $number = special_order_plain_text(special_order_rich_input($in, 'soNumber', 40, true, 'SO number'));
+    if ($number === '') fail('SO number is required.', 422, 'soNumber');
     $office = special_order_rich_input($in, 'soOffice', 160, false, 'Region / office line');
     $body = special_order_rich_input($in, 'soBody', 4000, true, 'Order text');
     $signatory = special_order_rich_input($in, 'signatoryName', 120, true, 'Name of the signatory');

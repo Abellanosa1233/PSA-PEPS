@@ -103,13 +103,14 @@
       var chunks = [encoder.encode('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n')], offsets = [0], position = chunks[0].length;
       resolved.forEach(function (body, index) {
         if (!body) return;
-        offsets[index + 1] = position;
-        var head = encoder.encode((index + 1) + ' 0 obj\n'), tail = encoder.encode('\nendobj\n');
+        // Sparse-array indexes are the PDF object numbers (slot 0 is intentionally empty).
+        offsets[index] = position;
+        var head = encoder.encode(index + ' 0 obj\n'), tail = encoder.encode('\nendobj\n');
         chunks.push(head, body, tail); position += head.length + body.length + tail.length;
       });
-      var xrefOffset = position, xref = 'xref\n0 ' + (resolved.length + 1) + '\n0000000000 65535 f \n';
-      for (var n = 1; n <= resolved.length; n++) xref += String(offsets[n] || 0).padStart(10, '0') + ' 00000 n \n';
-      xref += 'trailer\n<< /Size ' + (resolved.length + 1) + ' /Root 1 0 R >>\nstartxref\n' + xrefOffset + '\n%%EOF';
+      var xrefOffset = position, xref = 'xref\n0 ' + resolved.length + '\n0000000000 65535 f \n';
+      for (var n = 1; n < resolved.length; n++) xref += String(offsets[n] || 0).padStart(10, '0') + ' 00000 n \n';
+      xref += 'trailer\n<< /Size ' + resolved.length + ' /Root 1 0 R >>\nstartxref\n' + xrefOffset + '\n%%EOF';
       chunks.push(encoder.encode(xref));
       return new Blob(chunks, { type: 'application/pdf' });
     });
