@@ -3,7 +3,7 @@
 // form is sent; the RTA's FOR block follows the signatory typed on page 1; participants are added
 // and removed in the list of official participants.
 (function () {
-  var multiLine = { soBody: true, footer: true };
+  var multiLine = { soBody: true, footer: true, to: true };
 
   document.querySelectorAll('form[data-so-editor]').forEach(function (form) {
     // One-line fields: Enter doesn't add a line break.
@@ -17,6 +17,11 @@
       var field = event.target.closest && event.target.closest('.so-edit[data-name]');
       if (!field) return;
       form.querySelectorAll('[data-mirror="' + field.dataset.name + '"]').forEach(function (copy) { copy.textContent = field.textContent.trim(); });
+      if (field.dataset.name === 'to') {
+        field.dataset.autoRecipient = '0';
+        var manual = form.querySelector('input[name="toManual"]');
+        if (manual) manual.value = '1';
+      }
     });
 
     // Participants: remove, and add from the list of employees.
@@ -27,6 +32,21 @@
       var listed = {};
       table.querySelectorAll('tr[data-emp]').forEach(function (row) { listed[row.dataset.emp] = true; });
       Array.prototype.forEach.call(picker.options, function (option) { if (option.value) option.hidden = option.disabled = !!listed[option.value]; });
+    }
+    function syncRecipients() {
+      var field = form.querySelector('[data-name="to"][data-auto-recipient="1"]');
+      if (!field || !table) return;
+      var rows = Array.prototype.slice.call(table.querySelectorAll('tr[data-emp]'));
+      if (rows.length > 3) {
+        field.textContent = 'ALL CONCERNED PSA MISAMIS ORIENTAL OFFICIALS AND PERSONNEL';
+        return;
+      }
+      field.textContent = rows.map(function (row) {
+        var name = row.cells[0].firstChild.textContent.trim();
+        var names = name.split(',');
+        if (names.length > 1) name = names[1].trim() + ' ' + names[0].trim();
+        return name.toUpperCase() + '\n' + row.cells[2].textContent.trim();
+      }).join('\n\n');
     }
     function select(kind, values, chosen) {
       var element = document.createElement('select');
@@ -41,6 +61,7 @@
         if (!remove) return;
         remove.closest('tr').remove();
         syncPicker();
+        syncRecipients();
       });
     }
     if (picker && table) {
@@ -65,6 +86,7 @@
         table.insertBefore(row, after || null);
         picker.value = '';
         syncPicker();
+        syncRecipients();
       });
       syncPicker();
     }
@@ -75,6 +97,11 @@
         var input = document.createElement('input');
         input.type = 'hidden'; input.className = 'so-generated'; input.name = name; input.value = value;
         form.appendChild(input);
+      }
+      if (form.hasAttribute('data-so-requester')) {
+        ['allowances', 'meals', 'incidental', 'lodging', 'expenses', 'terminal', 'fuel'].forEach(function (name) {
+          if (!form.querySelector('input[name="' + name + '"]:checked')) add(name, '0');
+        });
       }
       form.querySelectorAll('.so-edit[data-name]').forEach(function (field) {
         if (field.dataset.name.slice(-2) === '[]') return; // routing cells, below
