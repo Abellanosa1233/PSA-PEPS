@@ -23,7 +23,7 @@ function dtr_card_form(int $employeeId, bool $ownRecord): void
    of leave, its reason and an order's purpose or destination stay private. */
 function absence_label(string $kind): string
 {
-    return ['leave' => 'On leave', 'travel_order' => 'On travel order', 'special_order' => 'On special order'][$kind] ?? 'Out of office';
+    return ['leave' => 'On leave', 'travel_order' => 'On travel order', 'special_order' => 'On special order', 'employment_memo' => 'On employment memo'][$kind] ?? 'Out of office';
 }
 
 function absence_badge(string $kind): void
@@ -142,7 +142,9 @@ function workspace_view(array $state, bool $supervisor): void
             pagination($requests, 'supervisor', array_intersect_key($_GET, ['p' => true]), 'requests', 'leavePage');
         }
         echo '</section>';
-        $teamRequests = array_values(array_filter($state['employeeRequests'], function ($request) use ($team) { return isset($team[$request['empId']]); }));
+        $teamRequests = array_values(array_filter($state['employeeRequests'], function ($request) use ($team) {
+            return $request['type'] !== 'coe' && isset($team[$request['empId']]);
+        }));
         $teamRequestPage = paginate($teamRequests, 'requestPage');
         card('Special and travel order requests', 'supervisor-requests-card');
         echo '<p class="supervisor-section-note">Track special and travel orders submitted by your team.</p>';
@@ -151,7 +153,7 @@ function workspace_view(array $state, bool $supervisor): void
             foreach ($teamRequestPage['rows'] as $request) {
                 $employee = $employees[$request['empId']] ?? null;
                 $name = $employee ? employee_name($employee) : 'Former employee';
-                $type = $request['type'] === 'travel_order' ? 'Travel Order' : 'Special Order';
+                $type = employee_request_label($request['type']);
                 echo '<article class="workspace-request-item"><div class="workspace-request-top"><div><strong>' . h($name) . '</strong><span>' . h($type) . '</span></div>';
                 status_badge($request['status']);
                 echo '</div><div class="workspace-order-purpose"><span>Purpose</span><strong>' . h($request['purpose']) . '</strong></div>';

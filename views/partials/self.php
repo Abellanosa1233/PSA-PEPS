@@ -75,7 +75,14 @@ function self_today_attendance_card(array $state, int $id, bool $withClock = tru
     foreach ($state['leaves'] as $l) if ($l['empId'] === $id && $l['status'] === 'approved' && $l['start'] <= $today && $l['end'] >= $today) $onLeave = true;
     $in = $record['in'] ?? '';
     $out = $record['out'] ?? '';
+    $slots = $withClock && !$onLeave ? attendance_day_slots($id, $today, $record) : null;
+    if ($slots !== null && $slots['pmIn'] === null && $out === '') {
+        $out = $slots['amOut'] ?? '';
+    }
     [$state1, $style] = $onLeave ? ['On leave', 'warn'] : ($out ? ['Clocked out', 'plain'] : ($in ? ['Clocked in', 'ok'] : ['Not clocked in', 'plain']));
+    if (!empty($slots['otIn']) && empty($slots['otOut'])) {
+        [$state1, $style] = ['Working overtime', 'ok'];
+    }
     $fmt = function (string $hm) { return $hm === '' ? '' : (new DateTimeImmutable('2000-01-01 ' . $hm))->format('g:i A'); };
     $start = $state['settings']['workStart'] ?? '08:00';
     $end = $state['settings']['workEnd'] ?? '17:00';
@@ -83,7 +90,11 @@ function self_today_attendance_card(array $state, int $id, bool $withClock = tru
     echo '<section class="card self-today"><div class="card-head"><h3>Today’s attendance</h3><span class="badge ' . $style . '">' . $state1 . '</span></div><div class="card-body">';
     echo '<div class="self-today-time">' . h($in ? $fmt($in) : '—') . '</div><p class="muted">' . h((new DateTimeImmutable($today))->format('l, M j, Y')) . ($in ? ' · time in' : '') . ($out ? ' · out at ' . h($fmt($out)) : '') . '</p>';
     echo '<dl class="self-today-facts"><dt>Schedule</dt><dd>' . h($fmt($start) . ' – ' . $fmt($end)) . '</dd><dt>Work location</dt><dd>' . h($onLeave ? 'On leave' : $where) . '</dd></dl>';
-    if ($withClock && !$onLeave) self_clock_actions($id, $today, $record);
+    if ($slots !== null) {
+        $automatic = attendance_day_is_automatic($id, $today);
+        if ($automatic) echo '<p class="muted">Regular attendance is recorded automatically for your assignment today.</p>';
+        self_clock_actions($id, $slots, $automatic);
+    }
     echo '<a class="btn self-wide" href="' . h(page_url('my-attendance')) . '">View attendance ' . icon('arrowRight', 14) . '</a></div></section>';
 }
 
@@ -120,9 +131,9 @@ function self_company_updates_card(array $state): void
 
 /* ---------- Sections reused by My time off / My attendance and HR's employee view ---------- */
 
-function self_clock_actions(int $id, string $day, array $record): void
+function self_clock_actions(int $id, array $slots, bool $automatic): void
 {
-    $windows = attendance_clock_windows(attendance_day_slots($id, $day, $record));
+    $windows = attendance_clock_windows($slots, $automatic);
     if (!$windows) return;
     $clock = new DateTimeImmutable();
     $now = $clock->format('H:i');
@@ -146,7 +157,7 @@ function self_clock_card(array $state, int $id): void
     card('Attendance today');
     if (!empty($record['in'])) echo '<p>Clocked in at ' . h($record['in']) . '</p>';
     if (!empty($record['out'])) echo '<p>Clocked out at ' . h($record['out']) . '</p>';
-    self_clock_actions($id, $state['today'], $record);
+    self_clock_actions($id, attendance_day_slots($id, $state['today'], $record), attendance_day_is_automatic($id, $state['today']));
     echo '</section>';
 }
 
@@ -172,8 +183,9 @@ function special_order_request_form(int $id): void
 function self_orders_section(array $state, int $id): void
 {
     $myRequests = array_values(array_filter($state['employeeRequests'], function ($request) use ($id) { return $request['empId'] === $id; }));
-    card('Special and travel orders');
-    echo '<div class="card-body"><p class="muted" style="margin-bottom:12px">Submit a request for review by your supervisor or HR administrator.</p><div class="toolbar">';
+    card('Employee requests');
+    echo '<div class="card-body"><p class="muted" style="margin-bottom:12px">Your supervisor or HR can review orders. HR prepares certificates from submitted COE requests.</p><div class="toolbar">';
+    // Special Orders are requested on the Special Order itself (Special Orders page).
     special_order_request_form($id);
     echo '<details class="form-disclosure" data-form-dialog="form"><summary class="btn">Request Travel Order</summary>';
     post_form('employee.request.create', ['empId' => $id, 'type' => 'travel_order']);
@@ -183,26 +195,77 @@ function self_orders_section(array $state, int $id): void
     field('end', 'Return date', today(), 'date');
     field('details', 'Details', '', 'text', false);
     end_form('Submit Travel Order');
+    echo '</details><details class="form-disclosure" data-form-dialog="form"><summary class="btn">Request Employment Memo</summary>';
+    post_form('employee.request.create', ['empId' => $id, 'type' => 'employment_memo']);
+    field('purpose', 'Memo subject');
+    field('start', 'Start date', today(), 'date');
+    field('end', 'End date', '', 'date', false);
+    end_form('Submit Employment Memo');
+    echo '</details><details class="form-disclosure coe-request" data-form-dialog="form"><summary class="btn">Request Certificate of Employment</summary>';
+    post_form('coe.request', ['empId' => $id]);
+    $employee = array_column($state['employees'], null, 'id')[$id];
+    echo '<div class="field"><span>Name</span><strong>' . h(mb_strtoupper(employee_name($employee), 'UTF-8')) . '</strong></div>';
+    echo '<div class="field"><span>Contact number</span><strong>' . h($employee['phone'] ?: 'Not set in My profile') . '</strong></div>';
+    coe_request_fields(['position' => $employee['title'] === 'Employee' ? '' : $employee['title']]);
+    end_form('Submit request');
     echo '</details></div>';
-    web_table(['Request', 'Purpose / destination', 'Dates', 'Status', 'Actions'], array_map(function ($request) use ($id) {
+    $documents = array_column($state['documents'] ?? [], null, 'id');
+    web_table(['Request', 'Details', 'Dates', 'Status', 'Actions'], array_map(function ($request) use ($id, $documents) {
+        $document = $documents[$request['coeDocumentId'] ?? 0] ?? null;
+        $hasCopy = $request['type'] === 'coe' && ($document['empId'] ?? null) === $id;
         return [
-            $request['type'] === 'travel_order' ? 'Travel Order' : 'Special Order',
+            function () use ($request, $document, $hasCopy) {
+                $label = employee_request_label($request['type']);
+                if ($hasCopy) {
+                    echo '<a class="link-btn" href="' . h(page_url('document', ['id' => $document['id']])) . '" target="_blank" rel="noopener" aria-label="View Certificate of Employment PDF">' . h($label) . '</a>';
+                } else {
+                    echo h($label);
+                }
+            },
             function () use ($request) {
-                echo h($request['purpose']);
-                if ($request['destination']) echo '<span class="sub">' . h($request['destination']) . '</span>';
-                if ($request['details']) echo '<span class="sub">' . h($request['details']) . '</span>';
+                if ($request['type'] === 'coe') {
+                    echo '<strong>' . h($request['purpose']) . '</strong>';
+                    return;
+                }
+                employee_request_details($request);
             },
             $request['start'] . ($request['end'] ? ' – ' . $request['end'] : ''),
-            function () use ($request) {
+            function () use ($request, $hasCopy) {
+                if ($request['type'] === 'coe') {
+                    if ($hasCopy) echo '<span class="badge ok">Soft copy available</span>';
+                    else status_badge('submitted');
+                    return;
+                }
                 status_badge($request['status']);
                 if ($request['decisionRole']) echo '<span class="sub">Reviewed by ' . h($request['decisionRole'] === 'hr_admin' ? 'HR administrator' : 'supervisor') . ($request['decidedBy'] ? ' · ' . h($request['decidedBy']) : '') . '</span>';
             },
             function () use ($request, $id) {
-                if ($request['status'] === 'pending') confirm_action('employee.request.cancel', 'Cancel', 'Cancel this request?', ['id' => $request['id'], 'empId' => $id]);
+                if ($request['type'] === 'coe' && !empty($request['coeDocumentId'])) return;
+                if ($request['status'] === 'pending' || ($request['type'] === 'coe' && $request['status'] === 'submitted')) {
+                    confirm_action('employee.request.cancel', 'Cancel', 'Cancel this request?', ['id' => $request['id'], 'empId' => $id]);
+                }
             },
         ];
     }, $myRequests));
     echo '</div></section>';
+}
+
+function coe_request_fields(array $values, array $feedback = []): void
+{
+    echo '<label class="field"><span>Title</span><select class="input" name="honorific" required><option value="">Select title</option>';
+    foreach (['MR.', 'MS.', 'MRS.'] as $title) {
+        echo '<option' . (($values['honorific'] ?? '') === $title ? ' selected' : '') . '>' . h($title) . '</option>';
+    }
+    echo '</select></label>';
+    foreach (['position' => ['Position', 120], 'project' => ['Name of project', 160], 'area' => ['Area of assignment', 160]] as $key => [$label, $limit]) {
+        field($key, $label, $values[$key] ?? '', 'text', true, $feedback[$key] ?? '', ['maxlength' => (string) $limit]);
+    }
+    echo '<p class="full"><strong>Date of training</strong></p>';
+    field('trainingStart', 'Training start date', $values['trainingStart'] ?? '', 'date', false, $feedback['trainingStart'] ?? '');
+    field('trainingEnd', 'Training end date', $values['trainingEnd'] ?? '', 'date', false, $feedback['trainingEnd'] ?? '');
+    echo '<p class="full"><strong>Period covered based on mandays</strong></p>';
+    field('start', 'Period start', $values['start'] ?? '', 'date', true, $feedback['start'] ?? '');
+    field('end', 'Period end', $values['end'] ?? '', 'date', true, $feedback['end'] ?? '');
 }
 
 function self_recent_attendance(array $state, int $id, int $days = 14): void
@@ -301,10 +364,11 @@ function self_before_you_request_card(): void
 function employee_updates(array $state, int $me): array
 {
     $since = date('Y-m-d H:i:s', strtotime('-14 days'));
-    $kinds = ['travel_order' => 'travel order', 'special_order' => 'special order', 'correction' => 'attendance correction'];
+    $kinds = ['travel_order' => 'travel order', 'special_order' => 'special order', 'employment_memo' => 'employment memo', 'correction' => 'attendance correction'];
     $updates = [];
     $corrections = array_map(function ($c) { return ['type' => 'correction', 'start' => $c['date'], 'end' => $c['date']] + $c; }, $state['corrections'] ?? []);
     foreach (array_merge($state['leaves'] ?? [], $state['employeeRequests'] ?? [], $corrections) as $item) {
+        if ($item['type'] === 'coe') continue;
         if ($item['empId'] !== $me || !in_array($item['status'], ['approved', 'rejected'], true) || ($item['decidedAt'] ?? '') < $since) continue;
         $updates[] = [
             'title' => 'Your ' . ($kinds[$item['type']] ?? strtolower($item['type'])) . ' was ' . ($item['status'] === 'approved' ? 'approved' : 'declined'),

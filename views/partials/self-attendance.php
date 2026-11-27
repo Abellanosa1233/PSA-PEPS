@@ -1,8 +1,7 @@
 <?php
 declare(strict_types=1);
 
-/* Sections of the employee's My attendance page. They reuse the DTR logic (api/lib/dtr.php),
-   so the numbers always match the printed Daily Time Record. */
+/* Sections of the employee's My attendance page. Punches come from the DTR logic. */
 
 function self_clock12(?string $hm): string
 {
@@ -108,29 +107,59 @@ function self_attendance_log(array $state, int $id): void
     $week = isset($weeks[(string) ($_GET['week'] ?? '')]) ? (string) $_GET['week'] : $default;
     $mon = new DateTimeImmutable($week);
     $card = dtr_card($people[$id], $mon, $mon->modify('+4 days'), $state['today']);
-    $start = $state['settings']['workStart'] ?? '08:00';
+    $lateFrom = ['amIn' => ATTENDANCE_AM_LATE, 'pmIn' => ATTENDANCE_PM_LATE];
 
     echo '<section class="card"><div class="card-head"><h3>Attendance log</h3>';
     echo '<form method="get" action="' . h(page_url('my-attendance')) . '" class="toolbar self-filter"><select class="input sm" name="week" aria-label="Week">';
     foreach ($weeks as $value => $label) echo '<option value="' . h($value) . '"' . ($value === $week ? ' selected' : '') . '>' . h($label) . '</option>';
     echo '</select><button class="btn sm" type="submit">Show</button></form></div>';
-    echo '<div class="table-wrap"><table class="data"><thead><tr><th>Date</th><th>Check-in</th><th>Check-out</th><th>Break</th><th>Total hours</th><th>Status</th></tr></thead><tbody>';
+    echo '<div class="table-wrap"><table class="data"><thead><tr><th>Date</th><th>Morning in</th><th>Morning out</th><th>Afternoon in</th><th>Afternoon out</th><th>Overtime in</th><th>Overtime out</th><th>Overtime hours</th><th>Total hours</th><th>Status</th></tr></thead><tbody>';
     $shown = 0;
     foreach (array_reverse($card['rows']) as $row) {
         if ($row['date'] > $state['today']) continue;
         $shown++;
-        $d = self_day_summary($row, $start);
-        $total = $d['total'] !== '' ? str_replace(':', 'h ', $d['total']) . 'm' : '—';
+        $slots = $row['slots'];
+        $minutes = null;
+        foreach (['amIn' => 'amOut', 'pmIn' => 'pmOut'] as $in => $out) {
+            if ($slots[$in] !== null && $slots[$out] !== null) {
+                $minutes = ($minutes ?? 0) + max(0, dtr_minutes($slots[$out]) - dtr_minutes($slots[$in]));
+            }
+        }
+        $total = $minutes === null ? '—' : sprintf('%dh %02dm', intdiv($minutes, 60), $minutes % 60);
         $pastDay = $row['date'] < $state['today'];
-        $checkIn = $pastDay && !$d['in'] ? 'Did not clock in' : self_clock12($d['in']);
-        $checkOut = $pastDay && !$d['out'] ? 'Did not clock out' : self_clock12($d['out']);
-        $style = ['On time' => 'ok', 'Late' => 'warn', 'Absent' => 'bad', 'On leave' => 'plain'][$d['status']] ?? 'plain';
-        echo '<tr><td>' . h((new DateTimeImmutable($row['date']))->format('D, M j')) . '</td>'
-            . '<td class="tabular">' . h($checkIn) . '</td><td class="tabular">' . h($checkOut) . '</td>'
-            . '<td>' . ($d['break'] ? h(self_minutes_label($d['break'])) : '—') . '</td><td class="tabular">' . h($total) . '</td>'
-            . '<td>' . ($d['status'] !== '' ? '<span class="badge ' . $style . '">' . h($d['status']) . '</span>' : '<span class="muted">—</span>') . '</td></tr>';
+        $status = '';
+        if ($slots['amIn'] !== null || $slots['pmIn'] !== null) {
+            $status = 'On time';
+        } elseif (in_array($row['note'], LEAVE_TYPES, true)) {
+            $status = 'On leave';
+        } elseif ($row['note'] === 'Absent') {
+            $status = 'Absent';
+        }
+
+        echo '<tr><td>' . h((new DateTimeImmutable($row['date']))->format('D, M j')) . '</td>';
+        foreach (['amIn', 'amOut', 'pmIn', 'pmOut', 'otIn', 'otOut'] as $slot) {
+            $time = $slots[$slot];
+            $isCheckIn = isset($lateFrom[$slot]);
+            $late = $isCheckIn && $time !== null && $time >= $lateFrom[$slot];
+            if ($late) $status = 'Late';
+            $isOvertime = $slot === 'otIn' || $slot === 'otOut';
+            $label = $pastDay && $time === null && !$isOvertime
+                ? ($isCheckIn ? 'Did not clock in' : 'Did not clock out')
+                : self_clock12($time);
+            echo '<td class="tabular">';
+            echo $late ? '<time class="attendance-log-late" datetime="' . h($time) . '" aria-label="' . h($label . ', late') . '">' . h($label) . '</time>' : h($label);
+            echo '</td>';
+        }
+        if (!empty($row['automatic'])) $status = 'Automatic';
+        $style = ['On time' => 'ok', 'Late' => 'warn', 'Absent' => 'bad', 'On leave' => 'plain', 'Automatic' => 'ok'][$status] ?? 'plain';
+        $overtime = $slots['otIn'] !== null && $slots['otOut'] !== null
+            ? max(0, dtr_minutes($slots['otOut']) - dtr_minutes($slots['otIn']))
+            : null;
+        $overtimeLabel = $overtime === null ? '—' : sprintf('%dh %02dm', intdiv($overtime, 60), $overtime % 60);
+        echo '<td class="tabular">' . h($overtimeLabel) . '</td><td class="tabular">' . h($total) . '</td>'
+            . '<td>' . ($status !== '' ? '<span class="badge ' . $style . '">' . h($status) . '</span>' : '<span class="muted">—</span>') . '</td></tr>';
     }
-    if (!$shown) echo '<tr><td colspan="6">No workdays yet in this week.</td></tr>';
+    if (!$shown) echo '<tr><td colspan="10">No workdays yet in this week.</td></tr>';
     echo '</tbody></table></div></section>';
 }
 

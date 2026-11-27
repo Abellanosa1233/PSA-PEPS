@@ -34,19 +34,32 @@ function save_employee(array $in, bool $importing = false): array
     if (!in_array($type, $allowedTypes, true)) fail('Choose a valid employment type.', 422, 'type');
     $email = strtolower(str_in($in, 'email', 160, true, 'Email'));
     if ($onboard && strpos($email, '@') === false) $email .= '@gmail.com';
-    $salary = $onboard ? 0 : filter_var($in['salary'] ?? '', FILTER_VALIDATE_FLOAT);
+    $salary = $onboard ? 0 : filter_var($in['salary'] ?? $existing['salary'] ?? '', FILTER_VALIDATE_FLOAT);
+    $title = str_in($in + ['title' => $existing['title'] ?? ''], 'title', 120, $importing, 'Position');
+    $samePosition = $title === ($existing['title'] ?? '') && $type === ($existing['emp_type'] ?? '');
+    if (!$importing && $title !== '' && !$samePosition && !isset(employee_position_options()[$type][$title])) {
+        fail('Choose a position listed for this employment type.', 422, 'title');
+    }
+    if ($onboard && $title === '') $title = 'Employee';
+    $department = $onboard ? 'Unassigned' : ($existing['department'] ?? '');
+    if (!$onboard && ($importing || array_key_exists('department', $in))) {
+        $department = one_of(str_in($in, 'department', 60, true, 'Department'), array_merge(DEPARTMENTS, ['Unassigned']), 'Department');
+    }
+    $manager = array_key_exists('managerId', $in)
+        ? int_in($in, 'managerId', false)
+        : (isset($existing['manager_id']) ? (int) $existing['manager_id'] : null);
     $f = [
         'first_name' => str_in($in, 'firstName', 80, true, 'First name'),
         'last_name' => str_in($in, 'lastName', 80, true, 'Last name'),
         'email' => $email,
         'phone' => ph_phone(str_in($in, 'phone', 40, false)),
-        'title' => $onboard ? 'Employee' : str_in($in, 'title', 120, true, 'Job title'),
-        'department' => $onboard ? 'Unassigned' : one_of(str_in($in, 'department', 60, true, 'Department'), array_merge(DEPARTMENTS, ['Unassigned']), 'Department'),
+        'title' => $title,
+        'department' => $department,
         'location' => str_in($in, 'location', 80, false),
         'emp_type' => $type,
         'start_date' => date_in($in, 'startDate', true, 'Start date'),
         'salary' => $salary,
-        'manager_id' => int_in($in, 'managerId', false),
+        'manager_id' => $manager,
     ];
     if (array_key_exists('biometricId', $in)) {
         ensure_biometrics();
@@ -285,14 +298,18 @@ function leave_attachment_for(array $user, int $leaveId): ?array
     return $file;
 }
 
-/* Validates an uploaded supporting document by its contents (not its name): PDF, JPG or PNG, up to 5 MB. */
-function leave_attachment_upload(array $file, string $field = 'attachment'): ?array
+const COE_PDF_MAX_MB = 10;
+
+/* Validates an uploaded PDF, JPG or PNG by its contents. */
+function leave_attachment_upload(array $file, string $field = 'attachment', int $maxMegabytes = 5): ?array
 {
     $code = $file['error'] ?? UPLOAD_ERR_NO_FILE;
     if ($code === UPLOAD_ERR_NO_FILE) return null;
-    if ($code === UPLOAD_ERR_INI_SIZE || $code === UPLOAD_ERR_FORM_SIZE) fail('That document is too large. Attach a file up to 5 MB.', 422, $field);
+    if ($code === UPLOAD_ERR_INI_SIZE) fail('That document exceeds the server’s upload limit.', 422, $field);
+    if ($code === UPLOAD_ERR_FORM_SIZE || ($file['size'] ?? 0) > $maxMegabytes * 1024 * 1024) {
+        fail("That document is too large. Attach a file up to $maxMegabytes MB.", 422, $field);
+    }
     if ($code !== UPLOAD_ERR_OK || !is_uploaded_file($file['tmp_name'] ?? '')) fail('The document could not be uploaded. Try again.', 422, $field);
-    if (($file['size'] ?? 0) > 5 * 1024 * 1024) fail('That document is too large. Attach a file up to 5 MB.', 422, $field);
     $bytes = (string) file_get_contents($file['tmp_name']);
     $type = strncmp($bytes, '%PDF', 4) === 0 ? 'application/pdf'
         : (strncmp($bytes, "\xFF\xD8\xFF", 3) === 0 ? 'image/jpeg'
@@ -323,12 +340,77 @@ function act_leave_cancel(array $in): array
     return [];
 }
 
+function act_coe_request(array $in): array
+{
+    ensure_employee_requests_table();
+    $employee = employee_exists(int_in($in, 'empId'));
+    if ($employee['status'] !== 'Active') fail('Requests can only be submitted for active employees.');
+    $values = coe_request_values($in, $employee);
+    q("INSERT INTO employee_requests (emp_id, request_type, status, purpose, destination, start_date, end_date, details)
+       VALUES (?, 'coe', 'submitted', ?, ?, ?, ?, ?)", array_merge([$employee['id']], $values));
+    return ['id' => (int) db()->lastInsertId()];
+}
+
+function act_coe_update(array $in, array $user): array
+{
+    if (!can_manage_coe_requests($user)) fail('Only HR or focal persons can correct COE requests.', 403);
+    $id = int_in($in, 'requestId');
+    $request = q("SELECT emp_id FROM employee_requests WHERE id = ? AND request_type = 'coe'", [$id])->fetch();
+    if (!$request) fail('That COE request no longer exists.', 404);
+    $values = coe_request_values($in, employee_exists((int) $request['emp_id']));
+    $updated = q("UPDATE employee_requests SET purpose=?, destination=?, start_date=?, end_date=?, details=?
+                  WHERE id=? AND request_type='coe'", array_merge($values, [$id]));
+    if (!$updated->rowCount() && !q("SELECT 1 FROM employee_requests WHERE id=? AND request_type='coe'", [$id])->fetchColumn()) {
+        fail('That COE request no longer exists.', 404);
+    }
+    return [];
+}
+
+function coe_request_values(array $in, array $employee): array
+{
+    $contact = trim((string) $employee['phone']);
+    if ($contact === '') fail('Add your phone number in My profile before requesting a certificate.', 422);
+
+    $honorific = $in['honorific'] ?? '';
+    if (!in_array($honorific, ['MR.', 'MS.', 'MRS.'], true)) {
+        fail('Choose MR., MS., or MRS.', 422, 'honorific');
+    }
+    foreach (['position', 'project', 'area'] as $field) {
+        $value = $in[$field] ?? '';
+        if (!is_string($value)) fail('Enter a text value for this field.', 422, $field);
+        $in[$field] = mb_strtoupper($value, 'UTF-8');
+    }
+    $position = str_in($in, 'position', 120, true, 'Position');
+    $project = str_in($in, 'project', 160, true, 'Name of project');
+    $area = str_in($in, 'area', 160, true, 'Area of assignment');
+    $trainingStart = date_in($in, 'trainingStart', false, 'Training start date');
+    $trainingEnd = date_in($in, 'trainingEnd', false, 'Training end date');
+    if ($trainingStart === null && $trainingEnd !== null) fail('Enter the training start date.', 422, 'trainingStart');
+    if ($trainingStart !== null && $trainingEnd === null) fail('Enter the training end date.', 422, 'trainingEnd');
+    if ($trainingStart !== null && $trainingEnd < $trainingStart) {
+        fail('Training end date must be on or after the training start date.', 422, 'trainingEnd');
+    }
+    $start = date_in($in, 'start', true, 'Period start');
+    $end = date_in($in, 'end', true, 'Period end');
+    if ($end < $start) fail('Period end must be on or after period start.', 422, 'end');
+
+    $details = json_encode([
+        'name' => $honorific . ' ' . mb_strtoupper($employee['first_name'] . ' ' . $employee['last_name'], 'UTF-8'),
+        'contact' => $contact,
+        'position' => $position,
+        'trainingStart' => $trainingStart,
+        'trainingEnd' => $trainingEnd,
+    ], JSON_UNESCAPED_UNICODE);
+    if (!is_string($details) || mb_strlen($details) > 1000) fail('The request details are too long. Shorten the position field.');
+    return [$project, $area, $start, $end, $details];
+}
+
 function act_employee_request_create(array $in): array
 {
     ensure_employee_requests_table();
     $employee = employee_exists(int_in($in, 'empId'));
     if ($employee['status'] !== 'Active') fail('Requests can only be submitted for active employees.');
-    $type = one_of((string) ($in['type'] ?? ''), ['special_order', 'travel_order'], 'Request type');
+    $type = one_of((string) ($in['type'] ?? ''), ['special_order', 'travel_order', 'employment_memo'], 'Request type');
     $purpose = str_in($in, 'purpose', 160, true, $type === 'special_order' ? 'Order subject' : 'Travel purpose');
     $start = date_in($in, 'start', true, $type === 'special_order' ? 'Effective date' : 'Departure date');
     $end = null;
@@ -338,8 +420,9 @@ function act_employee_request_create(array $in): array
         $end = date_in($in, 'end', true, 'Return date');
         if ($end < $start) fail('Return date must be on or after departure date.', 422, 'end');
     } else {
-        // Special Order: the activity may run several days and have a venue (both optional).
-        $destination = str_in($in, 'destination', 160, false, 'Venue');
+        // Special Orders and Employment Memos may run several days (end date optional);
+        // a Special Order may also name its venue.
+        if ($type === 'special_order') $destination = str_in($in, 'destination', 160, false, 'Venue');
         $end = date_in($in, 'end', false, 'End date');
         if ($end !== null && $end < $start) fail('End date must be on or after the start date.', 422, 'end');
         if ($end === $start) $end = null;
@@ -354,8 +437,11 @@ function act_employee_request_decide(array $in, array $user): array
     ensure_employee_requests_table();
     $id = int_in($in, 'id');
     $status = one_of((string) ($in['status'] ?? ''), ['approved', 'rejected'], 'Decision');
-    $request = q('SELECT emp_id, status FROM employee_requests WHERE id = ?', [$id])->fetch();
+    $request = q('SELECT emp_id, request_type, status FROM employee_requests WHERE id = ?', [$id])->fetch();
     if (!$request) fail('That request no longer exists.', 404);
+    if ($request['request_type'] === 'coe') {
+        fail('Certificate of Employment requests do not require approval or decline.', 403);
+    }
     if ($request['status'] !== 'pending') fail('This request was already ' . $request['status'] . '.');
     $reviewerId = int_in($in, 'reviewerId', false);
     $reviewerRole = $reviewerId === null ? 'hr_admin' : 'supervisor';
@@ -374,10 +460,15 @@ function act_employee_request_cancel(array $in): array
     ensure_employee_requests_table();
     $id = int_in($in, 'id');
     $employeeId = int_in($in, 'empId');
-    $request = q('SELECT status FROM employee_requests WHERE id=? AND emp_id=?', [$id, $employeeId])->fetch();
-    if (!$request) fail('That request no longer exists.', 404);
-    if ($request['status'] !== 'pending') fail('Only pending requests can be canceled.');
-    q('DELETE FROM employee_requests WHERE id=?', [$id]);
+    $deleted = q("DELETE FROM employee_requests WHERE id=? AND emp_id=?
+                  AND (status='pending' OR (request_type='coe' AND status='submitted'))
+                  AND (request_type <> 'coe' OR coe_document_id IS NULL)", [$id, $employeeId]);
+    if (!$deleted->rowCount()) {
+        if (!q('SELECT 1 FROM employee_requests WHERE id=? AND emp_id=?', [$id, $employeeId])->fetchColumn()) {
+            fail('That request no longer exists.', 404);
+        }
+        fail('This request can no longer be canceled.', 409);
+    }
     return [];
 }
 
@@ -491,8 +582,10 @@ function act_attendance_import(array $file): array
 function act_attendance_clock(array $in): array
 {
     $id = int_in($in, 'empId');
-    $slot = one_of((string) ($in['slot'] ?? ''), ['amIn', 'amOut', 'pmIn', 'pmOut'], 'Clock action');
+    $action = one_of((string) ($in['slot'] ?? ''), ['amIn', 'amOut', 'pmIn', 'pmOut', 'amUndertime', 'pmUndertime', 'otIn', 'otOut'], 'Clock action');
+    $slot = ['amUndertime' => 'amOut', 'pmUndertime' => 'pmOut'][$action] ?? $action;
     ensure_biometrics();
+    sync_assignment_attendance();
     db()->beginTransaction();
     try {
         $employee = q('SELECT status FROM employees WHERE id = ? FOR UPDATE', [$id])->fetchColumn();
@@ -506,7 +599,7 @@ function act_attendance_clock(array $in): array
         $record = q('SELECT TIME_FORMAT(time_in, "%H:%i") AS `in`, TIME_FORMAT(time_out, "%H:%i") AS `out`
                      FROM attendance WHERE work_date = ? AND emp_id = ? FOR UPDATE', [$day, $id])->fetch() ?: [];
         $slots = attendance_day_slots($id, $day, $record);
-        $window = attendance_clock_windows($slots)[$slot] ?? null;
+        $window = attendance_clock_windows($slots, attendance_day_is_automatic($id, $day))[$action] ?? null;
         if ($window === null || $now < $window[0] || $now >= $window[1]) {
             fail('This clock action is unavailable right now. Refresh the page to see your available action.', 409);
         }
@@ -599,6 +692,25 @@ function act_candidate_move(array $in): array
 }
 
 /* ---------- Settings & account ---------- */
+function act_employee_position_add(array $in): array
+{
+    $type = one_of(str_in($in, 'type', 40, true, 'Employment type'), EMPLOYEE_TYPES, 'Employment type');
+    $name = str_in($in, 'name', 120, true, 'Position name');
+    $code = str_in($in, 'code', 24, false, 'Abbreviation');
+    $normalizedName = mb_strtolower($name, 'UTF-8');
+    foreach (array_keys(employee_position_options()[$type]) as $savedName) {
+        if (mb_strtolower($savedName, 'UTF-8') === $normalizedName) fail('This position already exists for that employment type.', 422, 'name');
+    }
+    $key = 'employee-position:' . sha1($type . ':' . $normalizedName);
+    try {
+        q('INSERT INTO settings (k, v) VALUES (?, ?)', [$key, json_encode(compact('type', 'name', 'code'))]);
+    } catch (PDOException $e) {
+        if ((int) ($e->errorInfo[1] ?? 0) === 1062) fail('This position already exists for that employment type.', 422, 'name');
+        throw $e;
+    }
+    return [];
+}
+
 function act_settings_save(array $in): array
 {
     set_setting('company', str_in($in, 'company', 80, true, 'Company name'));

@@ -47,18 +47,25 @@ $back = $isAdmin ? ($choice !== '' && $choice !== 'all' ? page_url('employees', 
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap">
 <style>
   /* Paper look: printed in black on white whatever the app theme. */
-  :root { --ink: #111; --rule: #222; --soft: #6b6b6b; --paper: #fff; --desk: #e9edf2; --accent: #1f4e8c; }
+  :root { --ink: #111; --rule: #222; --soft: #6b6b6b; --paper: #fff; --desk: #eef2f7; --accent: #0038a8; --line: #d7e1ee; --ui-text: #172b46; }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--desk); color: var(--ink); font: 12px/1.35 "Inter", "Segoe UI", Arial, sans-serif; }
-  .toolbar { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 8px; align-items: end; padding: 12px max(16px, 3vw); background: #fff; border-bottom: 1px solid #cfd8e3; }
-  .toolbar h1 { font-size: 15px; margin: 0 16px 0 0; align-self: center; }
-  .toolbar label { display: flex; flex-direction: column; gap: 3px; font-size: 11px; font-weight: 600; color: #405065; }
-  .toolbar select, .toolbar input { height: 32px; padding: 0 8px; border: 1px solid #b9c5d4; border-radius: 6px; font: inherit; background: #fff; }
-  .toolbar .btn { height: 32px; padding: 0 14px; border-radius: 6px; border: 1px solid #b9c5d4; background: #fff; font: 600 12px/30px inherit; color: #1b2a3d; text-decoration: none; cursor: pointer; display: inline-block; }
+  .toolbar { position: sticky; top: 0; z-index: 2; background: #fff; border-bottom: 1px solid var(--line); color: var(--ui-text); }
+  .toolbar-inner { max-width: 1320px; margin: auto; padding: 16px 24px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 14px 24px; }
+  .toolbar-title, .toolbar-actions, .toolbar-filters { display: flex; align-items: center; gap: 10px; }
+  .toolbar-title img { flex: none; }
+  .toolbar h1 { font-size: clamp(17px, 2vw, 22px); line-height: 1.2; margin: 0; }
+  .toolbar-title p { margin: 4px 0 0; color: #52647a; overflow-wrap: anywhere; }
+  .toolbar-filters { flex-wrap: wrap; align-items: end; }
+  .toolbar label { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: 12px; font-weight: 600; }
+  .toolbar select, .toolbar input, .toolbar .btn { min-height: 38px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ui-text); font: inherit; }
+  .toolbar select, .toolbar input { max-width: min(260px, 100%); padding: 0 10px; }
+  .toolbar .btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 14px; font-size: 13px; font-weight: 600; text-decoration: none; cursor: pointer; }
+  .toolbar .btn:hover { background: #f2f6fc; }
   .toolbar .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .toolbar .spacer { flex: 1; }
-  .hint { padding: 10px max(16px, 3vw) 0; color: #405065; font-size: 12px; margin: 0; }
-  .sheets { display: flex; flex-direction: column; align-items: center; gap: 24px; padding: 20px 16px 40px; }
+  .toolbar .btn.primary:hover { background: #002b82; }
+  .toolbar :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .sheets { display: flex; flex-direction: column; align-items: center; gap: 28px; padding: 28px 16px 48px; }
   .sheet { display: flex; gap: 10mm; justify-content: center; flex-wrap: wrap; }
   .empty { background: #fff; padding: 24px; border-radius: 8px; max-width: 520px; text-align: center; }
 
@@ -90,21 +97,42 @@ $back = $isAdmin ? ($choice !== '' && $choice !== 'all' ? page_url('employees', 
   .sig div { flex: 1; border-top: 1px solid var(--rule); text-align: center; font-size: 6.6pt; font-weight: 700; letter-spacing: .04em; padding-top: .8mm; }
   .foot { margin-top: 2.5mm; font-size: 6.4pt; color: var(--soft); display: flex; justify-content: space-between; gap: 2mm; }
 
+  @media screen {
+    .sheet { width: 100%; gap: 24px; }
+    .card { width: min(100%, 510px); padding: clamp(14px, 3vw, 26px); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 12px 32px rgba(25, 46, 77, .10); font-size: 13px; }
+    .card .co { color: #183860; font-size: 13px; }
+    .card .co small { margin-top: 3px; font-size: 11px; }
+    .hd .line { grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr); align-items: baseline; }
+    .hd .line b { white-space: normal; overflow-wrap: anywhere; }
+    .days { font-size: 12px; }
+    .days th { height: 20px; background: #eef4fb; color: #183860; }
+    .days td { height: 25px; }
+    .days tfoot td { background: #eef4fb; }
+  }
+  @media screen and (max-width: 760px) {
+    .toolbar { position: static; }
+    .toolbar-inner { padding: 14px 16px; }
+    .toolbar-filters { order: 1; width: 100%; }
+  }
   @page { size: A4 portrait; margin: 10mm; }
   @media print {
     body { background: #fff; }
-    .toolbar, .hint, .no-print { display: none !important; }
+    .toolbar, .no-print { display: none !important; }
     .sheets { padding: 0; gap: 0; display: block; }
     .sheet { break-after: page; page-break-after: always; flex-wrap: nowrap; }
     .sheet:last-child { break-after: auto; page-break-after: auto; }
     .card { box-shadow: none; }
   }
-  @media (max-width: 420px) { .card { width: 100%; } }
 </style>
 </head>
 <body>
-<form class="toolbar" method="get" action="<?= h(page_url('dtr')) ?>">
-    <h1>Daily Time Record</h1>
+<header class="toolbar">
+<div class="toolbar-inner">
+    <div class="toolbar-title">
+        <img src="assets/psa-logo.svg" alt="" width="38" height="38">
+        <div><h1>Daily Time Record</h1><?php if ($cards): ?><p><?= h($titleWho . ' · ' . $periodLabel) ?></p><?php endif; ?></div>
+    </div>
+    <form class="toolbar-filters" method="get" action="<?= h(page_url('dtr')) ?>">
     <?php if ($isAdmin): ?>
         <label>Employee
             <select name="emp" required>
@@ -130,14 +158,14 @@ $back = $isAdmin ? ($choice !== '' && $choice !== 'all' ? page_url('employees', 
             <option value="month"<?= $half === 'month' ? ' selected' : '' ?>>Whole month</option>
         </select>
     </label>
-    <button class="btn" type="submit">Show</button>
-    <span class="spacer"></span>
-    <a class="btn" href="<?= h($back) ?>">Back</a>
-    <?php if ($cards): ?><button class="btn primary" type="button" onclick="window.print()">Print</button><?php endif; ?>
-</form>
-<?php if ($cards): ?>
-    <p class="hint">Times come from the biometric device and web clock-ins. Print with Ctrl+P if the button doesn’t work.</p>
-<?php endif; ?>
+    <button class="btn" type="submit">Show record</button>
+    </form>
+    <div class="toolbar-actions">
+        <a class="btn" href="<?= h($back) ?>"><?= icon('arrowLeft', 15) ?> Back</a>
+        <?php if ($cards): ?><button class="btn primary" type="button" onclick="window.print()">Print record</button><?php endif; ?>
+    </div>
+</div>
+</header>
 <main class="sheets">
 <?php if (!$cards): ?>
     <div class="empty"><?= $isAdmin

@@ -14,6 +14,10 @@ if ($error !== '') $notifications[] = [$errorLevel, $errorLevel === 'error' ? 'E
 <script>
     (() => {
         const notifications = document.getElementById('action-notifications');
-        window.setTimeout(() => notifications.remove(), 2000);
+        notifications.hidden = true;
+        window.addEventListener('pageshow', () => {
+            notifications.hidden = false;
+            window.setTimeout(() => notifications.remove(), 2000);
+        }, { once: true });
     })();
 </script>

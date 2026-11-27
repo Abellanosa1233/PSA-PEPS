@@ -9,6 +9,8 @@ function action_handler(string $action): string
         'employee.request.cancel' => 'act_employee_request_cancel',
         // Special Orders: HR/secretary only (employees fall through to the 403 in authorize_action)
         'specialorder.generate' => 'act_special_order_generate', 'specialorder.email' => 'act_special_order_email',
+        'coe.request' => 'act_coe_request',
+        'coe.update' => 'act_coe_update',
         'leave.create' => 'act_leave_create', 'leave.decide' => 'act_leave_decide', 'leave.cancel' => 'act_leave_cancel',
         'attendance.set' => 'act_attendance_set', 'attendance.fill' => 'act_attendance_fill', 'attendance.clock' => 'act_attendance_clock',
         'event.save' => 'act_event_save', 'event.delete' => 'act_event_delete',
@@ -18,6 +20,7 @@ function action_handler(string $action): string
         'password.change' => 'act_password_change',
         'account.create' => 'act_account_create', 'account.password' => 'act_account_password', 'account.remove' => 'act_account_remove',
         'admin.create' => 'act_admin_create',
+        'employee.position.add' => 'act_employee_position_add',
         'announcement.save' => 'act_announcement_save', 'announcement.delete' => 'act_announcement_delete',
         'correction.create' => 'act_correction_create', 'correction.cancel' => 'act_correction_cancel', 'correction.decide' => 'act_correction_decide',
         'profile.personal.save' => 'act_profile_personal_save', 'profile.emergency.save' => 'act_profile_emergency_save',
@@ -45,6 +48,7 @@ function authorize_action(string $action, array &$in, array $user): void
 
         case 'attendance.clock':
         case 'employee.request.create':
+        case 'coe.request':
         case 'employee.request.cancel':
         case 'correction.create':   // corrections go to HR (correction.decide is HR-only)
         case 'correction.cancel':
@@ -72,6 +76,10 @@ function authorize_action(string $action, array &$in, array $user): void
         case 'employee.request.decide':
             $in['reviewerId'] = $me; // act_employee_request_decide checks the reviewer is the direct supervisor
             return;
+        case 'coe.update':
+        case 'coe.send':
+            if (!empty($user['canViewCoeRequests'])) return;
+            break;
     }
     fail('Your account doesn’t have access to that. Ask your HR administrator.', 403);
 }

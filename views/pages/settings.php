@@ -140,6 +140,15 @@ function settings_view(array $state): void
     </section>
     <?php
     if ($isAdmin) {
+        card('Employee positions');
+        echo '<p class="settings-card-description">Add positions to the employment type dropdown in employee forms.</p>';
+        echo '<details class="form-disclosure" data-form-dialog="form"><summary class="btn">Add position</summary>';
+        post_form('employee.position.add');
+        choice('type', 'Employment type', options(EMPLOYEE_TYPES));
+        field('name', 'Position name', '', 'text', true, '', ['maxlength' => '120']);
+        field('code', 'Abbreviation', '', 'text', false, '', ['maxlength' => '24']);
+        end_form('Add position');
+        echo '</details></section>';
         card('Company updates');
         echo '<p class="settings-card-description">Short notices shown to every employee on their Overview, newest first.</p>';
         echo '<details class="form-disclosure" data-form-dialog="form"><summary class="btn primary">Post an update</summary>';

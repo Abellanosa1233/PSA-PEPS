@@ -10,7 +10,7 @@ if (employeeDialog && typeof employeeDialog.showModal === 'function') {
     .filter((name) => form.elements.namedItem(name));
   const lengthLimits = { firstName: 80, lastName: 80, email: 160, phone: 40, title: 120, location: 80, loginUsername: 60, loginPassword: 72 };
   const locationPicker = typeof employeeLocationPicker === 'function' ? employeeLocationPicker(form, syncEmployeeButtons) : null;
-  const validatedFields = Array.from(form.querySelectorAll('.field:not([hidden]) input'));
+  const validatedFields = Array.from(form.querySelectorAll('.field:not([hidden]) input[name]'));
   const fieldErrors = new Map(validatedFields.map((field) => {
     const wrapper = field.closest('.field');
     let message = wrapper.querySelector('.field-error');
@@ -74,6 +74,7 @@ if (employeeDialog && typeof employeeDialog.showModal === 'function') {
     for (const name of ['id', ...editableFields]) {
       form.elements[name].value = defaults[name] ?? '';
     }
+    form.elements.type.dispatchEvent(new Event('change'));
     locationPicker?.reset();
     syncEmployeeButtons();
     title.textContent = 'Add employee';
@@ -116,7 +117,9 @@ if (employeeDialog && typeof employeeDialog.showModal === 'function') {
       ? value + '@gmail.com' : value;
     let message = '';
 
-    if (field.validity.badInput) {
+    if (field.validity.customError) {
+      message = field.validationMessage;
+    } else if (field.validity.badInput) {
       message = field.name === 'startDate' ? 'Enter a valid start date.' : 'Enter a valid annual salary.';
     } else if (field.required && !value) {
       message = `${label} is required.`;

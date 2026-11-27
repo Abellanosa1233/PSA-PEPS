@@ -198,7 +198,7 @@ if (typeof HTMLDialogElement !== 'undefined' && typeof HTMLDialogElement.prototy
 
     const form = original.cloneNode(true);
     const action = form.elements.namedItem('_action').value;
-    form.className = '';
+    form.className = action === 'coe.request' ? 'coe-request' : '';
     const submit = form.querySelector('button[type="submit"]');
     const isConfirmation = disclosure.dataset.formDialog === 'confirm';
     dialog.classList.toggle('wide', !isConfirmation);
@@ -275,7 +275,7 @@ if (typeof HTMLDialogElement !== 'undefined' && typeof HTMLDialogElement.prototy
       submitEvent.preventDefault();
       if (validate && !validate()) return;
       finishDialog(() => {
-        if (action === 'admin.create' || action === 'password.change') {
+        if (['admin.create', 'password.change', 'coe.request'].includes(action)) {
           window.dispatchEvent(new Event('page-loading'));
         }
         form.submit();

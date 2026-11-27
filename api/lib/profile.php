@@ -57,6 +57,36 @@ function act_document_upload(array $in, array $user, ?array $file): array
     return ['id' => (int) db()->lastInsertId()];
 }
 
+function act_coe_send(array $in, array $user, ?array $file): array
+{
+    if (!can_manage_coe_requests($user)) fail('Only HR or focal persons can send COE copies.', 403);
+    if (!$file || $file['type'] !== 'application/pdf') fail('Choose the finished certificate as a PDF.', 422, 'certificatePdf');
+    $id = int_in($in, 'requestId');
+    ensure_employee_requests_table();
+    ensure_profile_details();
+    db()->beginTransaction();
+    try {
+        $request = q("SELECT emp_id, coe_document_id, start_date, end_date FROM employee_requests
+                      WHERE id=? AND request_type='coe' FOR UPDATE", [$id])->fetch();
+        if (!$request) fail('That COE request no longer exists.', 404);
+        $empId = (int) $request['emp_id'];
+        $documentId = $request['coe_document_id'] ? q('SELECT id FROM employee_documents WHERE id=? AND emp_id=? FOR UPDATE', [$request['coe_document_id'], $empId])->fetchColumn() : false;
+        if ($documentId) {
+            q('UPDATE employee_documents SET file=?, file_name=?, file_type=?, created_by=?, created_at=NOW() WHERE id=?',
+                [$file['bytes'], $file['name'], $file['type'], $user['id'], $documentId]);
+        } else {
+            $period = $request['start_date'] . ($request['end_date'] ? ' to ' . $request['end_date'] : '');
+            $documentId = act_document_upload(['empId' => $empId, 'title' => 'Certificate of Employment', 'note' => $period], $user, $file)['id'];
+            q('UPDATE employee_requests SET coe_document_id=? WHERE id=?', [$documentId, $id]);
+        }
+        db()->commit();
+    } catch (Throwable $e) {
+        if (db()->inTransaction()) db()->rollBack();
+        throw $e;
+    }
+    return ['id' => (int) $documentId];
+}
+
 function act_document_delete(array $in): array
 {
     ensure_profile_details();
