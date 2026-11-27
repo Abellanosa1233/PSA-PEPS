@@ -16,7 +16,7 @@
         } catch (_) {}
     </script>
 </head>
-<body>
+<body<?= in_array($page, ['special-order-edit', 'special-order-request'], true) ? ' class="so-editor-page"' : '' ?>>
 <div class="page-loader" id="page-loader" role="status" aria-label="Loading page" hidden>
     <div class="page-loader-seal">
         <img src="assets/psa-logo.svg" width="64" height="64" alt="">

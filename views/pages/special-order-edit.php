@@ -39,15 +39,17 @@ so_document_assets(!$signed);
             <h1><?= $doc['generated'] ? 'Special Order ' . h($doc['number']) : 'Generate SO/RTA' ?></h1>
             <p><?= $signed
                 ? 'This Special Order is signed. It can no longer be changed.'
-                : 'Type directly on the document: anything tinted blue can be changed. The boxes on the Request for Travel Authority tick when clicked. Add or remove people on the list of participants.' ?>
+                : 'The three-page PDF layout is the default template. Use the toolbar for formatting, colors, links, lists, alignment and spacing. Font size and family stay as in the template. Click the RTA boxes or adjust the participant list.' ?>
                 <?= $suggested ? ' ' . count($suggested) . ' other employee' . (count($suggested) === 1 ? '' : 's') . ' requested the same activity and ' . (count($suggested) === 1 ? 'is' : 'are') . ' already on the list.' : '' ?></p>
         </div>
         <div class="actions">
             <a class="btn" href="<?= h(page_url('special-orders')) ?>">Back</a>
             <?php if ($doc['generated']): ?><a class="btn" href="<?= h(page_url('special-order-print', ['id' => $doc['id']])) ?>" target="_blank" rel="noopener">Print</a><?php endif; ?>
+            <?php if (!$signed): ?><button class="btn" type="button" data-so-print>Print current view</button><?php endif; ?>
             <?php if (!$signed): ?><label class="so-logo-control">Header logo (all SOs) <input type="file" name="soHeaderLogo" accept="image/png,image/jpeg"></label><label class="so-logo-reset"><input type="checkbox" name="resetSoLogo" value="1"> Restore default</label><?php endif; ?>
             <?php if (!$signed): ?><button class="btn primary" type="submit"><?= $doc['generated'] ? 'Save changes' : 'Generate SO/RTA' ?></button><?php endif; ?>
         </div>
     </div>
+    <?php if (!$signed) so_format_toolbar(); ?>
     <div class="so-desk"><?php so_pages($doc, !$signed, $active); ?></div>
 </form>
