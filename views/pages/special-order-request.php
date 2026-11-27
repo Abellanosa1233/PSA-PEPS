@@ -64,10 +64,11 @@ so_document_assets(true);
     <div class="page-head so-editor-head">
         <div>
             <h1>Request Special Order</h1>
-            <p>Edit the proposed SO/RTA on the pages below. HR reviews your request and prepares the final copy; only HR can change the administration logo.</p>
+            <p>Edit the proposed SO/RTA in the three-page PDF template below. Use the toolbar for formatting, colors, links, lists, alignment and spacing. Font size and family stay as in the template. HR reviews your request and prepares the final copy; only HR can change the administration logo.</p>
         </div>
         <div class="actions">
             <a class="btn" href="<?= h(page_url('special-orders', ['clear' => 1])) ?>">Cancel</a>
+            <button class="btn" type="button" data-so-print>Print preview</button>
             <button class="btn primary" type="submit">Submit request</button>
         </div>
     </div>
@@ -81,5 +82,6 @@ so_document_assets(true);
         <label class="field"><span>Notes for HR (optional): organizer, invitation or memo reference</span>
             <input class="input" name="details" maxlength="1000" value="<?= h((string) ($draft['details'] ?? '')) ?>" placeholder="e.g. Invitation memo dated November 18, 2026"></label>
     </div>
+    <?php so_format_toolbar(); ?>
     <div class="so-desk"><?php so_pages($doc, true, $active, true); ?></div>
 </form>

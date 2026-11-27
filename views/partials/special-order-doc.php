@@ -10,7 +10,44 @@ function so_document_assets(bool $edit = false): void
 {
     echo '<link rel="stylesheet" href="' . h(versioned_asset('assets/css/special-order.css')) . '">';
     echo '<script src="' . h(versioned_asset('assets/js/so-letterhead.js')) . '" defer></script>';
-    if ($edit) echo '<script src="' . h(versioned_asset('assets/js/so-editor.js')) . '" defer></script>';
+    if ($edit) {
+        echo '<script src="' . h(versioned_asset('assets/js/so-pdf.js')) . '" defer></script>';
+        echo '<script src="' . h(versioned_asset('assets/js/so-export.js')) . '" defer></script>';
+        echo '<script src="' . h(versioned_asset('assets/js/so-editor.js')) . '" defer></script>';
+    }
+}
+
+function so_format_toolbar(): void
+{
+    echo '<div class="so-format-toolbar" role="toolbar" aria-label="Text formatting">'
+        . '<button type="button" data-so-action="undo" aria-label="Undo" title="Undo">↶</button>'
+        . '<button type="button" data-so-action="redo" aria-label="Redo" title="Redo">↷</button>'
+        . '<span class="so-format-divider"></span>'
+        . '<button type="button" data-so-action="bold" aria-label="Bold" title="Bold"><b>B</b></button>'
+        . '<button type="button" data-so-action="italic" aria-label="Italic" title="Italic"><i>I</i></button>'
+        . '<button type="button" data-so-action="underline" aria-label="Underline" title="Underline"><u>U</u></button>'
+        . '<label class="so-color-control" title="Text color">A <input type="color" value="#000000" data-so-color="foreColor" aria-label="Text color"></label>'
+        . '<label class="so-color-control" title="Highlight color">▰ <input type="color" value="#fff200" data-so-color="hiliteColor" aria-label="Highlight color"></label>'
+        . '<button type="button" data-so-action="link" aria-label="Insert link" title="Insert link">↗</button>'
+        . '<button type="button" data-so-action="image" aria-label="Insert image" title="Insert image">▧</button>'
+        . '<span class="so-format-divider"></span>'
+        . '<select data-so-align aria-label="Text alignment" title="Text alignment"><option value="justifyLeft">Align left</option><option value="justifyCenter">Center</option><option value="justifyRight">Align right</option><option value="justifyFull">Justify</option></select>'
+        . '<select data-so-line-height aria-label="Line spacing" title="Line spacing"><option value="1">1.0</option><option value="1.15" selected>1.15</option><option value="1.5">1.5</option><option value="2">2.0</option></select>'
+        . '<button type="button" data-so-action="insertLineBreak" aria-label="Insert line break" title="Insert line break">↵</button>'
+        . '<button type="button" data-so-action="insertParagraph" aria-label="Start a new paragraph" title="Start a new paragraph">¶</button>'
+        . '<button type="button" data-so-action="checklist" aria-label="Insert checklist item" title="Insert checklist item">☐</button>'
+        . '<button type="button" data-so-action="insertUnorderedList" aria-label="Bulleted list" title="Bulleted list">•≡</button>'
+        . '<button type="button" data-so-action="insertOrderedList" aria-label="Numbered list" title="Numbered list">1≡</button>'
+        . '<button type="button" data-so-action="outdent" aria-label="Decrease indent" title="Decrease indent">⇤</button>'
+        . '<button type="button" data-so-action="indent" aria-label="Increase indent" title="Increase indent">⇥</button>'
+        . '<button type="button" data-so-action="removeFormat" aria-label="Clear formatting" title="Clear formatting">Tx</button>'
+        . '<span class="so-format-divider"></span>'
+        . '<button type="button" data-so-export-pdf aria-label="Download as PDF" title="Download the current document as a PDF">PDF</button>'
+        . '<button type="button" data-so-export-docx aria-label="Download Word document" title="Download Word document">DOCX</button>'
+        . '<span class="so-format-divider"></span>'
+        . '<button type="button" data-so-print aria-label="Print preview" title="Print preview">▤</button>'
+        . '<input type="file" accept="image/png,image/jpeg,image/webp" data-so-image hidden>'
+        . '</div>';
 }
 
 function so_letterhead(string $company, string $office, bool $edit = false): void
@@ -19,22 +56,32 @@ function so_letterhead(string $company, string $office, bool $edit = false): voi
         . '<div class="lh-text"><span class="lh-republic">Republic of the Philippines</span>'
         . '<span class="lh-name">' . h($company) . '</span>';
     if ($edit) echo so_text(true, 'soOffice', $office, 'span', 'lh-office', 'REGION / OFFICE LINE');
-    elseif ($office !== '') echo '<span class="lh-office">' . h($office) . '</span>';
+    elseif ($office !== '') echo '<span class="lh-office">' . special_order_rich_html($office) . '</span>';
     echo '</div><img class="bp" src="' . h(special_order_header_logo_source()) . '" alt="Administration logo"></header>';
 }
 
 function so_footer(string $text, bool $edit = false): void
 {
+    $fixedAddress = special_order_fixed_footer();
     echo '<footer class="foot"><img src="assets/coe-footer-certification.png" alt="PSA certification marks">'
-        . so_text($edit, 'footer', $text, 'div', 'foot-text', 'Office address and contact numbers') . '</footer>';
+        . '<div class="foot-text">' . nl2br(h($fixedAddress)) . '</div></footer>';
 }
 
 /* A piece of text on the document: plain when printing, typed on in place when editing. */
 function so_text(bool $edit, string $name, string $value, string $tag = 'span', string $class = '', string $placeholder = ''): string
 {
-    if (!$edit) return '<' . $tag . ($class !== '' ? ' class="' . h($class) . '"' : '') . '>' . h($value) . '</' . $tag . '>';
-    return '<' . $tag . ' class="so-edit' . ($class !== '' ? ' ' . h($class) : '') . '" contenteditable="plaintext-only" spellcheck="true" data-name="' . h($name) . '"'
-        . ' data-placeholder="' . h($placeholder) . '" role="textbox" aria-label="' . h($placeholder ?: $name) . '">' . h($value) . '</' . $tag . '>';
+    if (!$edit) return '<' . $tag . ($class !== '' ? ' class="' . h($class) . '"' : '') . '>' . special_order_rich_html($value) . '</' . $tag . '>';
+    return '<' . $tag . ' class="so-edit' . ($class !== '' ? ' ' . h($class) : '') . '" contenteditable="true" spellcheck="true" data-name="' . h($name) . '"'
+        . ' data-placeholder="' . h($placeholder) . '" role="textbox" aria-label="' . h($placeholder ?: $name) . '">' . special_order_rich_html($value) . '</' . $tag . '>';
+}
+
+function so_body_html(string $body): string
+{
+    if (preg_match('/<\/?(?:b|strong|i|em|u|br|p|div|span|ul|ol|li|a|img|font|blockquote)\b/i', $body)) return special_order_sanitize_rich_html($body);
+    $paragraphs = preg_split('/\R{2,}/', trim($body));
+    return implode('', array_map(function ($paragraph) {
+        return '<p class="para">' . special_order_rich_html($paragraph) . '</p>';
+    }, $paragraphs));
 }
 
 /* An RTA box: shows X when ticked; a real checkbox (or radio) when editing. */
@@ -46,6 +93,12 @@ function so_box(bool $edit, string $name, bool $on, string $value = '1', string 
 
 function so_recipient_block(bool $edit, string $value, bool $auto = false): string
 {
+    $rich = preg_match('/<\/?(?:b|strong|i|em|u|br|p|div|span|ul|ol|li|a|img|font|blockquote)\b/i', $value) === 1;
+    if ($rich) {
+        $class = 'so-recipient-list' . ($edit ? ' so-edit' : '');
+        return '<div class="' . $class . '"' . ($edit ? ' contenteditable="true" spellcheck="true" data-name="to" data-auto-recipient="' . ($auto ? '1' : '0') . '" data-placeholder="Recipient name(s) or all concerned officials and personnel" role="textbox" aria-label="To"' : '') . '>'
+            . special_order_sanitize_rich_html($value) . '</div>';
+    }
     $entries = preg_split('/\n\s*\n/', trim($value));
     $parts = [];
     foreach ($entries as $entry) {
@@ -58,7 +111,7 @@ function so_recipient_block(bool $edit, string $value, bool $auto = false): stri
     }
     $class = 'so-recipient-list' . ($edit ? ' so-edit' : '');
     if (!$edit) return '<div class="' . $class . '">' . implode('<br><br>', $parts) . '</div>';
-    return '<div class="' . $class . '" contenteditable="plaintext-only" spellcheck="true" data-name="to"'
+    return '<div class="' . $class . '" contenteditable="true" spellcheck="true" data-name="to"'
         . ' data-auto-recipient="' . ($auto ? '1' : '0') . '" data-placeholder="Recipient name(s) or all concerned officials and personnel" role="textbox" aria-label="To">'
         . implode('<br><br>', $parts) . '</div>';
 }
@@ -83,7 +136,7 @@ function so_pages(array $doc, bool $edit = false, array $employees = [], bool $e
     };
     // The signatory, mirrored on the RTA's FOR block while HR types it on page 1.
     $mirror = function (string $name, string $value) use ($edit) {
-        return $edit ? '<span data-mirror="' . h($name) . '">' . h($value) . '</span>' : h($value);
+        return $edit ? '<span data-mirror="' . h($name) . '">' . special_order_rich_html($value) . '</span>' : special_order_rich_html($value);
     };
     ?>
     <article class="so-sheet so-p1">
@@ -93,12 +146,12 @@ function so_pages(array $doc, bool $edit = false, array $employees = [], bool $e
         <div class="lines">
             <span>TO</span><span>:</span><?= so_recipient_block($edit, $m['to'], !empty($doc['autoTo'])) ?>
             <span>SUBJECT</span><span>:</span><?= $t('subject', $m['subject'], 'span', '', 'Subject') ?>
-            <span>DATE</span><span>:</span><?= $edit ? $t('issueDate', $date, 'span', '', 'July 30, 2026') : '<span>' . h($date) . '</span>' ?>
+            <span>DATE</span><span>:</span><?= $edit ? $t('issueDate', $date, 'span', '', 'July 30, 2026') : '<span>' . special_order_rich_html($date) . '</span>' ?>
         </div>
         <?php if ($edit): ?>
             <div class="body"><?= $t('soBody', $doc['body'], 'div', 'so-body-edit', 'Order text') ?></div>
         <?php else: ?>
-            <div class="body"><?php foreach (preg_split('/\R{2,}/', trim($doc['body'])) as $paragraph): ?><p class="para"><?= nl2br(h($paragraph)) ?></p><?php endforeach; ?></div>
+            <div class="body so-body-print"><?= so_body_html($doc['body']) ?></div>
         <?php endif; ?>
         <?php if ($m['forLine'] !== ''): ?><p class="for-line so-upper"><?= $t('forLine', $m['forLine'], 'span', '', 'FOR THE REGIONAL DIRECTOR') ?></p><?php endif; ?>
         <div class="signatory">
@@ -119,7 +172,7 @@ function so_pages(array $doc, bool $edit = false, array $employees = [], bool $e
             <span>SUBJECT</span><span>:</span><span class="u">Request for Travel Authority</span>
             <span>DATE</span><span>:</span><?= $mirror('issueDate', $date) ?>
         </div>
-        <div class="body"><p class="para"><?= $t('memoBody', $m['memoBody'], 'span', '', 'Travel authority request') ?></p></div>
+        <div class="body"><?= $t('memoBody', $m['memoBody'], $edit ? 'div' : 'p', 'para', 'Travel authority request') ?></div>
         <div class="checks vehicle">
             <div class="check"><?= so_box($edit, 'vehicle', $m['vehicle'] === 'official', 'official', 'radio') ?><span>With official vehicle (car/motorcycle)</span></div>
             <p class="vehicle-note">Plate Number: <?= $t('plate', $edit ? $m['plate'] : ($m['vehicle'] === 'official' ? ($m['plate'] ?: 'see attached list') : ''), 'span', '', 'see attached list') ?><br>Driver/s: <?= $t('driver', $edit ? $m['driver'] : ($m['vehicle'] === 'official' ? ($m['driver'] ?: 'see attached list') : ''), 'span', '', 'see attached list') ?></p>

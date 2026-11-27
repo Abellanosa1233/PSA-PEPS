@@ -87,6 +87,77 @@ function special_order_share_documents(array $requests): array
     return $requests;
 }
 
+/* Keep only simple inline formatting from the editor. All attributes and other elements are removed. */
+function special_order_sanitize_rich_html(string $html): string
+{
+    $tags = ['b' => true, 'strong' => true, 'i' => true, 'em' => true, 'u' => true, 'br' => true, 'p' => true, 'div' => true, 'span' => true,
+        'ul' => true, 'ol' => true, 'li' => true, 'a' => true, 'img' => true, 'font' => true, 'blockquote' => true];
+    $html = strip_tags(str_replace("\0", '', $html), '<b><strong><i><em><u><br><p><div><span><ul><ol><li><a><img><font><blockquote>');
+    return preg_replace_callback('/<\/?([a-z][a-z0-9]*)\b([^>]*)>/i', function ($match) use ($tags) {
+        $tag = strtolower($match[1]);
+        if (!isset($tags[$tag])) return '';
+        $closing = strncmp($match[0], '</', 2) === 0;
+        if ($tag === 'br') return '<br>';
+        if ($tag === 'img') {
+            if ($closing || !preg_match('/\bsrc\s*=\s*(["\'])(data:image\/(?:png|jpeg|webp);base64,[a-z0-9+\/=]+)\1/i', $match[2], $src)) return '';
+            $encoded = substr($src[2], strpos($src[2], ',') + 1);
+            $bytes = base64_decode($encoded, true);
+            $image = $bytes !== false && strlen($bytes) <= 16384 ? @getimagesizefromstring($bytes) : false;
+            if (!$image || !in_array($image['mime'] ?? '', ['image/png', 'image/jpeg', 'image/webp'], true)) return '';
+            return '<img src="' . h($src[2]) . '" alt="">';
+        }
+        if ($closing) return '</' . $tag . '>';
+        $attrs = '';
+        if ($tag === 'a' && preg_match('/\bhref\s*=\s*(["\'])(.*?)\1/i', $match[2], $href)) {
+            $url = trim(html_entity_decode($href[2], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+            if (preg_match('/^(?:https?:\/\/|mailto:)[^\s]+$/i', $url)) $attrs .= ' href="' . h($url) . '" rel="noopener noreferrer" target="_blank"';
+        }
+        $styles = [];
+        if (in_array($tag, ['p', 'div'], true) && preg_match('/\balign\s*=\s*(["\']?)(left|center|right|justify)\1/i', $match[2], $align)) $styles['text-align'] = strtolower($align[2]);
+        if (preg_match('/\bstyle\s*=\s*(["\'])(.*?)\1/i', $match[2], $styleMatch)) {
+            foreach (explode(';', strtolower($styleMatch[2])) as $declaration) {
+                $parts = explode(':', $declaration, 2);
+                if (count($parts) !== 2) continue;
+                [$property, $value] = array_map('trim', $parts);
+                if (in_array($property, ['color', 'background-color'], true)
+                    && (preg_match('/^#[0-9a-f]{6}$/', $value) || preg_match('/^rgb\(\s*(?:25[0-5]|2[0-4][0-9]|1?[0-9]?[0-9])\s*,\s*(?:25[0-5]|2[0-4][0-9]|1?[0-9]?[0-9])\s*,\s*(?:25[0-5]|2[0-4][0-9]|1?[0-9]?[0-9])\s*\)$/', $value))) $styles[$property] = $value;
+                if ($property === 'text-align' && in_array($value, ['left', 'center', 'right', 'justify'], true)) $styles[$property] = $value;
+                if ($property === 'line-height' && in_array($value, ['1', '1.15', '1.5', '2'], true)) $styles[$property] = $value;
+            }
+        }
+        if ($tag === 'font' && preg_match('/\bcolor\s*=\s*(["\']?)(#[0-9a-f]{6})\1/i', $match[2], $color)) $attrs .= ' color="' . h($color[2]) . '"';
+        if ($styles) $attrs .= ' style="' . h(implode(';', array_map(function ($key, $value) { return $key . ':' . $value; }, array_keys($styles), $styles))) . '"';
+        return '<' . $tag . $attrs . '>';
+    }, $html) ?? '';
+}
+
+function special_order_rich_html(string $value): string
+{
+    if (preg_match('/<\/?(?:b|strong|i|em|u|br|p|div|span|ul|ol|li|a|img|font|blockquote)\b/i', $value)) return special_order_sanitize_rich_html($value);
+    return nl2br(h($value));
+}
+
+function special_order_rich_input(array $in, string $key, int $max, bool $required = false, string $label = ''): string
+{
+    $raw = trim((string) ($in[$key] ?? ''));
+    $plain = trim(html_entity_decode(strip_tags($raw), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+    if (strlen($raw) > ($max * 12 + 4096)) fail(($label ?: ucfirst($key)) . ' is too long.', 422, $key);
+    if ($required && $plain === '') fail(($label ?: ucfirst($key)) . ' is required.', 422, $key);
+    if (!$required && $plain === '') return '';
+    if (mb_strlen($plain) > $max) fail(($label ?: ucfirst($key)) . " must be $max characters or fewer.", 422, $key);
+    return special_order_sanitize_rich_html($raw);
+}
+
+function special_order_plain_text(string $value): string
+{
+    return trim(html_entity_decode(strip_tags($value), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+}
+
+function special_order_fixed_footer(): string
+{
+    return "3rd Floor, Limketkai Module-2 BPO & Cyberpark Bldg., Rosario Crescent\nLimketkai Center, Brgy 31, Cagayan de Oro City\nContact Number: 09565766106\nEmail: misamisoriental@psa.gov.ph";
+}
+
 /* Everything the SO document (print, HR editor) shows, from the SO's row and its participants.
    A row not generated yet starts from the office's remembered values and a default order text.
    $suggested: other requesters of the same activity to list as participants on a new SO. */
@@ -146,25 +217,25 @@ function special_order_document(array $state, array $order, array $suggested = [
 function special_order_request_draft(array $in, string $purpose, string $destination, string $start, ?string $end, array $employee): array
 {
     $defaults = special_order_defaults();
-    $number = str_in($in, 'soNumber', 40, false, 'SO number') ?: special_order_next_number();
+    $number = special_order_rich_input($in, 'soNumber', 40, false, 'SO number') ?: special_order_next_number();
     $meta = [
-        'refNo' => str_in($in, 'refNo', 60, false, 'Reference No.') ?: special_order_reference_number($number),
-        'to' => str_in($in, 'to', 500, false, 'TO'), 'toManual' => !empty($in['toManual']),
-        'subject' => str_in($in, 'subject', 255, false, 'Subject') ?: special_order_subject(['destination' => $destination, 'purpose' => $purpose]),
-        'issueDate' => str_in($in, 'issueDate', 80, false, 'Date') ?: date('F j, Y'),
-        'memoBody' => str_in($in, 'memoBody', 2000, false, 'Travel authority request'),
-        'forLine' => str_in($in, 'forLine', 80, false, 'Signing line'),
-        'signatoryDesignation' => str_in($in, 'signatoryDesignation', 120, false, 'Designation'),
-        'initials' => str_in($in, 'initials', 40, false, 'Initials'),
-        'footer' => str_in($in, 'footer', 400, false, 'Footer'),
+        'refNo' => special_order_rich_input($in, 'refNo', 60, false, 'Reference No.') ?: special_order_reference_number($number),
+        'to' => special_order_rich_input($in, 'to', 500, false, 'TO'), 'toManual' => !empty($in['toManual']),
+        'subject' => special_order_rich_input($in, 'subject', 255, false, 'Subject') ?: special_order_subject(['destination' => $destination, 'purpose' => $purpose]),
+        'issueDate' => special_order_rich_input($in, 'issueDate', 80, false, 'Date') ?: date('F j, Y'),
+        'memoBody' => special_order_rich_input($in, 'memoBody', 2000, false, 'Travel authority request'),
+        'forLine' => special_order_rich_input($in, 'forLine', 80, false, 'Signing line'),
+        'signatoryDesignation' => special_order_rich_input($in, 'signatoryDesignation', 120, false, 'Designation'),
+        'initials' => special_order_rich_input($in, 'initials', 40, false, 'Initials'),
+        'footer' => special_order_fixed_footer(),
         'vehicle' => one_of((string) ($in['vehicle'] ?? 'none'), ['none', 'official'], 'Vehicle'),
-        'plate' => str_in($in, 'plate', 40, false, 'Plate number'), 'driver' => str_in($in, 'driver', 120, false, 'Driver'),
+        'plate' => special_order_rich_input($in, 'plate', 40, false, 'Plate number'), 'driver' => special_order_rich_input($in, 'driver', 120, false, 'Driver'),
         'allowances' => !empty($in['allowances']), 'meals' => !empty($in['meals']), 'incidental' => !empty($in['incidental']), 'lodging' => !empty($in['lodging']),
         'expenses' => !empty($in['expenses']), 'terminal' => !empty($in['terminal']), 'fuel' => !empty($in['fuel']),
-        'others' => str_in($in, 'others', 120, false, 'Other expenses'),
-        'preparedName' => str_in($in, 'preparedName', 120, false, 'Prepared by'),
-        'preparedTitle' => str_in($in, 'preparedTitle', 120, false, 'Position of the preparer'),
-        'routing' => str_in($in, 'routing', 300, false, 'Routing slip'),
+        'others' => special_order_rich_input($in, 'others', 120, false, 'Other expenses'),
+        'preparedName' => special_order_rich_input($in, 'preparedName', 120, false, 'Prepared by'),
+        'preparedTitle' => special_order_rich_input($in, 'preparedTitle', 120, false, 'Position of the preparer'),
+        'routing' => special_order_rich_input($in, 'routing', 300, false, 'Routing slip'),
         'proposedParticipants' => [], 'proposedAccommodation' => [], 'proposedTravelTime' => [],
     ];
     $proposed = array_values(array_unique(array_map('intval', array_filter((array) ($in['p'] ?? []), 'is_numeric'))));
@@ -183,10 +254,10 @@ function special_order_request_draft(array $in, string $purpose, string $destina
     if ($meta['memoBody'] === '') $meta['memoBody'] = special_order_memo_body([
         'destination' => $destination, 'purpose' => $purpose, 'start' => $start, 'end' => $end,
     ], [[ 'firstName' => $employee['first_name'], 'lastName' => $employee['last_name'] ]]);
-    $office = str_in($in, 'soOffice', 160, false, 'Region / office line') ?: $defaults['office'];
-    $signatoryName = str_in($in, 'signatoryName', 120, false, 'Name of the signatory') ?: $defaults['signatoryName'];
-    $signatoryTitle = str_in($in, 'signatoryTitle', 120, false, 'Position of the signatory') ?: $defaults['signatoryTitle'];
-    $body = str_in($in, 'soBody', 4000, false, 'Order text');
+    $office = special_order_rich_input($in, 'soOffice', 160, false, 'Region / office line') ?: $defaults['office'];
+    $signatoryName = special_order_rich_input($in, 'signatoryName', 120, false, 'Name of the signatory') ?: $defaults['signatoryName'];
+    $signatoryTitle = special_order_rich_input($in, 'signatoryTitle', 120, false, 'Position of the signatory') ?: $defaults['signatoryTitle'];
+    $body = special_order_rich_input($in, 'soBody', 4000, false, 'Order text');
     if ($body === '') $body = special_order_default_body([['type' => $employee['type']]], ['purpose' => $purpose, 'destination' => $destination, 'start' => $start, 'end' => $end]);
     return ['number' => $number, 'office' => $office, 'body' => $body, 'signatoryName' => $signatoryName, 'signatoryTitle' => $signatoryTitle, 'meta' => $meta];
 }
@@ -331,11 +402,12 @@ function special_order_defaults(): array
         $saved['footer'] = "3rd Floor, Limketkai Module-2 BPO & Cyberpark Bldg., Rosario Crescent\nLimketkai Center, Brgy 31, Cagayan de Oro City\nContact Number: 09565766106\nEmail: misamisoriental@psa.gov.ph";
     }
     // First-time values follow the marked Misamis Oriental PSO sample.
+    $saved['footer'] = special_order_fixed_footer();
     return array_merge([
         'office' => 'Misamis Oriental', 'to' => '', 'forLine' => '',
         'signatoryName' => 'MARIA LIZA M. BIGORNIA', 'signatoryTitle' => 'Chief Statistical Specialist', 'signatoryDesignation' => 'Provincial Statistical Office - Misamis Oriental',
         'initials' => '', 'preparedName' => '', 'preparedTitle' => '', 'routing' => '',
-        'footer' => "3rd Floor, Limketkai Module-2 BPO & Cyberpark Bldg., Rosario Crescent\nLimketkai Center, Brgy 31, Cagayan de Oro City\nContact Number: 09565766106\nEmail: misamisoriental@psa.gov.ph",
+        'footer' => special_order_fixed_footer(),
     ], array_map('strval', $saved));
 }
 
@@ -396,30 +468,30 @@ function act_special_order_generate(array $in, array $user, ?array $logoUpload =
     $row = special_order_row(int_in($in, 'id'));
     if ($row['status'] === 'rejected') fail('This request was declined, so no Special Order can be generated.');
     if ($row['signed_at']) fail('This Special Order is already signed. Upload a new signed copy instead of editing it.');
-    $number = str_in($in, 'soNumber', 40, true, 'SO number');
-    $office = str_in($in, 'soOffice', 160, false, 'Region / office line');
-    $body = str_in($in, 'soBody', 4000, true, 'Order text');
-    $signatory = str_in($in, 'signatoryName', 120, true, 'Name of the signatory');
-    $signatoryTitle = str_in($in, 'signatoryTitle', 120, true, 'Position of the signatory');
+    $number = special_order_rich_input($in, 'soNumber', 40, true, 'SO number');
+    $office = special_order_rich_input($in, 'soOffice', 160, false, 'Region / office line');
+    $body = special_order_rich_input($in, 'soBody', 4000, true, 'Order text');
+    $signatory = special_order_rich_input($in, 'signatoryName', 120, true, 'Name of the signatory');
+    $signatoryTitle = special_order_rich_input($in, 'signatoryTitle', 120, true, 'Position of the signatory');
     $meta = [
-        'refNo' => str_in($in, 'refNo', 60, false, 'Reference No.'),
-        'to' => str_in($in, 'to', 500, true, 'TO'), 'toManual' => !empty($in['toManual']),
-        'subject' => str_in($in, 'subject', 255, true, 'Subject'),
-        'issueDate' => str_in($in, 'issueDate', 80, true, 'Date'),
-        'memoBody' => str_in($in, 'memoBody', 2000, true, 'Travel authority request'),
-        'forLine' => str_in($in, 'forLine', 80, false, 'Signing line'),
-        'signatoryDesignation' => str_in($in, 'signatoryDesignation', 120, false, 'Designation'),
-        'initials' => str_in($in, 'initials', 40, false, 'Initials'),
-        'footer' => str_in($in, 'footer', 400, false, 'Footer'),
+        'refNo' => special_order_rich_input($in, 'refNo', 60, false, 'Reference No.'),
+        'to' => special_order_rich_input($in, 'to', 500, true, 'TO'), 'toManual' => !empty($in['toManual']),
+        'subject' => special_order_rich_input($in, 'subject', 255, true, 'Subject'),
+        'issueDate' => special_order_rich_input($in, 'issueDate', 80, true, 'Date'),
+        'memoBody' => special_order_rich_input($in, 'memoBody', 2000, true, 'Travel authority request'),
+        'forLine' => special_order_rich_input($in, 'forLine', 80, false, 'Signing line'),
+        'signatoryDesignation' => special_order_rich_input($in, 'signatoryDesignation', 120, false, 'Designation'),
+        'initials' => special_order_rich_input($in, 'initials', 40, false, 'Initials'),
+        'footer' => special_order_fixed_footer(),
         'vehicle' => one_of((string) ($in['vehicle'] ?? 'none'), ['none', 'official'], 'Vehicle'),
-        'plate' => str_in($in, 'plate', 40, false, 'Plate number'),
-        'driver' => str_in($in, 'driver', 120, false, 'Driver'),
+        'plate' => special_order_rich_input($in, 'plate', 40, false, 'Plate number'),
+        'driver' => special_order_rich_input($in, 'driver', 120, false, 'Driver'),
         'allowances' => !empty($in['allowances']), 'meals' => !empty($in['meals']), 'incidental' => !empty($in['incidental']), 'lodging' => !empty($in['lodging']),
         'expenses' => !empty($in['expenses']), 'terminal' => !empty($in['terminal']), 'fuel' => !empty($in['fuel']),
-        'others' => str_in($in, 'others', 120, false, 'Other expenses'),
-        'preparedName' => str_in($in, 'preparedName', 120, false, 'Prepared by'),
-        'preparedTitle' => str_in($in, 'preparedTitle', 120, false, 'Position of the preparer'),
-        'routing' => str_in($in, 'routing', 300, false, 'Routing slip'),
+        'others' => special_order_rich_input($in, 'others', 120, false, 'Other expenses'),
+        'preparedName' => special_order_rich_input($in, 'preparedName', 120, false, 'Prepared by'),
+        'preparedTitle' => special_order_rich_input($in, 'preparedTitle', 120, false, 'Position of the preparer'),
+        'routing' => special_order_rich_input($in, 'routing', 300, false, 'Routing slip'),
     ];
     // Participants: the requester always, plus everyone ticked. Each has their own accommodation and travel time.
     $chosen = array_values(array_unique(array_map('intval', array_filter((array) ($in['p'] ?? []), 'is_numeric'))));
@@ -437,8 +509,10 @@ function act_special_order_generate(array $in, array $user, ?array $logoUpload =
         $employee = employee_exists($empId);
         if ($employee['status'] !== 'Active') fail(employee_display_name($employee) . ' is no longer active and cannot be a participant.');
     }
-    $taken = q("SELECT COUNT(*) FROM employee_requests WHERE request_type = 'special_order' AND so_number = ? AND id <> ? AND (so_group_id IS NULL OR so_group_id <> ?)",
-        [$number, $row['id'], $row['id']])->fetchColumn();
+    $existingNumbers = q("SELECT so_number FROM employee_requests WHERE request_type = 'special_order' AND so_number IS NOT NULL AND id <> ? AND (so_group_id IS NULL OR so_group_id <> ?)",
+        [$row['id'], $row['id']])->fetchAll(PDO::FETCH_COLUMN);
+    $numberText = special_order_plain_text($number);
+    $taken = in_array($numberText, array_map('special_order_plain_text', $existingNumbers), true);
     if ($taken) fail('Another Special Order already uses number ' . $number . '.', 422, 'soNumber');
 
     if (!empty($in['resetSoLogo'])) {
