@@ -427,8 +427,19 @@ function act_employee_request_create(array $in): array
         if ($end !== null && $end < $start) fail('End date must be on or after the start date.', 422, 'end');
         if ($end === $start) $end = null;
     }
-    q('INSERT INTO employee_requests (emp_id, request_type, purpose, destination, start_date, end_date, details) VALUES (?,?,?,?,?,?,?)',
-        [$employee['id'], $type, $purpose, $destination, $start, $end, str_in($in, 'details', 1000, false)]);
+    $details = str_in($in, 'details', 1000, false);
+    if ($type === 'special_order') {
+        ensure_special_orders();
+        $draft = special_order_request_draft($in, $purpose, $destination, $start, $end, $employee);
+        q('INSERT INTO employee_requests (emp_id, request_type, purpose, destination, start_date, end_date, details,
+             so_number, so_office, so_body, so_meta, signatory_name, signatory_title)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [$employee['id'], $type, $purpose, $destination, $start, $end, $details, $draft['number'], $draft['office'], $draft['body'],
+             json_encode($draft['meta'], JSON_UNESCAPED_UNICODE), $draft['signatoryName'], $draft['signatoryTitle']]);
+    } else {
+        q('INSERT INTO employee_requests (emp_id, request_type, purpose, destination, start_date, end_date, details) VALUES (?,?,?,?,?,?,?)',
+            [$employee['id'], $type, $purpose, $destination, $start, $end, $details]);
+    }
     return ['id' => (int) db()->lastInsertId()];
 }
 

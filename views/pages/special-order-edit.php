@@ -1,6 +1,6 @@
 <?php
 /* Generate SO/RTA (HR): the Special Order, the Request for Travel Authority and the list of
-   participants, exactly as they print (S.O. No. 2026-530 template), typed on in place. Saving
+   participants, following the Misamis Oriental PSO template, typed on in place. Saving
    keeps it as a draft for the CSS's signature until the signed copy is uploaded. */
 $id = (int) ($_GET['id'] ?? 0);
 $order = null;
@@ -32,8 +32,8 @@ usort($active, function ($a, $b) { return [$a['lastName'], $a['firstName']] <=> 
 $signed = $doc['signed'];
 so_document_assets(!$signed);
 ?>
-<form method="post" data-so-editor class="so-editor">
-    <?php hidden_inputs(['_action' => 'specialorder.generate', '_token' => $_SESSION['web_csrf'], 'id' => $doc['id']]); ?>
+<form method="post" enctype="multipart/form-data" data-so-editor class="so-editor">
+    <?php hidden_inputs(['_action' => 'specialorder.generate', '_token' => $_SESSION['web_csrf'], 'id' => $doc['id'], 'toManual' => empty($doc['autoTo']) ? 1 : 0]); ?>
     <div class="page-head so-editor-head">
         <div>
             <h1><?= $doc['generated'] ? 'Special Order ' . h($doc['number']) : 'Generate SO/RTA' ?></h1>
@@ -45,6 +45,7 @@ so_document_assets(!$signed);
         <div class="actions">
             <a class="btn" href="<?= h(page_url('special-orders')) ?>">Back</a>
             <?php if ($doc['generated']): ?><a class="btn" href="<?= h(page_url('special-order-print', ['id' => $doc['id']])) ?>" target="_blank" rel="noopener">Print</a><?php endif; ?>
+            <?php if (!$signed): ?><label class="so-logo-control">Header logo (all SOs) <input type="file" name="soHeaderLogo" accept="image/png,image/jpeg"></label><label class="so-logo-reset"><input type="checkbox" name="resetSoLogo" value="1"> Restore default</label><?php endif; ?>
             <?php if (!$signed): ?><button class="btn primary" type="submit"><?= $doc['generated'] ? 'Save changes' : 'Generate SO/RTA' ?></button><?php endif; ?>
         </div>
     </div>

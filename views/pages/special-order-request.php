@@ -1,60 +1,85 @@
 <?php
-/* Request Special Order (employee): page 1 of the Special Order as it will be issued
-   (S.O. No. 2026-530 template), with the activity, dates and venue filled in on the document.
-   HR assigns the number, signatory and date when it generates the SO. */
+/* Employee request: the same proposed SO/RTA document HR reviews and prepares for signature.
+   The administration logo remains managed by HR and is not an editable document field. */
 $me = (int) $user['employeeId'];
 $self = null;
 foreach ($state['employees'] as $e) if ($e['id'] === $me) $self = $e;
-$defaults = special_order_defaults();
 $draft = $_SESSION['so_draft'] ?? [];
-$value = function (string $key, string $default = '') use ($draft) { return (string) ($draft[$key] ?? $default); };
-$jobOrder = $self && in_array($self['type'], ['Job Order', 'Contract of Service Worker'], true);
-$company = $state['settings']['company'] ?? 'Philippine Statistics Authority';
+$defaults = special_order_defaults();
+$active = q("SELECT id, first_name AS firstName, last_name AS lastName, location, department, title, emp_type AS type
+             FROM employees WHERE status = 'Active' ORDER BY last_name, first_name")->fetchAll();
+$active = array_map(function ($e) { $e['id'] = (int) $e['id']; return $e; }, $active);
+$activeById = array_column($active, null, 'id');
+$purpose = (string) ($draft['purpose'] ?? '');
+$destination = (string) ($draft['destination'] ?? '');
+$start = (string) ($draft['start'] ?? today());
+$end = (string) ($draft['end'] ?? '');
+$request = ['purpose' => $purpose, 'destination' => $destination, 'start' => $start, 'end' => $end !== '' ? $end : null];
+$participant = [
+    'empId' => $me,
+    'name' => $self ? $self['lastName'] . ', ' . $self['firstName'] : '',
+    'firstName' => $self['firstName'] ?? '', 'lastName' => $self['lastName'] ?? '',
+    'office' => $self ? ($self['location'] ?: $self['department']) : '',
+    'title' => $self['title'] ?? '', 'type' => $self['type'] ?? 'Regular',
+    'accommodation' => $draft['acc'][$me] ?? 'LIVE-OUT', 'travelTime' => $draft['tt'][$me] ?? 'INCLUSIVE',
+    'requester' => true,
+];
+$participants = [$participant];
+$proposedIds = array_values(array_unique(array_map('intval', array_filter((array) ($draft['p'] ?? []), 'is_numeric'))));
+foreach ($proposedIds as $proposedId) {
+    if ($proposedId === $me || !isset($activeById[$proposedId])) continue;
+    $person = $activeById[$proposedId];
+    $participants[] = [
+        'empId' => $proposedId, 'name' => $person['lastName'] . ', ' . $person['firstName'],
+        'firstName' => $person['firstName'], 'lastName' => $person['lastName'],
+        'office' => $person['location'] ?: $person['department'], 'title' => $person['title'], 'type' => $person['type'],
+        'accommodation' => $draft['acc'][$proposedId] ?? 'LIVE-OUT', 'travelTime' => $draft['tt'][$proposedId] ?? 'INCLUSIVE', 'requester' => false,
+    ];
+}
+$metaDefaults = special_order_meta(null);
+$metaKeys = array_flip(array_keys($metaDefaults));
+$meta = array_merge($metaDefaults, $defaults, array_intersect_key($draft, $metaKeys));
+$meta['to'] = !empty($meta['toManual']) && $meta['to'] !== '' ? $meta['to'] : special_order_recipient_line($participants);
+$number = (string) ($draft['soNumber'] ?? '') ?: special_order_next_number();
+$meta['refNo'] = (string) ($meta['refNo'] ?? '') ?: special_order_reference_number($number);
+$meta['subject'] = (string) ($meta['subject'] ?? '') ?: special_order_subject($request);
+$meta['issueDate'] = (string) ($meta['issueDate'] ?? '') ?: date('F j, Y');
+$meta['memoBody'] = (string) ($meta['memoBody'] ?? '') ?: special_order_memo_body($request, $participants);
+$body = (string) ($draft['soBody'] ?? '') ?: special_order_default_body(array_map(function ($p) { return ['type' => $p['type']]; }, $participants), $request);
+$doc = [
+    'id' => 0, 'generated' => false, 'signed' => false,
+    'company' => $state['settings']['company'] ?? 'Philippine Statistics Authority',
+    'office' => (string) ($draft['soOffice'] ?? '') ?: $defaults['office'],
+    'number' => $number, 'issued' => new DateTimeImmutable(), 'body' => $body,
+    'signatoryName' => (string) ($draft['signatoryName'] ?? '') ?: $defaults['signatoryName'],
+    'signatoryTitle' => (string) ($draft['signatoryTitle'] ?? '') ?: $defaults['signatoryTitle'],
+    'meta' => $meta, 'autoTo' => empty($meta['toManual']),
+    'purpose' => $purpose, 'destination' => $destination, 'start' => $start, 'end' => $end !== '' ? $end : null,
+    'participants' => $participants,
+];
 so_document_assets(true);
 ?>
-<form method="post" data-so-editor class="so-editor">
-    <?php hidden_inputs(['_action' => 'employee.request.create', '_token' => $_SESSION['web_csrf'], 'empId' => $me, 'type' => 'special_order']); ?>
+<form method="post" data-so-editor data-so-requester class="so-editor">
+    <?php hidden_inputs(['_action' => 'employee.request.create', '_token' => $_SESSION['web_csrf'], 'empId' => $me, 'type' => 'special_order', 'toManual' => empty($meta['toManual']) ? 0 : 1]); ?>
     <div class="page-head so-editor-head">
         <div>
             <h1>Request Special Order</h1>
-            <p>Fill in the blanks on the Special Order: the activity, the dates and the venue. HR assigns the number, date and signatory, and lists everyone attending.</p>
+            <p>Edit the proposed SO/RTA on the pages below. HR reviews your request and prepares the final copy; only HR can change the administration logo.</p>
         </div>
         <div class="actions">
             <a class="btn" href="<?= h(page_url('special-orders', ['clear' => 1])) ?>">Cancel</a>
             <button class="btn primary" type="submit">Submit request</button>
         </div>
     </div>
-    <div class="so-desk">
-        <article class="so-sheet so-p1">
-            <?php so_letterhead($company, $defaults['office']); ?>
-            <p class="so-no">SPECIAL ORDER NO. <span class="muted-blank">(assigned by HR)</span></p>
-            <div class="lines">
-                <span>TO</span><span>:</span><b><?= h(mb_strtoupper($defaults['to'])) ?></b>
-                <span>SUBJECT</span><span>:</span><span>Authority to Attend the <span data-mirror="purpose"><?= h($value('purpose')) ?></span></span>
-                <span>DATE</span><span>:</span><span class="muted-blank">(date of issue)</span>
-            </div>
-            <div class="body">
-                <p class="para">The official participant listed in the attached document is hereby authorized to attend the
-                    <?= so_text(true, 'purpose', $value('purpose'), 'span', '', 'name of the activity') ?>
-                    on <input class="blank" type="date" name="start" value="<?= h($value('start', today())) ?>" required aria-label="Start date">
-                    to <input class="blank" type="date" name="end" value="<?= h($value('end')) ?>" aria-label="End date (leave empty for one day)">,
-                    at <?= so_text(true, 'destination', $value('destination'), 'span', '', 'venue and address') ?>.</p>
-                <p class="para">Payment/reimbursement of allowable traveling expenses based on EO No. 77 series of 2019 is chargeable to the general fund, subject to the usual accounting and auditing rules and regulations.</p>
-                <?php if ($jobOrder): ?><p class="para">Job Order/Contract of Service Worker shall be entitled to payment of travelling expenses following Office Memorandum 2025-175 subject to the usual accounting and auditing rules and regulations.</p><?php endif; ?>
-                <p class="para">THIS SPECIAL ORDER SHALL TAKE EFFECT ON DATE SPECIFIED, INCLUSIVE OF TRAVEL TIME, AND REMAIN IN FORCE UNTIL SOONER REVOKED OR MODIFIED.</p>
-            </div>
-            <p class="for-line"><?= h(mb_strtoupper($defaults['forLine'])) ?></p>
-            <div class="signatory">
-                <b><?= $defaults['signatoryName'] !== '' ? h(mb_strtoupper($defaults['signatoryName'])) : '<span class="muted-blank">(signatory)</span>' ?></b>
-                <span>(<?= h($defaults['signatoryTitle']) ?>)</span>
-                <?php if ($defaults['signatoryDesignation'] !== ''): ?><span><?= h($defaults['signatoryDesignation']) ?></span><?php endif; ?>
-            </div>
-            <?php so_footer($defaults['footer']); ?>
-        </article>
-    </div>
     <div class="card so-request-extra">
+        <div class="request-inputs">
+            <label>Activity <input class="input" name="purpose" maxlength="160" required value="<?= h($purpose) ?>"></label>
+            <label>Venue <input class="input" name="destination" maxlength="160" value="<?= h($destination) ?>"></label>
+            <label>From <input class="input" type="date" name="start" required value="<?= h($start) ?>"></label>
+            <label>To <input class="input" type="date" name="end" value="<?= h($end) ?>"></label>
+        </div>
         <label class="field"><span>Notes for HR (optional): organizer, invitation or memo reference</span>
-            <input class="input" name="details" maxlength="1000" value="<?= h($value('details')) ?>" placeholder="e.g. Invitation memo dated November 18, 2026"></label>
-        <p class="muted">Leave the end date empty for a one-day activity.</p>
+            <input class="input" name="details" maxlength="1000" value="<?= h((string) ($draft['details'] ?? '')) ?>" placeholder="e.g. Invitation memo dated November 18, 2026"></label>
     </div>
+    <div class="so-desk"><?php so_pages($doc, true, $active, true); ?></div>
 </form>

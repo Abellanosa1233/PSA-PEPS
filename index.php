@@ -143,7 +143,11 @@ try {
             }
             if ($action === 'employee.request.create' && $page === 'special-order-request') {
                 // Keep what was typed on the Special Order so a missing field doesn't clear it.
-                $_SESSION['so_draft'] = array_map('strval', array_intersect_key(array_filter($_POST, 'is_string'), array_flip(['purpose', 'destination', 'start', 'end', 'details'])));
+                $_SESSION['so_draft'] = array_map('strval', array_filter($_POST, 'is_string'));
+                $_SESSION['so_draft']['p'] = array_values(array_map('strval', array_filter((array) ($_POST['p'] ?? []), 'is_scalar')));
+                foreach (['acc', 'tt'] as $key) {
+                    $_SESSION['so_draft'][$key] = array_map('strval', array_filter((array) ($_POST[$key] ?? []), 'is_scalar'));
+                }
             }
             authorize_action($action, $input, $user);
             if ($action === 'profile.photo') $result = act_profile_photo($_FILES['profileImage'] ?? [], $user);
@@ -152,6 +156,7 @@ try {
             elseif ($action === 'attendance.import') $result = act_attendance_import($_FILES['attendanceCsv'] ?? []);
             elseif ($action === 'attendance.biometrics') $result = act_attendance_biometrics($_FILES['biometricLog'] ?? []);
             elseif ($action === 'specialorder.sign') $result = act_special_order_sign($input, $user, leave_attachment_upload($_FILES['signedFile'] ?? [], 'signedFile'));
+            elseif ($action === 'specialorder.generate') $result = act_special_order_generate($input, $user, leave_attachment_upload($_FILES['soHeaderLogo'] ?? [], 'soHeaderLogo', 5));
             elseif ($action === 'document.upload') $result = act_document_upload($input, $user, leave_attachment_upload($_FILES['document'] ?? [], 'document'));
             elseif ($action === 'coe.send') $result = act_coe_send($input, $user, leave_attachment_upload($_FILES['certificatePdf'] ?? [], 'certificatePdf', COE_PDF_MAX_MB));
             elseif ($action === 'leave.create') {

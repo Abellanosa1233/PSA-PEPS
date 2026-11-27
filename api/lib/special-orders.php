@@ -46,7 +46,26 @@ function ensure_special_orders(): void
     }
     if (!isset($cols['so_group_id'])) $add[] = 'ADD INDEX idx_employee_request_so_group (so_group_id)';
     if ($add) q('ALTER TABLE employee_requests ' . implode(', ', $add));
+    q("CREATE TABLE IF NOT EXISTS so_branding (
+        id TINYINT UNSIGNED NOT NULL PRIMARY KEY,
+        header_logo MEDIUMBLOB NULL,
+        header_logo_type VARCHAR(30) NULL,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
     $checked = true;
+}
+
+/* The administration logo is shared by all SOs and can be replaced from the editor. */
+function special_order_header_logo_source(): string
+{
+    static $source = null;
+    if ($source !== null) return $source;
+    ensure_special_orders();
+    $row = q('SELECT header_logo, header_logo_type FROM so_branding WHERE id = 1')->fetch();
+    if ($row && $row['header_logo'] !== null && $row['header_logo_type']) {
+        return $source = 'data:' . $row['header_logo_type'] . ';base64,' . base64_encode($row['header_logo']);
+    }
+    return $source = 'assets/coe-bagong-pilipinas.png';
 }
 
 /* Participants of a group SO share the SO row's document: copy it onto their rows (for the state),
@@ -76,16 +95,25 @@ function special_order_document(array $state, array $order, array $suggested = [
     $people = array_column($state['employees'], null, 'id');
     $generated = !empty($order['generatedAt']);
     $defaults = special_order_defaults();
-    $m = $generated ? $order['soMeta'] : array_merge($order['soMeta'], array_intersect_key($defaults, $order['soMeta']));
+    $m = $generated ? $order['soMeta'] : array_merge($defaults, $order['soMeta']);
     $rows = [];
     foreach ($state['employeeRequests'] as $r) {
         if ($r['type'] === 'special_order' && $r['docId'] === $order['id'] && isset($people[$r['empId']])) $rows[$r['empId']] = $r;
+    }
+    foreach ((array) ($order['soMeta']['proposedParticipants'] ?? []) as $proposedId) {
+        $proposedId = (int) $proposedId;
+        if (!isset($people[$proposedId]) || isset($rows[$proposedId])) continue;
+        $rows[$proposedId] = [
+            'empId' => $proposedId,
+            'accommodation' => $order['soMeta']['proposedAccommodation'][$proposedId] ?? 'LIVE-OUT',
+            'travelTime' => $order['soMeta']['proposedTravelTime'][$proposedId] ?? 'INCLUSIVE',
+        ];
     }
     foreach ($suggested as $r) if (!isset($rows[$r['empId']]) && isset($people[$r['empId']])) $rows[$r['empId']] = $r;
     $participants = [];
     foreach ($rows as $empId => $r) {
         $e = $people[$empId];
-        $participants[] = ['empId' => $empId, 'name' => $e['lastName'] . ', ' . $e['firstName'], 'office' => $e['location'] ?: $e['department'],
+        $participants[] = ['empId' => $empId, 'name' => $e['lastName'] . ', ' . $e['firstName'], 'firstName' => $e['firstName'], 'lastName' => $e['lastName'], 'office' => $e['location'] ?: $e['department'],
             'title' => $e['title'], 'type' => $e['type'], 'accommodation' => $r['accommodation'], 'travelTime' => $r['travelTime'],
             'requester' => $empId === $order['empId']];
     }
@@ -94,16 +122,73 @@ function special_order_document(array $state, array $order, array $suggested = [
     return [
         'id' => $order['id'], 'generated' => $generated, 'signed' => !empty($order['signedAt']),
         'company' => $state['settings']['company'] ?? 'Philippine Statistics Authority',
-        'office' => $generated ? (string) $order['soOffice'] : $defaults['office'],
+        'office' => !empty($order['soOffice']) && $order['soOffice'] !== 'REGION X - NORTHERN MINDANAO' ? (string) $order['soOffice'] : $defaults['office'],
         'number' => $order['soNumber'] ?: ($generated ? '' : special_order_next_number()),
         'issued' => $generated ? new DateTimeImmutable($order['generatedAt']) : new DateTimeImmutable(),
-        'body' => $order['soBody'] ?: special_order_default_body($employees ?: [['type' => '']], $order),
+        'body' => !$order['soBody'] || ($generated && empty($order['signedAt']) && $order['soBody'] === special_order_legacy_default_body($employees ?: [['type' => '']], $order))
+            ? special_order_default_body($employees ?: [['type' => '']], $order) : $order['soBody'],
         'signatoryName' => $order['signatoryName'] ?: $defaults['signatoryName'],
-        'signatoryTitle' => $order['signatoryTitle'] ?: $defaults['signatoryTitle'],
-        'meta' => array_merge($m, ['subject' => $m['subject'] ?: 'Authority to Attend the ' . $order['purpose']]),
+        'signatoryTitle' => !$order['signatoryTitle'] || $order['signatoryTitle'] === 'Senior Statistical Specialist' ? $defaults['signatoryTitle'] : $order['signatoryTitle'],
+        'meta' => array_merge($m, [
+            'refNo' => $m['refNo'] ?: special_order_reference_number($order['soNumber'] ?: ($generated ? '' : special_order_next_number())),
+            'to' => !empty($m['toManual']) && $m['to'] !== '' ? $m['to'] : special_order_recipient_line($participants),
+            'subject' => !$m['subject'] || $m['subject'] === 'Authority to Attend the ' . $order['purpose'] ? special_order_subject($order) : $m['subject'],
+            'issueDate' => $m['issueDate'] ?: ($generated ? (new DateTimeImmutable($order['generatedAt']))->format('F j, Y') : date('F j, Y')),
+            'memoBody' => $m['memoBody'] ?: special_order_memo_body($order, $participants),
+        ]),
+        'autoTo' => empty($m['toManual']),
         'purpose' => $order['purpose'], 'destination' => $order['destination'], 'start' => $order['start'], 'end' => $order['end'],
         'participants' => $participants,
     ];
+}
+
+/* Validate the employee's proposed editable SO/RTA content. HR reviews it before generating. */
+function special_order_request_draft(array $in, string $purpose, string $destination, string $start, ?string $end, array $employee): array
+{
+    $defaults = special_order_defaults();
+    $number = str_in($in, 'soNumber', 40, false, 'SO number') ?: special_order_next_number();
+    $meta = [
+        'refNo' => str_in($in, 'refNo', 60, false, 'Reference No.') ?: special_order_reference_number($number),
+        'to' => str_in($in, 'to', 500, false, 'TO'), 'toManual' => !empty($in['toManual']),
+        'subject' => str_in($in, 'subject', 255, false, 'Subject') ?: special_order_subject(['destination' => $destination, 'purpose' => $purpose]),
+        'issueDate' => str_in($in, 'issueDate', 80, false, 'Date') ?: date('F j, Y'),
+        'memoBody' => str_in($in, 'memoBody', 2000, false, 'Travel authority request'),
+        'forLine' => str_in($in, 'forLine', 80, false, 'Signing line'),
+        'signatoryDesignation' => str_in($in, 'signatoryDesignation', 120, false, 'Designation'),
+        'initials' => str_in($in, 'initials', 40, false, 'Initials'),
+        'footer' => str_in($in, 'footer', 400, false, 'Footer'),
+        'vehicle' => one_of((string) ($in['vehicle'] ?? 'none'), ['none', 'official'], 'Vehicle'),
+        'plate' => str_in($in, 'plate', 40, false, 'Plate number'), 'driver' => str_in($in, 'driver', 120, false, 'Driver'),
+        'allowances' => !empty($in['allowances']), 'meals' => !empty($in['meals']), 'incidental' => !empty($in['incidental']), 'lodging' => !empty($in['lodging']),
+        'expenses' => !empty($in['expenses']), 'terminal' => !empty($in['terminal']), 'fuel' => !empty($in['fuel']),
+        'others' => str_in($in, 'others', 120, false, 'Other expenses'),
+        'preparedName' => str_in($in, 'preparedName', 120, false, 'Prepared by'),
+        'preparedTitle' => str_in($in, 'preparedTitle', 120, false, 'Position of the preparer'),
+        'routing' => str_in($in, 'routing', 300, false, 'Routing slip'),
+        'proposedParticipants' => [], 'proposedAccommodation' => [], 'proposedTravelTime' => [],
+    ];
+    $proposed = array_values(array_unique(array_map('intval', array_filter((array) ($in['p'] ?? []), 'is_numeric'))));
+    if (!in_array((int) $employee['id'], $proposed, true)) array_unshift($proposed, (int) $employee['id']);
+    if (count($proposed) > 300) fail('A Special Order can list up to 300 participants.');
+    $acc = (array) ($in['acc'] ?? []);
+    $travel = (array) ($in['tt'] ?? []);
+    foreach ($proposed as $empId) {
+        $person = employee_exists($empId);
+        if ($person['status'] !== 'Active') fail('Only active employees can be proposed as participants.');
+        $meta['proposedParticipants'][] = $empId;
+        $meta['proposedAccommodation'][$empId] = one_of((string) ($acc[$empId] ?? 'LIVE-OUT'), ['LIVE-OUT', 'LIVE-IN'], 'Accommodation');
+        $meta['proposedTravelTime'][$empId] = one_of((string) ($travel[$empId] ?? 'INCLUSIVE'), ['INCLUSIVE', 'EXCLUSIVE'], 'Travel time');
+    }
+    if (!$meta['toManual'] || $meta['to'] === '') $meta['toManual'] = false;
+    if ($meta['memoBody'] === '') $meta['memoBody'] = special_order_memo_body([
+        'destination' => $destination, 'purpose' => $purpose, 'start' => $start, 'end' => $end,
+    ], [[ 'firstName' => $employee['first_name'], 'lastName' => $employee['last_name'] ]]);
+    $office = str_in($in, 'soOffice', 160, false, 'Region / office line') ?: $defaults['office'];
+    $signatoryName = str_in($in, 'signatoryName', 120, false, 'Name of the signatory') ?: $defaults['signatoryName'];
+    $signatoryTitle = str_in($in, 'signatoryTitle', 120, false, 'Position of the signatory') ?: $defaults['signatoryTitle'];
+    $body = str_in($in, 'soBody', 4000, false, 'Order text');
+    if ($body === '') $body = special_order_default_body([['type' => $employee['type']]], ['purpose' => $purpose, 'destination' => $destination, 'start' => $start, 'end' => $end]);
+    return ['number' => $number, 'office' => $office, 'body' => $body, 'signatoryName' => $signatoryName, 'signatoryTitle' => $signatoryTitle, 'meta' => $meta];
 }
 
 /* Where an SO is in the four steps: requested → for_signature → signed (or declined). */
@@ -136,13 +221,50 @@ function special_order_dates(string $start, ?string $end): string
     return $a->format('F j, Y') . ' – ' . $b->format('F j, Y');
 }
 
-/* The next suggested number, in the office's style: 2026-001, 2026-002 … (printed as
-   "SPECIAL ORDER NO. 2026-001"). The secretary can change it to the records office's number. */
+/* The next suggested number, in the office's style: 2026-0001, 2026-0002 … . The secretary can edit it. */
 function special_order_next_number(): string
 {
     ensure_special_orders();
     $count = (int) q("SELECT COUNT(*) FROM employee_requests WHERE request_type = 'special_order' AND generated_at IS NOT NULL AND YEAR(generated_at) = ?", [date('Y')])->fetchColumn();
-    return date('Y') . '-' . str_pad((string) ($count + 1), 3, '0', STR_PAD_LEFT);
+    return date('Y') . '-' . str_pad((string) ($count + 1), 4, '0', STR_PAD_LEFT);
+}
+
+function special_order_reference_number(string $number): string
+{
+    if (preg_match('/^(\d{4})-(\d{4})$/', $number, $m)) return substr($m[1], -2) . 'PSO43-TO-' . $m[2];
+    return '';
+}
+
+function special_order_recipient_line(array $participants): string
+{
+    if (count($participants) > 3) return 'ALL CONCERNED PSA MISAMIS ORIENTAL OFFICIALS AND PERSONNEL';
+    if (!$participants) return 'ALL CONCERNED PSA MISAMIS ORIENTAL OFFICIALS AND PERSONNEL';
+    return implode("\n\n", array_map(function ($participant) {
+        return mb_strtoupper(trim($participant['firstName'] . ' ' . $participant['lastName'])) . "\n" . $participant['title'];
+    }, $participants));
+}
+
+function special_order_subject(array $order): string
+{
+    $subject = 'Authority to travel';
+    if ($order['destination'] !== '') $subject .= ' to ' . $order['destination'];
+    if ($order['purpose'] !== '') $subject .= ' to Conduct ' . $order['purpose'];
+    return $subject . '.';
+}
+
+function special_order_memo_body(array $order, array $participants): string
+{
+    $names = count($participants) > 3
+        ? 'the PSA Officials and Personnel listed in the attached list'
+        : implode(', ', array_map(function ($p) { return trim($p['firstName'] . ' ' . $p['lastName']); }, $participants));
+    if (count($participants) > 1 && count($participants) <= 3) {
+        $last = array_pop($participants);
+        $names = implode(', ', array_map(function ($p) { return trim($p['firstName'] . ' ' . $p['lastName']); }, $participants)) . ' and ' . trim($last['firstName'] . ' ' . $last['lastName']);
+    }
+    $where = $order['destination'] !== '' ? ' to ' . $order['destination'] : '';
+    $purpose = $order['purpose'] !== '' ? ' to Conduct ' . $order['purpose'] : '';
+    return 'Respectfully requesting for the authority to travel of ' . $names . $where . $purpose . ' from '
+        . special_order_dates_text($order['start'], $order['end']) . '.';
 }
 
 /* "December 1-3, 2026" — the way the SO writes dates. */
@@ -156,9 +278,28 @@ function special_order_dates_text(string $start, ?string $end): string
     return $a->format('F j, Y') . ' - ' . $b->format('F j, Y');
 }
 
-/* The SO body, following the office's sample (S.O. No. 2026-530): authority to attend, the EO 77
-   paragraph, the JO/COS paragraph when the employee is one, and the effectivity clause. */
+/* Default SO text from the Misamis Oriental sample, with expense wording matched to employment type. */
 function special_order_default_body(array $participants, array $request): string
+{
+    $where = $request['destination'] !== '' ? ' to ' . $request['destination'] : '';
+    $event = $request['purpose'] !== '' ? ' to Conduct ' . $request['purpose'] : '';
+    $paragraphs = ['The PSA Officials and Personnel in the attached list are hereby authorized to travel' . $where . $event
+        . ' from ' . special_order_dates_text($request['start'], $request['end']) . '.'];
+    $eligibleForEo298 = array_filter($participants, function ($employee) { return in_array($employee['type'] ?? '', ['Regular', 'Co-Term'], true); });
+    if ($eligibleForEo298) {
+        $paragraphs[] = 'Payment/reimbursement of allowable traveling expenses based on EO No. 298 series of 2004 and resulting differential pursuant to EO No. 77 series of 2019 is chargeable to the general fund, subject to the usual accounting and auditing rules and regulations.';
+    }
+    $jobOrder = array_filter($participants, function ($e) { return in_array($e['type'] ?? '', ['Job Order', 'Contract of Service Worker'], true); });
+    if ($jobOrder) {
+        $paragraphs[] = 'Job Order/Contract of Service Worker shall be entitled to payment of travelling expenses following Office Memorandum 2025-175 subject to the usual accounting and auditing rules and regulations.';
+    }
+    $paragraphs[] = 'THIS SPECIAL ORDER IS TO TAKE EFFECT ON ' . special_order_dates_text($request['start'], $request['end']) . ' INCLUSIVE OF TRAVEL TIME AND IS TO REMAIN IN FORCE UNTIL SOONER REVOKED OR MODIFIED.';
+    return implode("\n\n", $paragraphs);
+}
+
+/* Exact prior auto-generated copy only. This lets an unsigned old draft adopt the new template
+   while leaving text that HR deliberately edited untouched. */
+function special_order_legacy_default_body(array $participants, array $request): string
 {
     $where = $request['destination'] !== '' ? ', at ' . $request['destination'] : '';
     $many = count($participants) > 1;
@@ -167,8 +308,7 @@ function special_order_default_body(array $participants, array $request): string
             . ' on ' . special_order_dates_text($request['start'], $request['end']) . $where . '.',
         'Payment/reimbursement of allowable traveling expenses based on EO No. 77 series of 2019 is chargeable to the general fund, subject to the usual accounting and auditing rules and regulations.',
     ];
-    $jobOrder = array_filter($participants, function ($e) { return in_array($e['type'] ?? '', ['Job Order', 'Contract of Service Worker'], true); });
-    if ($jobOrder) {
+    if (array_filter($participants, function ($e) { return in_array($e['type'] ?? '', ['Job Order', 'Contract of Service Worker'], true); })) {
         $paragraphs[] = 'Job Order/Contract of Service Worker shall be entitled to payment of travelling expenses following Office Memorandum 2025-175 subject to the usual accounting and auditing rules and regulations.';
     }
     $paragraphs[] = 'THIS SPECIAL ORDER SHALL TAKE EFFECT ON DATE SPECIFIED, INCLUSIVE OF TRAVEL TIME, AND REMAIN IN FORCE UNTIL SOONER REVOKED OR MODIFIED.';
@@ -181,12 +321,21 @@ function special_order_defaults(): array
 {
     $saved = q("SELECT v FROM settings WHERE k = 'soDefaults'")->fetchColumn();
     $saved = $saved ? (array) json_decode((string) $saved, true) : [];
-    // First-time values follow the office's sample (S.O. No. 2026-530, PSA RSSO X).
+    // Move only values that match the old sample defaults; keep office-specific values people typed.
+    if (($saved['office'] ?? '') === 'REGION X - NORTHERN MINDANAO') $saved['office'] = 'Misamis Oriental';
+    if (($saved['to'] ?? '') === 'ALL CONCERNED PSA RSSO 10 OFFICIALS AND EMPLOYEES') $saved['to'] = '';
+    if (($saved['forLine'] ?? '') === 'FOR THE REGIONAL DIRECTOR') $saved['forLine'] = '';
+    if (($saved['signatoryTitle'] ?? '') === 'Senior Statistical Specialist') $saved['signatoryTitle'] = 'Chief Statistical Specialist';
+    if (($saved['signatoryDesignation'] ?? '') === 'In-Charge of Office, RSSO 10') $saved['signatoryDesignation'] = 'Provincial Statistical Office - Misamis Oriental';
+    if (isset($saved['footer']) && strpos($saved['footer'], 'rsso10.psa.gov.ph') !== false) {
+        $saved['footer'] = "3rd Floor, Limketkai Module-2 BPO & Cyberpark Bldg., Rosario Crescent\nLimketkai Center, Brgy 31, Cagayan de Oro City\nContact Number: 09565766106\nEmail: misamisoriental@psa.gov.ph";
+    }
+    // First-time values follow the marked Misamis Oriental PSO sample.
     return array_merge([
-        'office' => 'REGION X - NORTHERN MINDANAO', 'to' => 'ALL CONCERNED PSA RSSO 10 OFFICIALS AND EMPLOYEES', 'forLine' => 'FOR THE REGIONAL DIRECTOR',
-        'signatoryName' => '', 'signatoryTitle' => 'Senior Statistical Specialist', 'signatoryDesignation' => 'In-Charge of Office, RSSO 10',
+        'office' => 'Misamis Oriental', 'to' => '', 'forLine' => '',
+        'signatoryName' => 'MARIA LIZA M. BIGORNIA', 'signatoryTitle' => 'Chief Statistical Specialist', 'signatoryDesignation' => 'Provincial Statistical Office - Misamis Oriental',
         'initials' => '', 'preparedName' => '', 'preparedTitle' => '', 'routing' => '',
-        'footer' => "3rd Floor, Limketkai Module-2 BPO & Cyberpark Bldg., Rosario Crescent\nLimketkai Center, Brgy. 31, Cagayan de Oro City\nTelephone: (088)291-1672; 09178219152\nhttp://rsso10.psa.gov.ph      rsso10@psa.gov.ph",
+        'footer' => "3rd Floor, Limketkai Module-2 BPO & Cyberpark Bldg., Rosario Crescent\nLimketkai Center, Brgy 31, Cagayan de Oro City\nContact Number: 09565766106\nEmail: misamisoriental@psa.gov.ph",
     ], array_map('strval', $saved));
 }
 
@@ -194,8 +343,18 @@ function special_order_defaults(): array
 function special_order_meta(?string $json): array
 {
     $meta = $json ? (array) json_decode($json, true) : [];
+    if (!array_key_exists('toManual', $meta)) {
+        $oldTo = trim((string) ($meta['to'] ?? ''));
+        $meta['toManual'] = $oldTo !== '' && !in_array($oldTo, ['ALL CONCERNED', 'ALL CONCERNED PSA RSSO 10 OFFICIALS AND EMPLOYEES'], true);
+    }
+    if (($meta['to'] ?? '') === 'ALL CONCERNED PSA RSSO 10 OFFICIALS AND EMPLOYEES' || ($meta['to'] ?? '') === 'ALL CONCERNED') $meta['toManual'] = false;
+    if (($meta['forLine'] ?? '') === 'FOR THE REGIONAL DIRECTOR') $meta['forLine'] = '';
+    if (($meta['signatoryDesignation'] ?? '') === 'In-Charge of Office, RSSO 10') $meta['signatoryDesignation'] = 'Provincial Statistical Office - Misamis Oriental';
+    if (isset($meta['footer']) && strpos($meta['footer'], 'rsso10.psa.gov.ph') !== false) {
+        $meta['footer'] = "3rd Floor, Limketkai Module-2 BPO & Cyberpark Bldg., Rosario Crescent\nLimketkai Center, Brgy 31, Cagayan de Oro City\nContact Number: 09565766106\nEmail: misamisoriental@psa.gov.ph";
+    }
     return array_merge([
-        'refNo' => '', 'to' => 'ALL CONCERNED', 'subject' => '', 'forLine' => 'FOR THE REGIONAL DIRECTOR',
+        'refNo' => '', 'to' => '', 'toManual' => false, 'subject' => '', 'issueDate' => '', 'memoBody' => '', 'forLine' => '',
         'signatoryDesignation' => '', 'initials' => '', 'footer' => '', 'routing' => '',
         'vehicle' => 'none', 'plate' => '', 'driver' => '',
         'allowances' => true, 'meals' => true, 'incidental' => true, 'lodging' => false,
@@ -232,7 +391,7 @@ function special_order_participants(int $leadId): array
 
 /* Step 2: the secretary drafts the SO/RTA and picks its participants. Saving again edits the
    draft (and the participants) until it is signed. */
-function act_special_order_generate(array $in, array $user): array
+function act_special_order_generate(array $in, array $user, ?array $logoUpload = null): array
 {
     $row = special_order_row(int_in($in, 'id'));
     if ($row['status'] === 'rejected') fail('This request was declined, so no Special Order can be generated.');
@@ -244,8 +403,10 @@ function act_special_order_generate(array $in, array $user): array
     $signatoryTitle = str_in($in, 'signatoryTitle', 120, true, 'Position of the signatory');
     $meta = [
         'refNo' => str_in($in, 'refNo', 60, false, 'Reference No.'),
-        'to' => str_in($in, 'to', 160, true, 'TO'),
+        'to' => str_in($in, 'to', 500, true, 'TO'), 'toManual' => !empty($in['toManual']),
         'subject' => str_in($in, 'subject', 255, true, 'Subject'),
+        'issueDate' => str_in($in, 'issueDate', 80, true, 'Date'),
+        'memoBody' => str_in($in, 'memoBody', 2000, true, 'Travel authority request'),
         'forLine' => str_in($in, 'forLine', 80, false, 'Signing line'),
         'signatoryDesignation' => str_in($in, 'signatoryDesignation', 120, false, 'Designation'),
         'initials' => str_in($in, 'initials', 40, false, 'Initials'),
@@ -279,6 +440,17 @@ function act_special_order_generate(array $in, array $user): array
     $taken = q("SELECT COUNT(*) FROM employee_requests WHERE request_type = 'special_order' AND so_number = ? AND id <> ? AND (so_group_id IS NULL OR so_group_id <> ?)",
         [$number, $row['id'], $row['id']])->fetchColumn();
     if ($taken) fail('Another Special Order already uses number ' . $number . '.', 422, 'soNumber');
+
+    if (!empty($in['resetSoLogo'])) {
+        q('UPDATE so_branding SET header_logo=NULL, header_logo_type=NULL WHERE id=1');
+    } elseif ($logoUpload !== null) {
+        $image = @getimagesizefromstring($logoUpload['bytes']);
+        if (!$image || !in_array($image['mime'] ?? '', ['image/png', 'image/jpeg'], true)) {
+            fail('The header logo must be a valid PNG or JPG image.', 422, 'soHeaderLogo');
+        }
+        q("INSERT INTO so_branding (id, header_logo, header_logo_type) VALUES (1, ?, ?)
+           ON DUPLICATE KEY UPDATE header_logo=VALUES(header_logo), header_logo_type=VALUES(header_logo_type)", [$logoUpload['bytes'], $image['mime']]);
+    }
 
     $leadId = (int) $row['id'];
     db()->beginTransaction();

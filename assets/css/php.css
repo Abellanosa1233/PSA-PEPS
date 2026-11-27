@@ -1539,3 +1539,5 @@ html.sidebar-collapsed .web-app .sidebar .nav .count { display: block; position:
 .so-desk { overflow-x: auto; background: #e9edf2; border-radius: var(--radius); padding: 20px 12px 4px; margin-bottom: 16px; }
 .so-request-extra { padding: 14px 16px; display: grid; gap: 6px; max-width: 595pt; }
 .so-request-extra .field { display: grid; gap: 6px; }
+.so-request-extra .request-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; margin: 0 0 8px; }
+.so-request-extra .request-inputs label { display: grid; gap: 5px; min-width: 0; font-size: 13px; }
