@@ -7,6 +7,8 @@ function action_handler(string $action): string
         'employee.save' => 'act_employee_save', 'employee.status' => 'act_employee_status', 'employee.delete' => 'act_employee_delete',
         'employee.request.create' => 'act_employee_request_create', 'employee.request.decide' => 'act_employee_request_decide',
         'employee.request.cancel' => 'act_employee_request_cancel',
+        // Special Orders: HR/secretary only (employees fall through to the 403 in authorize_action)
+        'specialorder.generate' => 'act_special_order_generate', 'specialorder.email' => 'act_special_order_email',
         'coe.request' => 'act_coe_request',
         'coe.update' => 'act_coe_update',
         'leave.create' => 'act_leave_create', 'leave.decide' => 'act_leave_decide', 'leave.cancel' => 'act_leave_cancel',

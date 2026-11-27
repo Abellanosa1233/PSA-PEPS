@@ -173,19 +173,21 @@ function self_time_off_section(array $state, int $id, string $page, bool $openFo
     echo '</section>';
 }
 
+/* Step 1 of a Special Order: the employee asks for one. Shared by My time off and Special Orders. */
+function special_order_request_form(int $id): void
+{
+    // The request is filled in on the Special Order itself (views/pages/special-order-request.php).
+    echo '<a class="btn primary" href="' . h(page_url('special-order-request')) . '">Request Special Order</a>';
+}
+
 function self_orders_section(array $state, int $id): void
 {
     $myRequests = array_values(array_filter($state['employeeRequests'], function ($request) use ($id) { return $request['empId'] === $id; }));
     card('Employee requests');
     echo '<div class="card-body"><p class="muted" style="margin-bottom:12px">Your supervisor or HR can review orders. HR prepares certificates from submitted COE requests.</p><div class="toolbar">';
-    echo '<details class="form-disclosure" data-form-dialog="form"><summary class="btn primary">Request Special Order</summary>';
-    post_form('employee.request.create', ['empId' => $id, 'type' => 'special_order']);
-    field('purpose', 'Order subject');
-    field('start', 'Effective date', today(), 'date');
-    field('end', 'End date', '', 'date', false);
-    field('details', 'Details', '', 'text', false);
-    end_form('Submit Special Order');
-    echo '</details><details class="form-disclosure" data-form-dialog="form"><summary class="btn">Request Travel Order</summary>';
+    // Special Orders are requested on the Special Order itself (Special Orders page).
+    special_order_request_form($id);
+    echo '<details class="form-disclosure" data-form-dialog="form"><summary class="btn">Request Travel Order</summary>';
     post_form('employee.request.create', ['empId' => $id, 'type' => 'travel_order']);
     field('purpose', 'Travel purpose');
     field('destination', 'Destination');

@@ -1,0 +1,119 @@
+/* Special Order document (S.O. No. 2026-530 template, PSA RSSO X): shared by the printable
+   SO/RTA and the employee's Request Special Order page, so both look the same.
+   Sizes are in pt, measured from the template (A4, 70pt side margins). Everything is scoped
+   under .so-sheet so it never touches the app's own styles. */
+.so-sheet, .so-sheet * { box-sizing: border-box; }
+.so-sheet { position: relative; background: #fff; color: #111; width: 595pt; min-height: 842pt; margin: 0 auto 16px; padding: 84pt 70pt 76pt;
+  box-shadow: 0 2px 10px rgba(0,0,0,.12); font: 11pt/12.65pt Arial, Helvetica, sans-serif; text-align: left; }
+.so-sheet p { margin: 0; }
+
+/* Letterhead: seal 69–130pt, text 134–419pt, Bagong Pilipinas 429–501pt */
+.so-sheet .letterhead { position: absolute; top: 0; left: 0; right: 0; height: 84pt; }
+.so-sheet .letterhead .seal { position: absolute; left: 68pt; top: 16pt; width: 63pt; height: 63pt; }
+.so-sheet .letterhead .bp { position: absolute; left: 429pt; top: 14pt; width: 72pt; height: 63pt; }
+.so-sheet .lh-text { position: absolute; left: 134pt; top: 23.65pt; width: 285pt; font-family: "Book Antiqua", "Palatino Linotype", Palatino, Georgia, serif; color: #1a1a1a; line-height: 1; }
+.so-sheet .lh-republic { display: block; font-size: 8.5pt; font-variant: small-caps; text-transform: lowercase; letter-spacing: .02em; }
+.so-sheet .lh-republic::first-letter { text-transform: none; }
+.so-sheet .lh-republic, .so-sheet .lh-name, .so-sheet .lh-office { width: max-content; }
+/* Tight stack as on the letterhead: name caps 34pt, rule 2pt under the name, region caps 52.5pt. */
+.so-sheet .lh-name { display: block; margin-top: 2.35pt; font-size: 19.8pt; line-height: 13.5pt; font-variant: small-caps; letter-spacing: .01em; padding-bottom: 2.06pt; border-bottom: 1pt solid #1a1a1a; white-space: nowrap; }
+.so-sheet .lh-office { display: block; margin-top: .19pt; font-size: 14pt; text-transform: uppercase; letter-spacing: .03em; white-space: nowrap; }
+
+/* Page 1. Every margin puts a line's text where it is on the template, in pt from the top:
+   Reference No. 84, SO NO. 113.5, TO 156.5, SUBJECT 183.5, DATE 224.5, body from 250 on 12.7pt
+   lines with one blank line between paragraphs, FOR line one blank line after, signatory name
+   516.5 (room for the signature), initials 593. */
+.so-sheet .ref { position: absolute; top: 82.65pt; left: 70pt; font-style: italic; font-size: 8.5pt; line-height: 9pt; }
+.so-sheet .so-no { margin: 28pt 0 0; font-weight: 700; font-size: 12pt; line-height: 14pt; }
+.so-sheet .lines { display: grid; grid-template-columns: 73pt 35.5pt 1fr; row-gap: 12.6pt; margin: 28.24pt 0 0; line-height: 14.25pt; }
+.so-sheet .lines .u { text-decoration: underline; }
+.so-sheet .body { margin-top: 12.05pt; }
+.so-sheet .para { text-align: justify; margin: 0 0 12.65pt; }
+.so-sheet.so-p1 .body, .so-sheet.so-p1 .for-line { line-height: 12.7pt; }
+.so-sheet.so-p1 .body .para { margin-bottom: 12.7pt; }
+.so-sheet .for-line { font-weight: 700; }
+.so-sheet .signatory { margin-top: 50.43pt; display: flex; flex-direction: column; line-height: 13pt; }
+.so-sheet .initials { margin: 37.68pt 0 0; font-size: 8.5pt; line-height: 9pt; }
+
+/* Page 2, RTA memorandum, positioned from the MEMORANDUM line as on the template. Boxes:
+   38.6 × 14.9pt at 22pt in; stacked 28pt boxes at 135pt and 141pt in. */
+.so-sheet.memo .memo-title { margin: 2.1pt 0 0; font-weight: 700; }
+.so-sheet.memo .lines { margin-top: 11.57pt; line-height: 13pt; row-gap: 12.4pt; }
+.so-sheet.memo .body { margin-top: 11.85pt; }
+.so-sheet.memo .body .para { margin: 0; }
+.so-sheet .checks { margin-left: 22.2pt; }
+.so-sheet .check { display: flex; align-items: center; gap: 8.4pt; }
+.so-sheet .box { flex: none; display: inline-block; width: 38.6pt; height: 14.9pt; border: .8pt solid #111; text-align: center; font-weight: 700; line-height: 13.3pt; }
+.so-sheet .checks.vehicle { margin-top: 9.2pt; }
+.so-sheet .vehicle-note { font-size: 8pt; line-height: 13.2pt; margin: -1.44pt 0 1.34pt 59pt; }
+.so-sheet.memo .para.second { margin: 12.62pt 0 0; }
+.so-sheet .checks.allowances { margin-top: 7.68pt; }
+.so-sheet .stack { margin-top: 21.2pt; margin-left: 135pt; }
+.so-sheet .stack.second { margin-top: 14.8pt; margin-left: 141.4pt; }
+.so-sheet .stack .check { gap: 8.9pt; }
+.so-sheet .stack .box { width: 28pt; height: 13.65pt; line-height: 12.1pt; }
+.so-sheet .stack.second .box { height: 13.1pt; line-height: 11.6pt; }
+.so-sheet .stack .check + .check .box { border-top: 0; } /* stacked boxes share their borders */
+.so-sheet .checks.expenses { margin-top: 13.2pt; }
+.so-sheet .checks.expenses .check { align-items: flex-start; }
+.so-sheet .checks.expenses .check span:last-child { padding-top: 1.2pt; }
+.so-sheet.memo .para.consider { margin: 5pt 0 0; }
+.so-sheet .prepared { margin-top: 50.5pt; display: flex; flex-direction: column; line-height: 13.2pt; }
+.so-sheet .routing { position: absolute; left: 330pt; top: 597pt; border-collapse: collapse; font-size: 6.5pt; line-height: 8pt; }
+.so-sheet .routing th, .so-sheet .routing td { border: .6pt solid #111; padding: 0 3pt; min-width: 40pt; text-align: left; }
+
+/* Page 3: title 86.5pt, date line 112, table from 135 as on the template. */
+.so-sheet .list-title { text-align: center; font-weight: 700; font-style: italic; margin: .3pt 0 0; }
+.so-sheet .day { font-weight: 700; margin: .7pt 0 12.5pt; }
+.so-sheet table.participants { border-collapse: collapse; width: 100%; font-size: 10pt; line-height: 11.5pt; table-layout: fixed; }
+.so-sheet table.participants col.c1 { width: 18.5%; } .so-sheet table.participants col.c2 { width: 19.8%; } .so-sheet table.participants col.c3 { width: 20.8%; }
+.so-sheet table.participants col.c4 { width: 24.9%; } .so-sheet table.participants col.c5 { width: 16%; }
+.so-sheet table.participants th, .so-sheet table.participants td { border: .8pt solid #111; padding: 1.5pt 3pt; text-align: left; vertical-align: top; }
+.so-sheet table.participants th { font-weight: 700; }
+.so-sheet table.participants td.c { text-align: center; }
+.so-sheet table.participants td.mid { text-align: center; vertical-align: middle; }
+.so-sheet table.participants thead { display: table-header-group; } /* repeat the header on every printed page */
+.so-sheet table.participants tr { page-break-inside: avoid; }
+.so-sheet.participants-sheet { padding-bottom: 90pt; }
+
+/* Footer: ISO and QR marks 73–153pt, address from 162pt, 782–822pt from the top */
+.so-sheet .foot { position: absolute; left: 73pt; bottom: 19pt; display: flex; align-items: center; gap: 9pt; font-size: 8.4pt; line-height: 10.2pt; }
+.so-sheet .foot img { width: 80pt; height: 45pt; }
+.so-sheet .foot-text { white-space: pre-wrap; } /* keeps the line breaks and the gap before the email address */
+
+.so-sheet .so-upper { text-transform: uppercase; }
+
+/* Editing on the document (HR's Generate SO/RTA): text is typed in place, so the page keeps its
+   printed layout. A light tint shows what can be changed; nothing here prints. */
+.so-sheet .so-edit { outline: 1px dashed transparent; border-radius: 2px; background: rgba(31, 78, 140, .06); cursor: text; min-width: 12pt; }
+.so-sheet .so-edit:hover { outline-color: rgba(31, 78, 140, .45); }
+.so-sheet .so-edit:focus { outline: 1.5px solid #1f4e8c; background: rgba(31, 78, 140, .1); }
+.so-sheet .so-edit:empty::before { content: attr(data-placeholder); color: #8a94a3; font-style: italic; text-transform: none; }
+.so-sheet span.so-edit, .so-sheet b > .so-edit { display: inline; }
+.so-sheet .lh-office.so-edit { display: block; }
+.so-sheet .so-body-edit { display: block; white-space: pre-wrap; text-align: justify; margin-bottom: 12.7pt; }
+.so-sheet .foot-text.so-edit { display: block; min-width: 200pt; }
+.so-sheet .so-box { cursor: pointer; }
+.so-sheet .so-box input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.so-sheet .so-box span { visibility: hidden; }
+.so-sheet .so-box input:checked + span { visibility: visible; }
+.so-sheet .so-box:hover { background: rgba(31, 78, 140, .08); }
+.so-sheet .so-box:focus-within { outline: 1.5px solid #1f4e8c; outline-offset: 1px; }
+.so-sheet .so-select { font: inherit; border: 0; background: rgba(31, 78, 140, .06); text-align: center; padding: 0; width: 100%; cursor: pointer; }
+.so-sheet .so-remove { float: right; border: 0; background: none; color: #b42318; font: 700 11pt/1 Arial, sans-serif; cursor: pointer; padding: 0 0 0 4pt; }
+.so-sheet .so-add-participant { margin-top: 10pt; font: 9pt Arial, sans-serif; color: #405065; }
+.so-sheet .so-add-participant select { display: block; margin-top: 3pt; width: 100%; font: 10pt Arial, sans-serif; padding: 3pt; border: 1px solid #b9c5d4; border-radius: 4px; background: #fff; }
+
+/* Request Special Order: the employee fills in the blanks on the document itself. */
+.so-sheet .blank { font: inherit; color: #0b3a82; background: #f3f7ff; border: 0; border-bottom: 1pt solid #0b3a82; padding: 0 2pt; margin: 0; border-radius: 0; line-height: inherit; vertical-align: baseline; }
+.so-sheet .blank:focus { outline: 2px solid #8fb0ea; outline-offset: 1px; background: #e8f0ff; }
+.so-sheet .blank[type="date"] { width: 104pt; }
+.so-sheet .blank.wide { width: 100%; }
+.so-sheet .muted-blank { color: #8a94a3; font-style: italic; }
+.so-sheet .field-note { display: block; font: 8pt/10pt Arial, sans-serif; color: #8a94a3; margin-top: 1pt; }
+
+@media print {
+  @page { size: A4; margin: 0; }
+  .so-sheet { margin: 0; box-shadow: none; width: 210mm; min-height: 297mm; page-break-after: always; }
+  .so-sheet:last-child { page-break-after: auto; }
+}

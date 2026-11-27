@@ -131,7 +131,7 @@
 <?php else:
     $navIcons = [
         'overview' => 'grid', 'employees' => 'users', 'attendance' => 'clock', 'time-off' => 'calendar',
-        'recruitment' => 'briefcase', 'reports' => 'chart',
+        'special-orders' => 'file', 'recruitment' => 'briefcase', 'reports' => 'chart',
     ];
     $isAdmin = is_admin($user);
     // HR is notified of every pending request; a supervising employee only of their direct reports' requests.
@@ -145,6 +145,10 @@
     // Attendance corrections are decided by HR only.
     $pendingCorrections = $isAdmin ? array_filter($state['corrections'] ?? [], function ($c) { return $c['status'] === 'pending'; }) : [];
     $pendingCount = count($pendingLeaves) + count($pendingEmployeeRequests) + count($pendingCorrections);
+    // Special Orders the secretary still has to generate or get signed.
+    $openSpecialOrders = $isAdmin ? count(array_filter($state['employeeRequests'] ?? [], function ($r) {
+        return $r['type'] === 'special_order' && $r['groupId'] === null && in_array(special_order_stage($r), ['requested', 'for_signature'], true);
+    })) : 0;
     $employeesById = array_column($state['employees'] ?? [], null, 'id');
     $notifications = [];
     foreach ($pendingLeaves as $leave) $notifications[] = ['leave', $leave];
@@ -173,16 +177,16 @@
                     <?= icon('chevDown', 14) ?>
                 </a>
             </div>
-            <?php if (!$isAdmin) $navIcons = ['overview' => 'grid', 'my-time-off' => 'calendar', 'my-attendance' => 'clock', 'my-profile' => 'user']; ?>
+            <?php if (!$isAdmin) $navIcons = ['overview' => 'grid', 'my-time-off' => 'calendar', 'special-orders' => 'file', 'my-attendance' => 'clock', 'my-profile' => 'user']; ?>
             <?php $navIcons['work-calendar'] = 'calendar'; ?>
             <?php if (!$isAdmin && !empty($user['canViewCoeRequests'])) $navIcons['coe-requests'] = 'file'; ?>
             <div>
                 <div class="side-label"><?= $isAdmin ? 'Manage' : 'My workspace' ?></div>
                 <nav class="nav">
                     <?php foreach ($navIcons as $key => $navIcon): ?>
-                        <a href="<?= h(page_url($key)) ?>" title="<?= h($pages[$key]) ?>"<?= $key === $page || ($key === 'my-time-off' && $page === 'request-leave') ? ' class="active" aria-current="page"' : '' ?>>
+                        <a href="<?= h(page_url($key)) ?>" title="<?= h($pages[$key]) ?>"<?= $key === $page || ($key === 'my-time-off' && $page === 'request-leave') || ($key === 'special-orders' && in_array($page, ['special-order-edit', 'special-order-request'], true)) ? ' class="active" aria-current="page"' : '' ?>>
                             <?= icon($navIcon) ?><span><?= h($pages[$key]) ?></span>
-                            <?php $navCount = $key === $reviewPage ? $pendingCount - count($pendingCorrections) : ($key === 'attendance' ? count($pendingCorrections) : 0); if ($navCount): ?><span class="count"><?= $navCount ?></span><?php endif; ?>
+                            <?php $navCount = $key === $reviewPage ? $pendingCount - count($pendingCorrections) : ($key === 'attendance' ? count($pendingCorrections) : ($key === 'special-orders' ? $openSpecialOrders : 0)); if ($navCount): ?><span class="count"><?= $navCount ?></span><?php endif; ?>
                         </a>
                     <?php endforeach; ?>
                 </nav>
@@ -270,7 +274,7 @@
                 </div>
             </header>
             <main class="content">
-                <?php if (!in_array($page, ['overview', 'employees', 'attendance', 'time-off', 'reports', 'my-time-off', 'request-leave', 'my-attendance', 'my-profile', 'coe-requests'], true) || !$state): ?>
+                <?php if (!in_array($page, ['overview', 'employees', 'attendance', 'time-off', 'reports', 'special-orders', 'special-order-edit', 'special-order-request', 'my-time-off', 'request-leave', 'my-attendance', 'my-profile', 'coe-requests'], true) || !$state): ?>
                     <div class="page-head"><h1><?= h($pages[$page]) ?></h1></div>
                 <?php endif; ?>
                 <?php
